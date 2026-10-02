@@ -20,6 +20,9 @@ import (
 // render 是报错或警告给人看的样子：命令层渲染 *clierr.Error 一律经过它。
 func (o *Options) render(e *clierr.Error) string { return o.shown(e).Format() }
 
+// renderCoded 与 render 相同，标题行带错误码：lint 报告里的每一条用它（见 clierr.FormatCoded）。
+func (o *Options) renderCoded(e *clierr.Error) string { return o.shown(e).FormatCoded() }
+
 // shown 是给人看的那一份错误：路径按使用者所在的目录写。原错误不变。
 func (o *Options) shown(e *clierr.Error) *clierr.Error { return e.MapText(o.relativize) }
 

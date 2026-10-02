@@ -71,8 +71,10 @@ container port (5432 → 15432, 8080 → 18080), or the first free port from 180
 the env file / process gets `localhost:<that port>`; a dependency hosted in a shell is published on the
 shell's container. Containers that call the process keep its service name, resolved to the host by
 `extra_hosts: <service>:host-gateway`. These are the ports BrickKit assigns in one run; one already
-used by another program on your machine fails when the engine binds it — so keep 8081+ and
-10000 + your container ports out of the project's own port registry.
+used by another program on your machine fails when the engine binds it. A project's own port registry
+can use 8080, 8081 and their neighbours as usual; a process leaves its `deployment.port` (for the first
+free port from 8081, possibly another component's) only when this `up` already assigned that port —
+write `localPort` to fix it — and 10000 + your container ports must stay free for the mappings.
 
 **4. Environments are whole files: `brickkit up -f deploy.prod.yaml`.**
 

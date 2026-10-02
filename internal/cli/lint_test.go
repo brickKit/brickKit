@@ -263,8 +263,9 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 
 	r := runWithLogs(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
-	errorBlock := strings.Index(r.stdout, "❌ Error: component.yaml failed validation")
-	warningBlock := strings.Index(r.stdout, "⚠️ Warning: some keys declared on configSchema items won't take effect")
+	// 报告里的每一条都带着错误码：警告没有自己的日志行，读的人和脚本靠它认出是哪一类
+	errorBlock := strings.Index(r.stdout, "❌ [MANIFEST_INVALID] Error: component.yaml failed validation")
+	warningBlock := strings.Index(r.stdout, "⚠️ [MANIFEST_INVALID] Warning: some keys declared on configSchema items won't take effect")
 	require.GreaterOrEqual(t, errorBlock, 0, "错误块要打印：%s", r.stdout)
 	require.GreaterOrEqual(t, warningBlock, 0, "警告块也要打印：%s", r.stdout)
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")

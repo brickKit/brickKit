@@ -261,6 +261,25 @@ func conformsToCatalog(line string, marks map[string]bool, templates []*regexp.R
 	return isDataOnly(whole)
 }
 
+// findingCode 匹配 lint 报告里每一条标题行带的错误码：`⚠️ [DOC_PLACEHOLDER] …`（clierr.FormatCoded）。
+var findingCode = regexp.MustCompile(`^\[([A-Z][A-Z_]*)\] `)
+
+// stripFindingCode 去掉 ❌ / ⚠️ 后面的 [错误码]，返回剩下的那一行给目录核对。码只能跟在这两个符号后面，
+// 而且必须是 clierr.go 里真有的码：文档里写了一个不存在的码时 ok 为 false，这一行算不合格。
+func stripFindingCode(line string, marks map[string]bool, codes map[string]bool) (text string, ok bool) {
+	trimmed := strings.TrimSpace(stripTree(line))
+	mark := leadingMark(trimmed)
+	if mark != "❌" && mark != "⚠️" {
+		return line, true
+	}
+	rest := strings.TrimLeft(trimmed[len(mark):], " ")
+	m := findingCode.FindStringSubmatch(rest)
+	if m == nil {
+		return line, true
+	}
+	return mark + " " + rest[len(m[0]):], codes[m[1]]
+}
+
 // docOutputLine 是文档里的一处输出行。
 type docOutputLine struct {
 	path string
@@ -342,13 +361,18 @@ func TestDocOutputLinesConformToCatalog(t *testing.T) {
 				"%s：只编出 %d 个行模板——compileLineTemplates 坏了，这条测试的结论不可信", lang, len(templates))
 			marks := outputMarks(catalog)
 			require.GreaterOrEqual(t, len(marks), 8, "%s：只认出 %d 个输出符号——outputMarks 坏了", lang, len(marks))
+			codes := map[string]bool{}
+			for _, code := range clierrCodes(t) {
+				codes[code] = true
+			}
 
 			checked := 0
 			var offenders []string
 			for _, rel := range docFiles(t, string(lang)) {
 				for _, ln := range fencedOutputLines(t, rel, marks) {
 					checked++
-					if conformsToCatalog(ln.text, marks, templates) {
+					text, codeOK := stripFindingCode(ln.text, marks, codes)
+					if codeOK && conformsToCatalog(text, marks, templates) {
 						continue
 					}
 					allowed := false
@@ -394,6 +418,27 @@ func TestOutputLineMatcher(t *testing.T) {
 	assert.True(t, conformsToCatalog("📦 components/a/    → components/.archived/a", marks, templates), "路径对路径的列放行")
 	assert.False(t, conformsToCatalog("📦 the source went missing", marks, templates), "一句不在目录里的话不能放行")
 	assert.True(t, conformsToCatalog("💡 Can start on their own: x (no dependencies)", marks, templates), "渲染器加的符号要认")
+}
+
+// lint 报告的每一条带着 [错误码]：真有的码剥掉再核对文案，编出来的码不放行。
+func TestStripFindingCode(t *testing.T) {
+	marks := map[string]bool{"❌": true, "⚠️": true, "✅": true}
+	codes := map[string]bool{"DOC_PLACEHOLDER": true}
+
+	text, ok := stripFindingCode("⚠️ [DOC_PLACEHOLDER] a placeholder (TODO) is still in the text", marks, codes)
+	assert.True(t, ok)
+	assert.Equal(t, "⚠️ a placeholder (TODO) is still in the text", text)
+
+	_, ok = stripFindingCode("⚠️ [DOC_PLACEHOLDR] a placeholder (TODO) is still in the text", marks, codes)
+	assert.False(t, ok, "不存在的码必须被拦下")
+
+	text, ok = stripFindingCode("✅ [x] done", marks, codes)
+	assert.True(t, ok)
+	assert.Equal(t, "✅ [x] done", text, "只认 ❌ 与 ⚠️ 后面的码")
+
+	text, ok = stripFindingCode("❌ Error: nothing here", marks, codes)
+	assert.True(t, ok)
+	assert.Equal(t, "❌ Error: nothing here", text)
 }
 
 // 固定文字少、却带着自己的行首符号和标点骨架的文案（"⬆️  %s：%s → %s"）：只在符号相同时整行匹配。

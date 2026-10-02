@@ -66,7 +66,7 @@ brickkit lint
 
 ```text
 ✅ brickkit.yaml
-❌ 错误：deploy.yaml 校验失败
+❌ [CONFIG_INVALID] 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[0].exposed：未知字段（第 7 行），是不是想写 expose？
    建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
@@ -98,13 +98,17 @@ brickkit lint
 每一组文档在报告里占一行——项目是 `✅ ./（文档）`，组件是 `✅ components/demo/hello/（文档）`——有问题时那一行换成具体的警告：
 
 ```text
-⚠️ BRICKKIT.md 在别的项目缓存里是单独读的，相对链接 openapi.json 在那里是死的：用行内代码写文件名，或用绝对地址
+⚠️ [DOC_LINK_NOT_PORTABLE] BRICKKIT.md 在别的项目缓存里是单独读的，相对链接 openapi.json 在那里是死的：用行内代码写文件名，或用绝对地址
    文件：components/demo/hello/BRICKKIT.md
    行：46
 ```
 
 **文档方面的发现一律是警告。** 它从不挡住 `lint`、`up` 或 `release`：文档落后一点是要修的问题，不是停掉一次部署的理由。
 想让 CI 把住这道关的团队，用 `--strict` 把警告变成失败。
+
+报告里的每一条——不管是错误还是警告，查的是文档还是三层文件——标题行开头都用方括号带着它的
+[错误码](../06-architecture/09-error-codes.md)。错误码在哪种语言、哪个版本下都一样，所以脚本和 CI 规则该匹配的是它，
+要查资料时查的也是它；后面那句话是给人读的。文档检查用的是这几个：
 
 | 代码 | 意思 |
 | --- | --- |
@@ -133,10 +137,10 @@ brickkit lint --strict
 ```
 
 ```text
-⚠️ 警告：demo/caller@1.0.0 的 DATABASE_NAME 指向的 file:// 文件不存在
+⚠️ [CONFIG_INVALID] 警告：demo/caller@1.0.0 的 DATABASE_NAME 指向的 file:// 文件不存在
    路径：.secrets/dbname
    建议：file:// 的路径相对项目根；这类文件不要进 Git（比如放在 .secrets/ 下）
-⚠️ 警告：demo/caller@1.0.0 的 DATABASE_USER 引用的环境变量在这里没有设置
+⚠️ [CONFIG_INVALID] 警告：demo/caller@1.0.0 的 DATABASE_USER 引用的环境变量在这里没有设置
    变量：DB_USER
    建议：先查进程环境，再查项目根目录的 .env——在其中一处设好它
 ```

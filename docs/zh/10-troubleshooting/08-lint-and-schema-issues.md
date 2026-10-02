@@ -10,7 +10,7 @@
 `brickkit up` 跑得好好的，`brickkit lint` 却报错，比如：
 
 ```text
-❌ 错误：deploy.local.yaml 已过期，与 brickkit.yaml 的组件对不上
+❌ [DEPLOY_INCONSISTENT] 错误：deploy.local.yaml 已过期，与 brickkit.yaml 的组件对不上
    文件：deploy.local.yaml
    缺少条目：demo/bus
    原因：brickkit.yaml 变了，你的 deploy.local.yaml 没有同步。本地模式现在关着，命令不读它；但下次 brickkit local on 就会读到它

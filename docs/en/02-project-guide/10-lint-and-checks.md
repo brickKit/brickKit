@@ -72,7 +72,7 @@ A typical error:
 
 ```text
 ✅ brickkit.yaml
-❌ Error: deploy.yaml failed validation
+❌ [CONFIG_INVALID] Error: deploy.yaml failed validation
    File: deploy.yaml
    components[0].exposed: unknown field (line 7), did you mean expose?
    Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
@@ -107,7 +107,7 @@ Each set of documents is one line in the report — `✅ ./ (docs)` for the proj
 a component — or, when something is off, the warnings in its place:
 
 ```text
-⚠️ BRICKKIT.md is read alone in other projects' caches, so the relative link openapi.json is dead there: name the file as inline code, or use an absolute URL
+⚠️ [DOC_LINK_NOT_PORTABLE] BRICKKIT.md is read alone in other projects' caches, so the relative link openapi.json is dead there: name the file as inline code, or use an absolute URL
    File: components/demo/hello/BRICKKIT.md
    Line: 46
 ```
@@ -115,6 +115,11 @@ a component — or, when something is off, the warnings in its place:
 **Every documentation finding is a warning.** It never stops `lint`, `up` or `release`: a document that is a little
 behind is a problem to fix, not a reason to stop a deployment. `--strict` turns warnings into a failure, for a team that
 wants CI to hold the line.
+
+Every finding in the report — error or warning, about the documents or about the three layers — starts with its
+[error code](../06-architecture/09-error-codes.md) in brackets. The code is the same in every language and every version,
+so it is what a script or a CI rule should match, and what you look up; the sentence after it is for reading. The
+documentation checks use these:
 
 | Code | What it means |
 | --- | --- |
@@ -145,10 +150,10 @@ brickkit lint --strict
 ```
 
 ```text
-⚠️ Warning: demo/caller@1.0.0's DATABASE_NAME points at a file:// that does not exist
+⚠️ [CONFIG_INVALID] Warning: demo/caller@1.0.0's DATABASE_NAME points at a file:// that does not exist
    Path: .secrets/dbname
    Suggestion: file:// paths are relative to the project root; keep such files out of Git (e.g. under .secrets/)
-⚠️ Warning: demo/caller@1.0.0's DATABASE_USER references an environment variable that is not set here
+⚠️ [CONFIG_INVALID] Warning: demo/caller@1.0.0's DATABASE_USER references an environment variable that is not set here
    Variable: DB_USER
    Suggestion: It is looked up in the process environment first, then .env in the project root — set it in one of them
 ```

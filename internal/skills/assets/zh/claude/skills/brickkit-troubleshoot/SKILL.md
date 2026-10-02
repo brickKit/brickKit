@@ -170,7 +170,7 @@ docker / podman 用就留着，否则删掉。
 | `SIGNATURE_INVALID` | 开了 `requireSignature`，市场上的组件没签名 | 请发布者给一个签过名的版本 |
 | `CLONE_FAILED` | `add --repo` 克隆失败：git 报错，`components/` 下已有同名目录，或源码在归档里 | 读 git 的原话；挪开那个目录；归档里的用 `brickkit sync` 拿回来 |
 | `SUBMODULE_GUARD` | `sync` / `remove` 要移动或删除的目录是项目仓库登记过的 git submodule | 先在项目仓库里注销这个 submodule |
-| `LINT_FAILED` | `brickkit lint` 查出问题，每条带文件和字段 | 修好重跑；警告只在 `--strict` 下算失败 |
+| `LINT_FAILED` | `brickkit lint` 查出问题，每条开头用方括号带着自己的错误码（`⚠️ [DOC_PLACEHOLDER] …`），并带文件和字段 | 按每条的错误码在本表里查，修好重跑；警告只在 `--strict` 下算失败 |
 | `DOC_FILE_MISSING` / `DOC_SECTION_MISSING`（lint 警告） | 缺了必需的文档（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`）或其中一个固定小节 | 补上；`brickkit new` 能看到全套样子，`brickkit skills update` 会建出缺的 `AGENTS.md` / `CLAUDE.md` |
 | `DOC_PATH_MISSING` / `DOC_LINK_BROKEN` | `AGENTS.md` 代码地图里的路径、或某条相对链接指向的东西不在——代码挪了、文档没跟上 | 改文档里的路径或链接 |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接（在别的项目缓存里是死的），或组件的其他文档——`AGENTS.md`、`README.md`、`docs/`——链出了组件目录（`../…`） | `BRICKKIT.md` 里用行内代码写文件名；组件文档自成一体 |

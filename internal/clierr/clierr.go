@@ -294,13 +294,25 @@ func mapAll(in []string, f func(string) string) []string {
 }
 
 // Format 把错误渲染成用户可读的多行文本（不含结尾换行之外的额外空行）。
-func (e *Error) Format() string {
+func (e *Error) Format() string { return e.format(false) }
+
+// FormatCoded 与 Format 相同，标题行多带上错误码：`⚠️ [DOC_PLACEHOLDER] …`。
+//
+// 给"一次列出很多条问题"的报告用（lint）：命令失败时错误码在紧跟的那行 JSON 日志里，
+// 而报告里的每一条——尤其是警告——没有自己的日志行，读的人和脚本只能靠这里认出它是哪一类。
+func (e *Error) FormatCoded() string { return e.format(true) }
+
+func (e *Error) format(coded bool) string {
 	symbol := "❌"
 	if e.Warning {
 		symbol = "⚠️"
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s %s\n", symbol, e.Message)
+	if coded && e.Code != "" {
+		fmt.Fprintf(&b, "%s [%s] %s\n", symbol, e.Code, e.Message)
+	} else {
+		fmt.Fprintf(&b, "%s %s\n", symbol, e.Message)
+	}
 	for _, d := range e.Details {
 		// 多行的值（引擎的原始输出、Dockerfile 摘录、git 的原话）按行给出，续行比明细行多缩进三格：
 		// 压成一行，摘录里的行号与 >>> 标记就读不出来了

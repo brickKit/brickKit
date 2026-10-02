@@ -65,6 +65,15 @@ func TestFormatNoDetailsOrHints(t *testing.T) {
 	assert.Equal(t, "❌ 请指定项目名称\n", New(CodeInvalidArgument, "请指定项目名称").Format())
 }
 
+// 带码的写法只在标题行多一段 [错误码]，其余与 Format 逐字相同；错误和警告一样。
+func TestFormatCodedPutsTheCodeOnTheTitleLine(t *testing.T) {
+	warning := Warn(CodeDocPlaceholder, "正文里还留着占位词").WithDetail("文件", "README.md")
+	assert.Equal(t, "⚠️ [DOC_PLACEHOLDER] 正文里还留着占位词\n"+strings.TrimPrefix(warning.Format(), "⚠️ 正文里还留着占位词\n"),
+		warning.FormatCoded())
+	assert.Equal(t, "❌ [INVALID_ARGUMENT] 请指定项目名称\n", New(CodeInvalidArgument, "请指定项目名称").FormatCoded())
+	assert.Equal(t, "❌ 没有码\n", (&Error{Message: "没有码"}).FormatCoded())
+}
+
 // 错误退出码非 0，警告退出码为 0。
 func TestExitCodes(t *testing.T) {
 	assert.Equal(t, ExitError, New(CodeInternal, "x").ExitCode())

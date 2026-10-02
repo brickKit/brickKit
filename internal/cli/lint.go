@@ -435,10 +435,10 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 			continue
 		}
 		for _, e := range f.errors {
-			opts.Printf("%s", opts.render(e))
+			opts.Printf("%s", opts.renderCoded(e))
 		}
 		for _, w := range f.warnings {
-			opts.Printf("%s", opts.render(w))
+			opts.Printf("%s", opts.renderCoded(w))
 		}
 		if len(f.errors) > 0 {
 			failed++
@@ -492,8 +492,8 @@ func componentDocs(opts *Options, dir string) (lintFile, bool) {
 	return lintDocs(opts, dir, doccheck.Component(dir, m)), true
 }
 
-// logFindings 把每条查出的问题记一行 info 级的日志，带上 error_code 与文件：脚本据此区分各类问题
-// （人看的块里不带码）。默认的 warn 级别下不出现——一个项目里几十条文档警告，不该每条都多一行 JSON。
+// logFindings 把每条查出的问题记一行 info 级的日志，带上 error_code 与文件：要结构化数据的脚本用它
+// （报告里每一条的标题行也带着码）。默认的 warn 级别下不出现——一个项目里几十条文档警告，不该每条都多一行 JSON。
 func logFindings(opts *Options, f lintFile) {
 	label := i18n.T(msgid.LabelFile)
 	for _, e := range append(append([]*clierr.Error(nil), f.errors...), f.warnings...) {
