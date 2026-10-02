@@ -275,3 +275,43 @@ func TestLocalRefreshListsFieldsRemovedLocally(t *testing.T) {
 	r = mustLocal(t, dir, "refresh")
 	assert.NotContains(t, r.stdout, "removed locally", r.stdout)
 }
+
+const teamFileChangedNote = "deploy.yaml has changed since deploy.local.yaml was copied from it"
+
+// 本地模式下，团队对 deploy.yaml 的改动在本机不生效——这件事有文档，但很容易忘。status 拿当前的
+// deploy.yaml 和上次复制时存下的基线比，数据变了就提一句 refresh；只改注释不算；refresh 之后不再提。
+func TestLocalStatusNotesTeamFileChangedSinceCopy(t *testing.T) {
+	dir := localProject(t)
+	mustLocal(t, dir, "on")
+	assert.NotContains(t, mustLocal(t, dir, "status").stdout, teamFileChangedNote)
+
+	writeTree(t, dir, map[string]string{"deploy.yaml": "# reviewed 2026-10\n" + localTeamDeploy})
+	assert.NotContains(t, mustLocal(t, dir, "status").stdout, teamFileChangedNote, "只改了注释")
+
+	writeTree(t, dir, map[string]string{"deploy.yaml": localTeamDeploy + "    expose: true\n"})
+	r := mustLocal(t, dir, "status")
+	assert.Contains(t, r.stdout, teamFileChangedNote)
+	assert.Contains(t, r.stdout, "brickkit local refresh")
+
+	mustLocal(t, dir, "refresh")
+	assert.NotContains(t, mustLocal(t, dir, "status").stdout, teamFileChangedNote)
+}
+
+// up 读个人文件时说同一句话；add 把团队文件、个人文件和基线一起改，所以它不会让这句话冒出来。
+func TestUpNotesTeamFileChangedSinceCopy(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	g.release(comp{ID: "crm/web", Version: "1.0.0", Port: 8082})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	g.mustRun(dir, "local", "on")
+
+	g.mustRun(dir, "add", "crm/web@1.0.0")
+	assert.NotContains(t, g.mustRun(dir, "up", "--dry-run").stdout, teamFileChangedNote, "add 之后三份文件仍然同步")
+
+	writeTree(t, dir, map[string]string{
+		"deploy.yaml": "target: docker\ncomponents:\n  - id: crm/web\n    expose: true\n  - id: erp/api\n",
+	})
+	assert.Contains(t, g.mustRun(dir, "up", "--dry-run").stdout, teamFileChangedNote)
+	assert.NotContains(t, g.mustRun(dir, "up", "--dry-run", "--no-local").stdout, teamFileChangedNote, "没读个人文件就不提")
+}

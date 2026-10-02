@@ -172,6 +172,16 @@ brickkit up
 为什么是报错、而不是悄悄把新组件补上：本地文件是整份替换 `deploy.yaml` 的，CLI 不知道新组件在你这里该怎么跑——
 按团队的写法？还是你另有打算？猜错了就是在你不知情时跑了一个你没想跑的东西。所以它停下来，把三条出路都列出来。
 
+**团队没加减组件，只是改了 `deploy.yaml` 里的值**（换了端口、开了 `expose`、改了 `vars:`）：这不算过期，`up` 照常跑你的个人文件，
+那些改动在你这里不生效——本地文件是整份替换，这是它该有的行为，只是很容易忘。所以 `up` 和 `brickkit local status` 会说一句：
+
+```text
+ℹ️ deploy.yaml 在复制成 deploy.local.yaml 之后改过，这些改动在这里还没生效：brickkit local refresh 把它们带进来（并列出你的本地修改，方便照着改回去）
+```
+
+它比的是上次复制（`local on` / `refresh`）时存下的那份 `deploy.yaml` 和现在这份的**数据**：只改了注释、或 `add` 重排了条目不算；
+`add` / `remove` 会把团队文件和你的个人文件一起改，也不算。想继续用旧的那份就不用理它。
+
 ## `brickkit local refresh`
 
 ```bash

@@ -1,6 +1,7 @@
 package deployfile_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -186,4 +187,42 @@ func TestDiffLocalWithBaseFallsBackForNewEntries(t *testing.T) {
 	changes, err := deployfile.DiffLocal([]byte(base), []byte(old), []byte(fresh))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{{Scope: "erp/new", Field: "mode", Old: "debug"}}, changes)
+}
+
+// SameData 比的是数据：注释、空行、键和条目的顺序、引号写法不同都算相同；
+// 值变了、多了少了条目、成员换了位置才算不同。
+func TestSameData(t *testing.T) {
+	const base = `target: docker
+vars:
+  REGION: eu
+components:
+  - id: erp/shell
+    members:
+      - id: erp/api
+  - id: crm/web
+    expose: true
+`
+	same := func(other string) bool {
+		t.Helper()
+		ok, err := deployfile.SameData([]byte(base), []byte(other))
+		require.NoError(t, err)
+		return ok
+	}
+	assert.True(t, same(base))
+	assert.True(t, same(`# reviewed
+components:
+  - expose: true
+    id: "crm/web"   # the site
+
+  - id: erp/shell
+    members:
+      - id: erp/api
+vars: {REGION: eu}
+target: docker
+`), "注释、顺序、引号、空行都不算")
+	assert.False(t, same(strings.Replace(base, "expose: true", "expose: false", 1)), "值变了")
+	assert.False(t, same(base+"  - id: erp/stock\n"), "多了条目")
+	assert.False(t, same(strings.Replace(base, "    expose: true\n", "", 1)), "少了字段")
+	assert.False(t, same(strings.Replace(base, "    members:\n      - id: erp/api\n", "  - id: erp/api\n", 1)), "成员挪到了顶层")
+	assert.False(t, same(strings.Replace(base, "REGION: eu", "REGION: us", 1)), "公共变量变了")
 }

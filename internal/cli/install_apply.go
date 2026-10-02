@@ -193,6 +193,7 @@ func (a *applier) apply(plan *install.Plan) error {
 			return err
 		}
 	}
+	a.editLocalBase(plan)
 	if err := a.dropRemovedFocus(); err != nil {
 		return err
 	}
@@ -228,6 +229,20 @@ func (a *applier) dropRemovedFocus() error {
 	}
 	a.result.FocusDropped = local.Focus
 	return nil
+}
+
+// editLocalBase 把同一处改动也写进 local on / refresh 存下的复制基线（有的话）：基线是"个人文件所知道的
+// 团队文件"，add / remove 把团队文件和个人文件一起改了，基线不跟着改，之后就会被当成"团队文件改过、
+// 个人文件没跟上"。它不是使用者的文件，不进输出；改不了（内容坏了）也不拦这次 add——最坏是之后多提示
+// 一次 brickkit local refresh，而 refresh 会重写它。
+func (a *applier) editLocalBase(plan *install.Plan) {
+	path := a.proj.Layout.LocalBasePath()
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	listed := a.result.DeployFiles
+	_ = a.editDeploy(path, plan)
+	a.result.DeployFiles = listed
 }
 
 // deployFiles 是要改的部署文件：deploy.yaml，以及存在的 deploy.local.yaml。其余的只记名字。

@@ -361,6 +361,7 @@ func renderDeploySource(opts *Options, proj *project.Project) {
 	switch proj.DeploySource {
 	case project.DeployLocal:
 		opts.Printf("%s\n", i18n.T(msgid.CliUpUsingLocalDeployFile, name))
+		noteTeamFileChanged(opts, proj.Layout)
 	case project.DeployExplicit:
 		if proj.LocalModeOn {
 			opts.Printf("%s\n", i18n.T(msgid.CliUpUsingExplicitDeployFile, name))

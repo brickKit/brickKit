@@ -1622,6 +1622,7 @@ const (
 	CliLocalStatusFileInUse                                    ID = "cli.local.status_file_in_use"
 	CliLocalStatusFileIdle                                     ID = "cli.local.status_file_idle"
 	CliLocalStatusConsistent                                   ID = "cli.local.status_consistent"
+	CliLocalTeamFileChanged                                    ID = "cli.local.team_file_changed"
 	CliLocalNothingToRefresh                                   ID = "cli.local.nothing_to_refresh"
 	CliLocalHintOn                                             ID = "cli.local.hint_on"
 	CliLocalRefreshed                                          ID = "cli.local.refreshed"

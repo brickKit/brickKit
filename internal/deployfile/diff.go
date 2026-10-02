@@ -241,3 +241,33 @@ func oneLine(node *yaml.Node) string {
 	}
 	return string(data)
 }
+
+// SameData 报告两份部署文件的数据是否相同：比的是值，注释、空行、键与条目的顺序、引号写法都不算。
+// 给"团队的 deploy.yaml 在复制成 deploy.local.yaml 之后有没有变"用——只改了注释、或被 add 重排了条目，
+// 都不该催人刷新。
+func SameData(a, b []byte) (bool, error) {
+	aValues, aEntries, err := flatten(a)
+	if err != nil {
+		return false, err
+	}
+	bValues, bEntries, err := flatten(b)
+	if err != nil {
+		return false, err
+	}
+	aSet, bSet := setOf(aEntries), setOf(bEntries)
+	if len(aSet) != len(bSet) || len(aValues) != len(bValues) {
+		return false, nil
+	}
+	for id := range aSet {
+		if !bSet[id] {
+			return false, nil
+		}
+	}
+	bIndex := indexValues(bValues)
+	for _, v := range aValues {
+		if got, ok := bIndex[[2]string{v.scope, v.field}]; !ok || got != v.value {
+			return false, nil
+		}
+	}
+	return true, nil
+}

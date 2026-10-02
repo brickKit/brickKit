@@ -158,7 +158,29 @@ func runLocalStatus(opts *Options) error {
 		return nil
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliLocalStatusConsistent, project.FileDeployLocal, project.FileDecl))
+	noteTeamFileChanged(opts, l)
 	return nil
+}
+
+// noteTeamFileChanged 在团队的 deploy.yaml 自上次复制（local on / refresh）以来改过时说一句：
+// 本地模式下那些改动不生效，而"我跑的还是上周复制的那份"很容易忘。
+//
+// 判据是那次复制存下的基线，比的是数据（deployfile.SameData）：只改注释、add 重排条目都不算。
+// add / remove 把同一处改动也写进基线，所以它们不会让这句话冒出来。没有基线（更早的项目）、
+// 或哪份文件读不了时不说——读不了的文件由装载去报。
+func noteTeamFileChanged(opts *Options, l project.Layout) {
+	base, err := os.ReadFile(l.LocalBasePath())
+	if err != nil {
+		return
+	}
+	team, err := os.ReadFile(l.DeployPath())
+	if err != nil {
+		return
+	}
+	if same, err := deployfile.SameData(base, team); err != nil || same {
+		return
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliLocalTeamFileChanged, project.FileDeploy, project.FileDeployLocal))
 }
 
 func runLocalRefresh(opts *Options) error {
