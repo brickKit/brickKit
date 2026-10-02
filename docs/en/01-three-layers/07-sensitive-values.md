@@ -8,7 +8,7 @@ there goes into version control with it, and can't be removed from the history.
 | Written | Where the real value is | Good for |
 | --- | --- | --- |
 | `${API_TOKEN}` | The process environment, then `.env` at the project root (`.env` isn't committed) | Passwords, tokens |
-| `file://.secrets/tls.key` | A file (the path is relative to the project root; `.secrets/` is in `.gitignore` by default) | Multi-line content such as certificates and private keys |
+| `file://.secrets/tls.key` | A file. A relative path starts at the project root (`.secrets/` is in `.gitignore` by default); an absolute path works too, for a file your operators keep outside the project: `file:///etc/shop/tls.key` | Multi-line content such as certificates and private keys |
 | `{ existingSecret: name, key: key }` | A Kubernetes Secret that already exists in the cluster (managed by your operators, Vault, External Secrets and the like) | Kubernetes only, when another system in the cluster manages the secret |
 
 `$var:` works indirectly too: write `PG_PASSWORD: ${PG_PASSWORD}` in `config/vars.yaml`, and `$var:PG_PASSWORD` in the
