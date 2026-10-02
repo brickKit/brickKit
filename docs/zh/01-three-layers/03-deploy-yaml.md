@@ -57,6 +57,7 @@ components:
 | `resources` | 资源配额 `requests` / `limits`，覆盖组件建议的值 |
 | `serviceAccountName` | K8s 下用一个运维已经建好的 ServiceAccount |
 | `labels` | 原样透传：Docker 下是容器标签，K8s 下是 Pod 注解（给 Traefik、Prometheus 这类工具读） |
+| `stopGracePeriodSeconds` | 停机宽限期（秒），覆盖组件在 `component.yaml` 里推荐的值：收到停止信号后等这么久再强杀 |
 | `skipWaitFor` | 启动时不等这几个强依赖就绪（只去掉等待，照样连得到它们）。只对 Docker / Podman 有效：K8s 没有启动顺序。见 [外壳合并造成的启动环](../04-shell/04-members-management.md) |
 | `members` | 只有外壳条目有：它承载的成员，每个成员也是一个完整的条目 |
 

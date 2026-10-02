@@ -75,6 +75,8 @@ type LocalEnvFile struct {
 	// 共用这一份，不会漂移。
 	Vars    []inject.Var
 	Content []byte
+	// StopGracePeriodSeconds 是这个进程停机时要等多久再强杀（0 = 平台的默认值），见 manifest.Deployment。
+	StopGracePeriodSeconds int
 	// Unresolved 是 变量名 → 它的 ${...} 模板里第一个找不到的环境变量名。
 	// Content 对它宽松（留着占位符，看得出漏了哪个）；mode: local 真正启动进程时
 	// 对它严格（见 internal/cli/up_local.go 的 buildLocalEnv）。
@@ -697,13 +699,14 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	}
 
 	return LocalEnvFile{
-		Ref:        l.Ref,
-		Mode:       l.Entry.Mode,
-		Name:       "local-debug." + l.Service + ".env",
-		Port:       l.Port,
-		Vars:       evaluated,
-		Content:    renderEnvFile(l, evaluated, now),
-		Unresolved: unresolved,
+		Ref:                    l.Ref,
+		Mode:                   l.Entry.Mode,
+		Name:                   "local-debug." + l.Service + ".env",
+		Port:                   l.Port,
+		Vars:                   evaluated,
+		Content:                renderEnvFile(l, evaluated, now),
+		StopGracePeriodSeconds: l.Env.StopGracePeriodSeconds,
+		Unresolved:             unresolved,
 	}, nil
 }
 

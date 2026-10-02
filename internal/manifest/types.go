@@ -187,6 +187,15 @@ type Deployment struct {
 	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
+	// StopGracePeriodSeconds 是这个组件收到停止信号（SIGTERM）之后，需要多久把手上的事做完再退出
+	// （消费者确认在途消息、outbox 发完手上一批、HTTP 处理完在途请求），可选。
+	//
+	// 只有组件作者知道这个数，引擎的默认值（compose 10 秒、K8s 30 秒）与它无关；到点还没退出就被强杀，
+	// 在途的工作丢一半。没写时用引擎的默认值。与 Resources 一样是"作者的推荐值"，部署文件的条目可以覆盖。
+	// 外壳用外壳自己的值：它是一个进程，成员的值平台不替它合并（外壳作者知道编进去的成员要多久）。
+	//
+	// jsonschema 的范围与 ValidateStopGracePeriod 是同一份取值，schemas_test.go 会核对。
+	StopGracePeriodSeconds int `yaml:"stopGracePeriodSeconds,omitempty" jsonschema:"minimum=1,maximum=3600"`
 	// Labels 是组件作者推荐的部署元数据。
 	//
 	// 平台**不解释键值，只透传**：Docker 写进 service 的 labels，

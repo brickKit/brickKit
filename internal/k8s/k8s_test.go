@@ -732,3 +732,16 @@ func TestDeploymentImageMatchesImageRef(t *testing.T) {
 	assert.Equal(t, "ghcr.io/org/erp-api:1.0.0", b.container("erp-api-1-0-0")["image"])
 	assert.Equal(t, "erp-web:2.0.0", b.container("erp-web-2-0-0")["image"])
 }
+
+// K8s 上同一个值写进 Pod 的 terminationGracePeriodSeconds；没声明时不写，用集群的默认值。
+func TestStopGracePeriodBecomesTerminationGracePeriod(t *testing.T) {
+	b := newBuilder(t)
+	worker := simple("erp/worker", "1.0.0", 8081)
+	worker.Deployment.StopGracePeriodSeconds = 25
+	b.component(worker, projecttest.Entry{})
+	b.component(simple("erp/api", "1.0.0", 8083), projecttest.Entry{})
+
+	assert.Equal(t, 25, dig(t, b.doc("deployments/erp-worker-1-0-0.yaml"), "spec", "template", "spec", "terminationGracePeriodSeconds"))
+	podSpec := dig(t, b.doc("deployments/erp-api-1-0-0.yaml"), "spec", "template", "spec").(map[string]any)
+	assert.NotContains(t, podSpec, "terminationGracePeriodSeconds")
+}

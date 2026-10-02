@@ -429,6 +429,8 @@ const (
 	ManifestHealthPathMustStartWithSlash                       ID = "manifest.health_path_must_start_with_slash"
 	ProblemMustBeOneOfThree                                    ID = "problem.must_be_one_of_three"
 	ManifestStartPeriodIgnoredForNone                          ID = "manifest.start_period_ignored_for_none"
+	ProblemSecondsMustBePositive                               ID = "problem.seconds_must_be_positive"
+	ProblemStopGraceTooLarge                                   ID = "problem.stop_grace_too_large"
 	ManifestStartPeriodMustBePositive                          ID = "manifest.start_period_must_be_positive"
 	ManifestStartPeriodTooLarge                                ID = "manifest.start_period_too_large"
 	ManifestLabelPlatformNamespace                             ID = "manifest.label_platform_namespace"

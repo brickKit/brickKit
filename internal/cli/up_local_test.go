@@ -440,3 +440,11 @@ func TestLocalProcessesDoNotInheritNamesThePlatformOwns(t *testing.T) {
 		assert.False(t, withhold(name), name)
 	}
 }
+
+// Ctrl+C 之后等最慢的那个：本机进程里声明得最长的宽限期；都没声明时是 0，交给 procsup 的默认值。
+func TestLocalGracePeriodIsTheLongestDeclared(t *testing.T) {
+	assert.Equal(t, time.Duration(0), localGracePeriod([]localComponentPlan{{}, {}}))
+	assert.Equal(t, 25*time.Second, localGracePeriod([]localComponentPlan{
+		{StopGrace: 10 * time.Second}, {}, {StopGrace: 25 * time.Second},
+	}))
+}

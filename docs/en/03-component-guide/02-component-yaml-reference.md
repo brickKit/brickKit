@@ -125,6 +125,7 @@ How to design config well — how finely to split it, how to name it, what shoul
 | `port` | The main port: the health check hits it, and others' `*_ENDPOINT` points at it |
 | `extraPorts` | Extra ports (gRPC, say): `- name: grpc` / `port: 9090`; others get `…_GRPC_ENDPOINT` |
 | `resources` | Recommended CPU / memory; users can override them in the deploy file |
+| `stopGracePeriodSeconds` | How long after a stop signal it needs to finish what it holds (a consumer acknowledging in-flight messages, an outbox sending its batch, HTTP finishing in-flight requests). Unset: the engine's default, 10 s for compose, 30 s for K8s. Your code's own shutdown timeout should be shorter than it |
 | `labels` | Labels passed through as-is (Docker service labels, Kubernetes Pod annotations); the platform doesn't interpret them |
 
 Write at least one of `image` and `build`. Only `build`: users build from your tag with `brickkit build`. Both: users of

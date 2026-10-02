@@ -751,6 +751,31 @@ func constraintCases() []constraintCase {
 			invalid: ports,
 		},
 		{
+			// 0 是"没写"（omitempty）：校验器放行、schema 的 minimum 不放行——只有手写 0 的人会碰到，点名成 validatorOnly。
+			name: "deployment.stopGracePeriodSeconds", doc: "component", schemaPath: "deployment/stopGracePeriodSeconds",
+			baseline: strings.Replace(baselineComponent, "  port: 8080\n", "  port: 8080\n  stopGracePeriodSeconds: 10\n", 1),
+			dataPath: []any{"deployment", "stopGracePeriodSeconds"}, errField: "deployment.stopGracePeriodSeconds",
+			valid:         []any{1, 25, manifest.MaxStopGracePeriodSeconds},
+			validatorOnly: []any{0},
+			invalid:       []any{-1, manifest.MaxStopGracePeriodSeconds + 1, 25000},
+		},
+		{
+			name: "components[1].members[0].stopGracePeriodSeconds", doc: "deploy", schemaPath: "components[]/members[]/stopGracePeriodSeconds",
+			baseline: strings.Replace(dockerDeploy, "        mode: enabled\n", "        mode: enabled\n        stopGracePeriodSeconds: 10\n", 1),
+			dataPath: []any{"components", 1, "members", 0, "stopGracePeriodSeconds"}, errField: "components[1].members[0].stopGracePeriodSeconds",
+			valid:         []any{1, 40},
+			validatorOnly: []any{0},
+			invalid:       []any{-1, manifest.MaxStopGracePeriodSeconds + 1},
+		},
+		{
+			name: "components[0].stopGracePeriodSeconds", doc: "deploy", schemaPath: "components[]/stopGracePeriodSeconds",
+			baseline: strings.Replace(dockerDeploy, "    replicas: 2\n", "    replicas: 2\n    stopGracePeriodSeconds: 10\n", 1),
+			dataPath: []any{"components", 0, "stopGracePeriodSeconds"}, errField: "components[0].stopGracePeriodSeconds",
+			valid:         []any{1, 40, manifest.MaxStopGracePeriodSeconds},
+			validatorOnly: []any{0},
+			invalid:       []any{-1, manifest.MaxStopGracePeriodSeconds + 1},
+		},
+		{
 			name: "healthCheck.type", doc: "component", schemaPath: "healthCheck/type",
 			dataPath: []any{"healthCheck", "type"}, errField: "healthCheck.type",
 			valid:   []any{manifest.HealthCheckHTTP, manifest.HealthCheckTCP, manifest.HealthCheckNone},

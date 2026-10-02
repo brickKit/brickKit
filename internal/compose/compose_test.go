@@ -1018,3 +1018,21 @@ func TestGeneratedFileIsValidForDockerCompose(t *testing.T) {
 func writeFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
+
+// 组件在 component.yaml 里声明停机要多久：compose 写 stop_grace_period，到点才强杀；部署条目写了就用部署条目的。
+// 都没写时不写这一项，交给引擎的默认值。
+func TestStopGracePeriod(t *testing.T) {
+	b := newBuilder(t)
+	worker := simple("erp/worker", "1.0.0", 8081)
+	worker.Deployment.StopGracePeriodSeconds = 25
+	b.component(worker, projecttest.Entry{})
+	consumer := simple("erp/consumer", "1.0.0", 8082)
+	consumer.Deployment.StopGracePeriodSeconds = 25
+	b.component(consumer, projecttest.Entry{StopGracePeriodSeconds: 40})
+	b.component(simple("erp/api", "1.0.0", 8083), projecttest.Entry{})
+
+	doc := b.parsed()
+	assert.Equal(t, "25s", serviceOf(t, doc, "erp-worker-1-0-0")["stop_grace_period"])
+	assert.Equal(t, "40s", serviceOf(t, doc, "erp-consumer-1-0-0")["stop_grace_period"], "部署条目覆盖组件的推荐值")
+	assert.NotContains(t, serviceOf(t, doc, "erp-api-1-0-0"), "stop_grace_period")
+}

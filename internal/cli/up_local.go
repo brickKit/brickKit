@@ -123,6 +123,18 @@ type localComponentPlan struct {
 	// Withhold 挡住继承来的、平台管的那些名字（platformOwned）
 	Withhold func(name string) bool
 	Port     int
+	// StopGrace 是这个组件声明的停机宽限期（0 = 没声明）。
+	StopGrace time.Duration
+}
+
+// localGracePeriod 是 Ctrl+C 之后等多久再强杀：本次在本机跑的组件里声明得最长的那个，
+// 都没声明时交给 procsup 的默认值。监管器一次停所有进程，等的就是最慢的那个。
+func localGracePeriod(plans []localComponentPlan) time.Duration {
+	var longest time.Duration
+	for _, p := range plans {
+		longest = max(longest, p.StopGrace)
+	}
+	return longest
 }
 
 // collectLocalComponents 按拓扑序收集全部 mode: local 组件，探测出各自的启动命令。
@@ -181,6 +193,7 @@ func collectLocalComponents(
 		}
 		out = append(out, localComponentPlan{
 			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Withhold: platformOwned(node.Manifest), Port: port,
+			StopGrace: time.Duration(fileOf[ref].StopGracePeriodSeconds) * time.Second,
 		})
 	}
 	return out, nil
@@ -393,7 +406,8 @@ func runLocalComponents(
 			widest = len(p.Service)
 		}
 	}
-	sup, err := procsup.New(procsup.Options{Out: opts.Stdout, NameWidth: widest, TailLines: crashLines})
+	sup, err := procsup.New(procsup.Options{Out: opts.Stdout, NameWidth: widest, TailLines: crashLines,
+		GracePeriod: localGracePeriod(plans)})
 	if err != nil {
 		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}

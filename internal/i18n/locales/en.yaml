@@ -488,6 +488,8 @@ manifest.local_language_invalid: "not a supported language (supported: %[2]s), g
 manifest.health_path_must_start_with_slash: "must start with / (currently %[1]s)"
 problem.must_be_one_of_three: "must be one of %[1]s / %[2]s / %[3]s (currently %[4]s)"
 manifest.start_period_ignored_for_none: "has no effect under type: none (no probe is generated, so there is no grace period); remove this field, or change type to http / tcp"
+problem.seconds_must_be_positive: "must be a positive number of seconds (currently %[1]d)"
+problem.stop_grace_too_large: "at most %[1]d seconds (currently %[2]d). The unit is seconds, not milliseconds — written in milliseconds, every stop waits for hours"
 manifest.start_period_must_be_positive: "must be a positive integer (currently %[1]d)"
 manifest.start_period_too_large: "at most %[1]d seconds (currently %[2]d). The unit is seconds, not milliseconds — written in milliseconds, the component hangs on starting for a long time without any error"
 manifest.label_platform_namespace: "`%[1]s` is the platform's own namespace (component ID, version and project name are recorded there) and cannot be passed through"

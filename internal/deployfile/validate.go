@@ -170,6 +170,7 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 			p.Add(field+".hostname", i18n.T(msgid.ConfigHostnameMissing))
 		}
 		validateReplicas(p, field, c)
+		manifest.ValidateStopGracePeriod(c.StopGracePeriodSeconds, field+".stopGracePeriodSeconds", p.Add)
 		manifest.ValidateLabels(c.Labels, field+".labels", p.Add)
 		validateSkipWaitFor(p, field, id, c.SkipWaitFor)
 	}

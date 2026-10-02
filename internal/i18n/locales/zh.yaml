@@ -487,6 +487,8 @@ manifest.local_language_invalid: "不是受支持的语言（支持：%[2]s）�
 manifest.health_path_must_start_with_slash: "必须以 / 开头（当前是 %[1]s）"
 problem.must_be_one_of_three: "必须是 %[1]s / %[2]s / %[3]s 之一（当前是 %[4]s）"
 manifest.start_period_ignored_for_none: "在 type: none 下不生效（不生成任何探测，也就无所谓宽限期）；请删除该字段，或把 type 改成 http / tcp"
+problem.seconds_must_be_positive: "必须是正的秒数（当前是 %[1]d）"
+problem.stop_grace_too_large: "最大 %[1]d 秒（当前是 %[2]d）。单位是秒不是毫秒——写成毫秒的话，每次停机都要干等几个小时"
 manifest.start_period_must_be_positive: "必须是正整数（当前是 %[1]d）"
 manifest.start_period_too_large: "最大 %[1]d 秒（当前是 %[2]d）。单位是秒不是毫秒——写成毫秒的话组件会长时间挂在 starting 上而不报错"
 manifest.label_platform_namespace: "`%[1]s` 是平台自己的命名空间（组件 ID、版本、项目名都记在这里），不能透传"

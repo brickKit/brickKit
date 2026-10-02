@@ -17,20 +17,21 @@ import (
 // 旧测试可以原样搬过来：部署字段进 deploy 文件，Config 进 config/<id>@<ver>.yaml，
 // ServedBy（成员视角的 "外壳@版本"）翻译成外壳条目上的 members 与 kind: shell。
 type Entry struct {
-	ID, Version        string
-	Mode               string
-	LocalPort          int
-	Expose             bool
-	ExposePort         int
-	Hostname           string
-	TLSSecret          string
-	Replicas           *int
-	ServiceAccountName string
-	Resources          *manifest.Resources
-	Labels             map[string]string
-	SkipWaitFor        []string
-	Config             map[string]any
-	ServedBy           string
+	ID, Version            string
+	Mode                   string
+	LocalPort              int
+	Expose                 bool
+	ExposePort             int
+	Hostname               string
+	TLSSecret              string
+	Replicas               *int
+	ServiceAccountName     string
+	Resources              *manifest.Resources
+	Labels                 map[string]string
+	SkipWaitFor            []string
+	StopGracePeriodSeconds int
+	Config                 map[string]any
+	ServedBy               string
 	// Shell 让这个组件即使一个成员都没有也标成 kind: shell。
 	Shell bool
 	// RequiredBy 写进 brickkit.yaml。同一个 ID 的第一行是默认版本；后面的版本没写时自动补上
@@ -90,6 +91,7 @@ func Render(t testing.TB, spec Spec) Files {
 			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
 			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
+			StopGracePeriodSeconds: e.StopGracePeriodSeconds,
 		}
 		if e.ServedBy != "" {
 			shell, _, _ := manifest.SplitRef(e.ServedBy)
@@ -121,6 +123,7 @@ func Render(t testing.TB, spec Spec) Files {
 			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
 			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
+			StopGracePeriodSeconds: e.StopGracePeriodSeconds,
 		}, Members: members[e.ID]})
 	}
 	deployDoc := mustYAML(t, deploy)

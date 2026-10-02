@@ -167,6 +167,14 @@
                     "null"
                   ]
                 },
+                "stopGracePeriodSeconds": {
+                  "maximum": 3600,
+                  "minimum": 1,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "tlsSecret": {
                   "type": [
                     "string",
@@ -266,6 +274,14 @@
             },
             "type": [
               "array",
+              "null"
+            ]
+          },
+          "stopGracePeriodSeconds": {
+            "maximum": 3600,
+            "minimum": 1,
+            "type": [
+              "integer",
               "null"
             ]
           },

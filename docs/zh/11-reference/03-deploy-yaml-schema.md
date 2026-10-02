@@ -62,6 +62,7 @@
 | `components[].resources.limits.cpu` | 字符串 | | 同上 |
 | `components[].resources.limits.memory` | 字符串 | | 同上 |
 | `components[].labels` | 字符串映射 | | 逐键覆盖组件 `deployment.labels`，原样透传 |
+| `components[].stopGracePeriodSeconds` | 整数 | | 覆盖组件 `deployment.stopGracePeriodSeconds` 推荐的停机宽限期，1–3600 秒 |
 | `components[].skipWaitFor` | 字符串列表 | | 启动时不等这些强依赖（写不带版本的组件 ID）；必须是这个组件版本真实的强依赖；不能是自己、不能重复。Docker / Podman 容器专用，K8s 与本机进程下忽略 |
 
 配额的优先级：部署文件的 `resources` > 组件 `deployment.resources` > 平台缺省（只有 `requests`：`100m` / `128Mi`）。
@@ -75,6 +76,7 @@
 | `components[].members[].id` | 字符串 | ✅ | 裸 ID 或 `id@版本`；不能是外壳自己；一个外壳里一个组件只能有一个版本 |
 | `components[].members[].mode` | 字符串 | | 同 `components[].mode`；`debug` / `local` 时这个成员这次以本机进程运行，外壳不承载它 |
 | `components[].members[].localPort` | 整数 | | 同上 |
+| `components[].members[].stopGracePeriodSeconds` | 整数 | | 同上；外壳承载时不生效（外壳用自己的值），成员回落成独立组件时生效 |
 | `components[].members[].skipWaitFor` | 字符串列表 | | 同上 |
 | `components[].members[].expose` | 布尔 | | 外壳承载时不生效，外壳不跑时生效 |
 | `components[].members[].exposePort` | 整数 | | 同上 |

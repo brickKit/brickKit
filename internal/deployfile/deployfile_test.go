@@ -104,6 +104,7 @@ func TestValidateRejects(t *testing.T) {
 		"member written as text": {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b]}\n", "components[0].members[0]"},
 		"bad var name":           {"target: docker\nvars:\n  1BAD: x\n", "vars.1BAD"},
 		"replicas zero":          {"target: k8s\ncomponents:\n  - {id: a/b, replicas: 0}\n", "components[0].replicas"},
+		"stop grace in ms":       {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b, stopGracePeriodSeconds: 25000}]}\n", "components[0].members[0].stopGracePeriodSeconds"},
 		"exposePort w/o expose":  {"target: docker\ncomponents:\n  - {id: a/b, exposePort: 8080}\n", "components[0].exposePort"},
 		"egress both":            {"target: k8s\nk8s:\n  networkPolicy:\n    enabled: true\n    egress:\n      enabled: true\n      allowTo:\n        - {name: db, namespace: x, cidr: 10.0.0.0/8}\n", "k8s.networkPolicy.egress.allowTo[0]"},
 		"entry not mapping":      {"target: docker\ncomponents:\n  - a/b\n", "components[0]"},

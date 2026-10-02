@@ -368,7 +368,22 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	}
 
 	m.validateResources(p)
+	ValidateStopGracePeriod(d.StopGracePeriodSeconds, "deployment.stopGracePeriodSeconds", p.Add)
 	ValidateLabels(d.Labels, "deployment.labels", p.Add)
+}
+
+// MaxStopGracePeriodSeconds 是停机宽限期的上限（1 小时），理由与启动宽限期的上限相同：写成毫秒的
+// `stopGracePeriodSeconds: 25000` 看着像"25 秒"，实际是七个小时，每次停机都要干等。
+const MaxStopGracePeriodSeconds = 3600
+
+// ValidateStopGracePeriod 校验停机宽限期（0 = 没写）。component.yaml 与部署文件的条目共用这一条规则。
+func ValidateStopGracePeriod(seconds int, field string, add func(field, reason string)) {
+	switch {
+	case seconds < 0:
+		add(field, i18n.T(msgid.ProblemSecondsMustBePositive, seconds))
+	case seconds > MaxStopGracePeriodSeconds:
+		add(field, i18n.T(msgid.ProblemStopGraceTooLarge, MaxStopGracePeriodSeconds, seconds))
+	}
 }
 
 func (m *Manifest) validateResources(p *clierr.ProblemSet) {

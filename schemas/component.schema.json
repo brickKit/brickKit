@@ -309,6 +309,14 @@
             "null"
           ]
         },
+        "stopGracePeriodSeconds": {
+          "maximum": 3600,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "type": {
           "enum": [
             "container"

@@ -66,6 +66,7 @@ shell, count the same).
 | `components[].resources.limits.cpu` | string | | As above |
 | `components[].resources.limits.memory` | string | | As above |
 | `components[].labels` | map of strings | | Overrides the component's `deployment.labels` key by key, passed through verbatim |
+| `components[].stopGracePeriodSeconds` | integer | | Overrides the stop grace period the component recommends in `deployment.stopGracePeriodSeconds`, 1–3600 seconds |
 | `components[].skipWaitFor` | list of strings | | Required dependencies not waited for at start-up (component IDs without versions); must be real required dependencies of this component version; not itself, no duplicates. For Docker / Podman containers only; ignored on K8s and for processes on this machine |
 
 Quota precedence: the deploy file's `resources` > the component's `deployment.resources` > the platform default (only
@@ -81,6 +82,7 @@ level only:
 | `components[].members[].id` | string | ✅ | A bare ID or `id@version`; not the shell itself; one version per component in one shell |
 | `components[].members[].mode` | string | | Like `components[].mode`; with `debug` / `local` the member runs as a process on this machine this time, and the shell doesn't host it |
 | `components[].members[].localPort` | integer | | As above |
+| `components[].members[].stopGracePeriodSeconds` | integer | | As above; no effect while a shell hosts the member (the shell uses its own), effective when the member falls back to a standalone component |
 | `components[].members[].skipWaitFor` | list of strings | | As above |
 | `components[].members[].expose` | boolean | | No effect while the shell hosts it; takes effect when the shell doesn't run |
 | `components[].members[].exposePort` | integer | | As above |

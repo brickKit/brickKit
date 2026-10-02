@@ -90,6 +90,8 @@ type Component struct {
 	Resources manifest.Resources
 	// Labels 是合并后的透传部署元数据；一个键都没有时是 nil。
 	Labels map[string]string
+	// StopGracePeriodSeconds 是生效的停机宽限期：部署条目的值优先，否则 component.yaml 的；0 表示用引擎的默认值。
+	StopGracePeriodSeconds int
 }
 
 // EnvMap 把环境变量表转成 名字 → 使用者写下的样子（字面量就是值本身），便于查询与测试。
@@ -236,7 +238,8 @@ func buildComponent(
 		Env:       builder.sorted(),
 		Resources: mergeResources(manifestResources(m), entry.Resources),
 		// 部署文件逐键覆盖 component.yaml
-		Labels: manifest.MergeLabels(manifestLabels(m), entry.Labels),
+		Labels:                 manifest.MergeLabels(manifestLabels(m), entry.Labels),
+		StopGracePeriodSeconds: stopGracePeriod(m, entry.StopGracePeriodSeconds),
 	}
 	return component, warnings, resolved.Missing, nil
 }
@@ -292,6 +295,17 @@ func (b *envBuilder) sorted() []Var {
 // ============================================================
 // 资源配额合并
 // ============================================================
+
+// stopGracePeriod：部署条目写了就用它，否则用 component.yaml 推荐的。
+func stopGracePeriod(m *manifest.Manifest, override int) int {
+	if override > 0 {
+		return override
+	}
+	if m == nil {
+		return 0
+	}
+	return m.Deployment.StopGracePeriodSeconds
+}
 
 // mergeResources 按 brickkit.yaml > component.yaml > CLI 默认值 合并配额。
 //

@@ -90,6 +90,7 @@ dependencies:
 | `deployment.resources.requests.memory` | 字符串 | | 建议的内存请求，如 `"128Mi"` |
 | `deployment.resources.limits.cpu` | 字符串 | | 建议的 CPU 上限（建议不写） |
 | `deployment.resources.limits.memory` | 字符串 | | 建议的内存上限 |
+| `deployment.stopGracePeriodSeconds` | 整数 | | 收到停止信号（SIGTERM）后需要多少秒把手上的事做完，1–3600；Docker / Podman 写成 `stop_grace_period`，K8s 写成 `terminationGracePeriodSeconds`，本机进程等这么久再强杀。不写用引擎的默认值（compose 10 秒、K8s 30 秒）；部署条目可以覆盖 |
 | `deployment.labels` | 字符串映射 | | 原样透传：Docker 写成 service labels，K8s 写成 Deployment 与其 Pod 的 annotations；值必须是字符串 |
 
 `image` 与 `build` 至少写一个；`build` 的路径必须在仓库里。`resources` 写了的话，`requests` 或 `limits` 里至少要有 `cpu` 或 `memory` 之一；

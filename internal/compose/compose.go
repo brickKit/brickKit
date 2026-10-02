@@ -480,6 +480,9 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	if health := healthcheckOf(c.Manifest); health != nil {
 		svc["healthcheck"] = health
 	}
+	if seconds := c.Env.StopGracePeriodSeconds; seconds > 0 {
+		svc["stop_grace_period"] = fmt.Sprintf("%ds", seconds)
+	}
 	if deploy := deployOf(c.Env); deploy != nil {
 		svc["deploy"] = deploy
 	}

@@ -95,6 +95,7 @@ platform checks key names only, not values; details in [The configSchema spec](0
 | `deployment.resources.requests.memory` | string | | The suggested memory request, like `"128Mi"` |
 | `deployment.resources.limits.cpu` | string | | The suggested CPU limit (better left out) |
 | `deployment.resources.limits.memory` | string | | The suggested memory limit |
+| `deployment.stopGracePeriodSeconds` | integer | | Seconds the component needs after a stop signal (SIGTERM) to finish what it holds, 1–3600; becomes `stop_grace_period` on Docker / Podman, `terminationGracePeriodSeconds` on K8s, and how long a process on this machine gets before it is killed. Unset: the engine's default (10 s for compose, 30 s for K8s); a deploy entry can override it |
 | `deployment.labels` | map of strings | | Passed through verbatim: service labels on Docker, annotations on the Deployment and its Pods on K8s; values must be strings |
 
 At least one of `image` and `build`; the paths of `build` must be inside the repository. When `resources` is written,

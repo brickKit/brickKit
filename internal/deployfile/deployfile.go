@@ -134,6 +134,8 @@ type Entry struct {
 	ServiceAccountName string              `yaml:"serviceAccountName,omitempty"`
 	Resources          *manifest.Resources `yaml:"resources,omitempty"`
 	Labels             map[string]string   `yaml:"labels,omitempty"`
+	// StopGracePeriodSeconds 覆盖组件在 component.yaml 里推荐的停机宽限期（见 manifest.Deployment）。
+	StopGracePeriodSeconds int `yaml:"stopGracePeriodSeconds,omitempty" jsonschema:"minimum=1,maximum=3600"`
 	// SkipWaitFor 列出启动时不等的强依赖（组件 ID）：只去掉 depends_on 与启动顺序里的等待，
 	// 照样连得到它们。代价由写的人承担——组件得扛住这些依赖暂时没就绪。
 	// 只在 docker / podman 下起作用：K8s 的 Pod 之间没有启动顺序。
