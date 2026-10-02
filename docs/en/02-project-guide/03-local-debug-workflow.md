@@ -134,9 +134,13 @@ A few limits to know:
   is rejected.
 - **The debugged component runs no database migration.** The migration step went away with the container; if the
   component has migrations, run them by hand the first time.
-- **Strings hard-coded in config aren't rewritten.** If you wrote an address pointing into the container network in
-  `config/` (such as `http://host.docker.internal:8000`), it reaches your process as is; on your machine, change it to
-  `localhost` yourself. The platform only rewrites the dependency addresses it computes.
+- **Strings hard-coded in config aren't rewritten, with one name excepted.** `host.docker.internal` is what a container
+  calls the host machine (it is what `config/` usually says when the database or the message queue runs on your machine).
+  In the values a process on your machine receives, it becomes `localhost` — the same machine, under the name that
+  resolves there, which on Linux the first one doesn't; containers still get the value as written. So one `config/` works
+  on both sides, and you don't change it in the `vars:` of `deploy.local.yaml` (`vars:` reaches the containers too, and
+  they would lose the connection). Anything else you wrote by hand reaches the process as is: an address that names
+  another container's service needs a value that works on your machine.
 
 ## Ports on your machine
 

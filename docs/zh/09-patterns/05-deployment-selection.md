@@ -57,8 +57,8 @@ SHOP_STOCK_ENDPOINT=http://localhost:18082
 ```
 
 抄下需要的部分，再把那一行删掉（或 `brickkit local off`）。`deploy.local.yaml` 本来就不提交，不会影响任何人。
-这个技巧覆盖不到一件事：你在 `config/` 里手写的、假设了容器网络的地址（比如 `http://host.docker.internal:8000`）——平台不解析配置值的内容，
-不会替你改写成 `localhost`，这一点和 `mode: debug` 本身一样。
+这个技巧覆盖不到一件事：你在 `config/` 里手写的、指向别的容器服务名的地址——平台不解析配置值的内容，不会替你改写，
+这一点和 `mode: debug` 本身一样。只有 `host.docker.internal` 例外：在本机跑的进程拿到的是 `localhost`。
 
 ## 矩阵
 

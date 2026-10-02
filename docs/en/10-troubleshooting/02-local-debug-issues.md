@@ -143,18 +143,23 @@ go run . migrate
 **Symptom**
 
 The process on this machine reaches its dependencies fine, but fails to reach one "outside" service, whose address you
-wrote by hand in `config/` — `http://host.docker.internal:8000`, say.
+wrote by hand in `config/` — `http://report-server:8000`, say (the service name of a container you run yourself, outside
+the project).
 
 **Cause**
 
-The platform rewrites only the dependency addresses it works out itself (`*_ENDPOINT`). Strings you wrote into config by
-hand aren't parsed or rewritten, and reach the process as they are — and that address assumes the container network,
-which doesn't resolve on the host.
+The platform rewrites only the dependency addresses it works out itself (`*_ENDPOINT`), and the one name
+`host.docker.internal` (a process on this machine receives `localhost`). Any other string you wrote into config by hand
+isn't parsed or rewritten, and reaches the process as it is — and that address assumes the container network, which
+doesn't resolve on the host.
 
 **Fix**
 
-Give it a value that works on this machine in the `vars:` of `deploy.local.yaml` (with `$var:NAME` referencing it in
-config): while debugging it's `localhost`, and the team's deploy files are unaffected:
+When that service runs on this machine with its port published here, write `host.docker.internal` in config: containers
+and the process on this machine both reach it, and nothing needs changing. Otherwise give it a value that works on this
+machine in the `vars:` of `deploy.local.yaml` (with `$var:NAME` referencing it in config); the team's deploy files are
+unaffected. Mind that `vars:` reaches this run's containers as well, so do this only when everything that reads the value
+is a process on this machine:
 
 ```yaml
 # config/demo-caller.yaml

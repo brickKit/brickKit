@@ -691,6 +691,39 @@ func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
 	assert.Equal(t, "20", env["PAGE_SIZE"], "没覆盖的用默认值")
 }
 
+// 同一份 config 给容器也给搬到宿主机上跑的进程：config 里写的 host.docker.internal（宿主机上的数据库）
+// 到了宿主机进程那里是 localhost，否则 Linux 上它解析不了这个名字；容器里的依赖方照旧拿到原文，
+// 并且带着 extra_hosts。经由 $var: 取来的值一样改。
+func TestLocalEnvRewritesHostMachineAliasForTheHostProcess(t *testing.T) {
+	b := newBuilder(t)
+	schema := &manifest.ConfigSchema{Type: "object", Properties: map[string]manifest.ConfigProperty{
+		"DB_HOST": {Type: "string"},
+		"DB_URL":  {Type: "string"},
+	}}
+	dep := simple("people/basic", "1.0.0", 8080)
+	dep.ConfigSchema = schema
+	b.component(dep, projecttest.Entry{
+		Config: map[string]any{"DB_HOST": "$var:PG_HOST", "DB_URL": "postgres://u@host.docker.internal:5432/people"},
+	})
+	app := dependsOn(simple("erp/sales", "1.0.0", 8081), "people/basic", "1.0.0")
+	app.ConfigSchema = schema
+	b.component(app, projecttest.Entry{
+		Mode:   deployfile.ModeDebug,
+		Config: map[string]any{"DB_HOST": "$var:PG_HOST", "DB_URL": "postgres://u@host.docker.internal:5432/sales"},
+	})
+	b.spec.Vars = map[string]any{"PG_HOST": "host.docker.internal"}
+
+	result := b.generate()
+
+	env := localEnv(t, result, "erp-sales-1-0-0")
+	assert.Equal(t, "localhost", env["DB_HOST"])
+	assert.Equal(t, "postgres://u@localhost:5432/sales", env["DB_URL"])
+
+	container := serviceOf(t, b.parsed(), "people-basic-1-0-0")
+	assert.Contains(t, extraHostsOf(t, container), "host.docker.internal:host-gateway")
+	assert.Contains(t, envOf(t, container)["DB_URL"], "host.docker.internal", "容器拿到的值不改")
+}
+
 // ============================================================
 // 续：需要加引号才能被正确 source 的 config 值
 // ============================================================

@@ -75,6 +75,9 @@ used by another program on your machine fails when the engine binds it. A projec
 can use 8080, 8081 and their neighbours as usual; a process leaves its `deployment.port` (for the first
 free port from 8081, possibly another component's) only when this `up` already assigned that port —
 write `localPort` to fix it — and 10000 + your container ports must stay free for the mappings.
+In the values such a process receives, `host.docker.internal` (the host machine, as containers call it)
+becomes `localhost`; containers get the value as written, so one `config/` serves both — don't
+override it in `vars:`, which reaches the containers too.
 
 **4. Environments are whole files: `brickkit up -f deploy.prod.yaml`.**
 

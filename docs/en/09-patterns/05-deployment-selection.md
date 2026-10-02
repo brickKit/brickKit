@@ -75,9 +75,9 @@ SHOP_STOCK_ENDPOINT=http://localhost:18082
 ```
 
 Copy what you need, then delete that line (or `brickkit local off`). `deploy.local.yaml` is never committed anyway, so it
-affects no one. One thing the trick doesn't cover: addresses you wrote by hand in `config/` assuming the container network
-(like `http://host.docker.internal:8000`) — the platform doesn't parse config values and won't rewrite them to
-`localhost` for you, just as with `mode: debug` itself.
+affects no one. One thing the trick doesn't cover: addresses you wrote by hand in `config/` that name another container's
+service — the platform doesn't parse config values and won't rewrite them for you, just as with `mode: debug` itself.
+The one exception is `host.docker.internal`: a process on your machine receives `localhost` instead.
 
 ## The matrix
 

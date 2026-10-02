@@ -682,7 +682,9 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 		if !ok {
 			continue
 		}
-		v.Value = inject.Literal(value)
+		// 进程在宿主机上跑：值里的 host.docker.internal 换成它这一侧叫得通的 localhost（容器拿到的不变）。
+		// 外壳是裸进程时，成员的配置在 JSON 里，同一次替换一并改到
+		v.Value = inject.Literal(deploy.OnHostMachine(value))
 		evaluated = append(evaluated, v)
 	}
 
