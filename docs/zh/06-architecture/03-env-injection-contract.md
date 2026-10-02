@@ -51,6 +51,10 @@ if bus is None:
 
 空字符串会造成一类极难查的 bug：`f"{ENDPOINT}/healthz"` 变成 `/healthz`，请求打到组件**自己**身上，拿到 200，你以为依赖是好的。
 
+组件没有声明依赖、而由项目在配置里用 `$endpoint:<组件 ID>` 填的地址（槽位家族的成员就是这样被引用的），值按同一条规则算：
+同样带版本号、同样跟着外壳与本机进程改写，变量名则是组件自己声明的那个配置键，不另外注入 `*_ENDPOINT`。
+见 [另一个组件的地址](../01-three-layers/06-vars-and-var-ref.md)。
+
 ## 组件自己的配置
 
 `configSchema` 的键就是环境变量名，原样注入。值怎么来，只有一条链（详见 [配置解析优先级](../01-three-layers/08-resolution-priority.md)）：

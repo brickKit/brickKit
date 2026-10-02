@@ -58,6 +58,11 @@ if bus is None:
 An empty string would cause a class of very hard-to-find bugs: `f"{ENDPOINT}/healthz"` becomes `/healthz`, the request
 hits the component **itself**, gets a 200, and you believe the dependency is fine.
 
+An address the component didn't declare as a dependency, filled in by the project with `$endpoint:<component ID>` in
+config (this is how the members of a slot family are referred to), is worked out by the same rule: versioned in the same
+way, rewritten for shells and processes on this machine in the same way, under the config key the component declared —
+no extra `*_ENDPOINT` is injected. See [Another component's address](../01-three-layers/06-vars-and-var-ref.md).
+
 ## The component's own config
 
 The keys of `configSchema` are the environment variable names, injected as they are. Where a value comes from follows one

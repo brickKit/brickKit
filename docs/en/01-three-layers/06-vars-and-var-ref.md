@@ -14,6 +14,7 @@ PG_HOST: pg.internal
 PG_PORT: 5432
 PG_PASSWORD: ${PG_PASSWORD}     # a value may be ${VAR}: the real value is in .env or the process environment
 TLS_CA: file://.secrets/ca.pem   # or file://
+IAM_URL: $endpoint:infra/iam     # or another component's address (see below)
 ```
 
 A shared variable can't reference another shared variable (`$var:` doesn't chain):
@@ -21,7 +22,7 @@ A shared variable can't reference another shared variable (`$var:` doesn't chain
 ```text
 ❌ Error: vars.yaml failed validation
    File: config/vars.yaml
-   B: a shared variable cannot reference another one with $var: — only ${ENV_VAR} and file:// are allowed here
+   B: a shared variable cannot reference another one with $var: — only ${ENV_VAR}, file:// and $endpoint: are allowed here
 ```
 
 One level is enough: with chains, finding out what a value actually is takes several hops — exactly the problem shared
@@ -42,19 +43,77 @@ shared variable of its own (`PG_URL: jdbc:postgresql://pg.internal:5432/people` 
 `$var:PG_URL`. A `${VAR}` template (`jdbc:postgresql://${PG_HOST}:5432/people`) can sit inside a string — but note that
 `${…}` looks up the process environment and `.env`, not shared variables, so `PG_HOST` has to be defined there.
 
-## Three ways to reference a value
+## Four ways to reference a value
 
 | Written | Where the value comes from | When it's evaluated |
 | --- | --- | --- |
 | `$var:NAME` | The deploy file's `vars:`, then `config/vars.yaml` | When the CLI loads the project |
 | `${NAME}`, `${NAME:-default}` | The process environment, then `.env` at the project root | On Docker, expanded by `docker compose` at start (the CLI checks at generation time that it's defined); on Kubernetes, by the CLI when it generates manifests |
 | `file://path` | The file's content (the path is relative to the project root) | When the CLI generates deployment files |
+| `$endpoint:<scope>/<name>` | The address of another component of the project (see the next section) | When the CLI generates deployment files |
 
 `${NAME:-default}` takes the default when the variable can't be found, so it never counts as undefined. The default is
 plain text, and can't contain `$`, `{` or `}`. Something that starts like a reference but isn't one (`${A:-${B}}`,
 `${1X}`, a missing `}`) is an error when the project is loaded, rather than reaching the container as literal text.
 
-The last two are mainly for secrets; see [Secrets](07-sensitive-values.md).
+`${NAME}` and `file://` are mainly for secrets; see [Secrets](07-sensitive-values.md).
+
+## Another component's address: `$endpoint:`
+
+When a component depends on another, the platform works out the address and injects it as `*_ENDPOINT`. Sometimes,
+though, a component **must not** declare a dependency on one particular component: it wants "the address of an identity
+service", and which implementation is installed is the project's decision (see [slot
+families](../09-patterns/01-component-design.md)). The component then declares an address item in its `configSchema`,
+and the project fills it in. `$endpoint:` lets the project fill it in by component ID instead of writing an address:
+
+```yaml
+# config/vars.yaml — who fills the slot is written here and nowhere else
+IAM_URL: $endpoint:infra/iam-casdoor
+IAM_JWKS_URL: $endpoint:infra/iam-casdoor/.well-known/jwks.json
+AUTHZ_URL: $endpoint:infra/authz
+```
+
+```yaml
+# config/erp-sales.yaml
+IAM_URL: $var:IAM_URL
+AUTHZ_URL: $var:AUTHZ_URL
+```
+
+| Written | Gives |
+| --- | --- |
+| `$endpoint:infra/authz` | `http://infra-authz-2-0-1:8223` — the project's default version of it, main port |
+| `$endpoint:infra/authz@2.0.0` | A given version (the project must have it) |
+| `$endpoint:infra/authz:grpc` | The extra port named `grpc` |
+| `$endpoint:infra/iam-casdoor/.well-known/jwks.json` | The address with a path after it. A component ID always has two parts, so the first `/` after the second part starts the path |
+
+The value is worked out by the same rule as the dependency address `*_ENDPOINT`, so none of the trouble with hand-written
+addresses comes with it:
+
+- **It follows the version.** The address holds the versioned service name; after `brickkit upgrade` no address needs
+  changing.
+- **It follows how things run.** When the target is hosted by a shell, it points at the shell; when the referring
+  component runs on this machine (`mode: local` / `debug`, a focus run), it becomes an address reachable from here; a
+  component referring to itself gets its own address (to hand its callback URL to an outside system, say). The members
+  of one shell all get exactly the same value.
+- **The platform knows the edge.** The referenced component runs along with the components referring to it (it
+  "follows the layer above", like an optional dependency), a focus run brings it along, K8s's `networkPolicy` lets the
+  connection through, and `graph` / `deps` draw it.
+
+It differs from a dependency in two ways, both on purpose:
+
+- **No start order, and cycles are fine.** A reference creates no `depends_on`: two components referring to each other
+  (an authorization service needs the identity service's keys, the identity service asks the authorization service at
+  login) is a normal shape, and both sides should back off and retry while the other isn't there yet. Something that
+  must be up first is a dependency, declared in `component.yaml`.
+- **No `*_ENDPOINT` is injected.** The component gets only the config item it declared.
+
+When the referenced component doesn't run this time (it says `mode: disable`, or nothing referring to it runs), the
+value counts as not given: an optional item is left out and the component degrades on its own; a required item stops the
+start with an error naming who doesn't run. A reference to a component the project doesn't have, or to a port name the
+component doesn't declare, is an error in `up` and `lint` alike.
+
+It isn't a dependency alias: the variable name is still the component's own, and what it points at is written in
+`config/` or `vars.yaml`, where you can open the file and see.
 
 ## Fail loudly when it's not found
 

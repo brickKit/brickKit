@@ -119,8 +119,10 @@ components**, not a switch hidden inside one component. It turns on that qualify
    ID — seeing `PRICING_COSTING_FIFO_ENDPOINT` you know what it points at, and an alias would break that derivation). So a
    component that calls this slot **doesn't** write `pricing/costing-fifo` as a dependency; it declares an address config
    item in `configSchema` (say a required `COSTING_URL` without a default), which the project assembling the system fills
-   in under `config/` with the address of the member it actually installs. Once anyone declares a dependency on a member,
-   that member is no longer replaceable.
+   in with the member it actually installs: `COSTING_URL: $endpoint:pricing/costing-fifo`. The platform works out the
+   address (versioned, rewritten for shells and processes on this machine); when several components use it, write it once
+   in `config/vars.yaml` — see [Another component's address](../01-three-layers/06-vars-and-var-ref.md). Once anyone
+   declares a dependency on a member, that member is no longer replaceable.
 4. **Settle the family before writing implementations**: the names, the shared contract, which customers each member
    serves, and which one a new project installs by default.
 5. **The shared contract lives in no member's repository.** Put it in a contract repository of its own (interface

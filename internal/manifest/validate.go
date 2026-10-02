@@ -97,6 +97,9 @@ func ComponentIDProblem(id string) string { return componentIDProblem(id) }
 // IsExactVersion 判断版本号是否为精确版本 major.minor.patch。
 func IsExactVersion(version string) bool { return exactVersionRe.MatchString(version) }
 
+// IsValidPortName 报告 name 能不能作额外端口的名字（与 extraPorts[].name 的校验同一条规则）。
+func IsValidPortName(name string) bool { return len(name) <= MaxPortNameLen && portNameRe.MatchString(name) }
+
 // CompareVersions 比较两个精确版本（major.minor.patch），返回 -1 / 0 / 1。
 //
 // 按**数字**比较，不是按字符串：字符串比较会得出 "10.0.0" < "2.0.0"。

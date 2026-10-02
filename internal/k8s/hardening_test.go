@@ -589,3 +589,17 @@ func TestAllGeneratedDirsAreKnownToEngine(t *testing.T) {
 			path, dir)
 	}
 }
+
+// 配置用 $endpoint: 引用的连接，网络策略同样放行：被引用的一方放引用方进来，开了出站白名单时引用方能出去。
+// 这正是手写地址做不到的——平台不知道那条边。
+func TestNetworkPolicyAdmitsEndpointReferences(t *testing.T) {
+	b := withEgress(withNetworkPolicy(newBuilder(t)))
+	authz := simple("infra/authz", "2.0.1", 8223)
+	b.component(authz, projecttest.Entry{})
+	sales := simple("erp/sales", "1.0.0", 8081)
+	sales.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"AUTHZ_URL": {Type: "string"}}}
+	b.component(sales, projecttest.Entry{Config: map[string]any{"AUTHZ_URL": "$endpoint:infra/authz"}})
+
+	assert.True(t, allowedFrom(t, b.doc(npPath("infra-authz-2-0-1")))["erp-sales-1-0-0"], "被引用的一方放引用方进来")
+	assert.NotNil(t, ruleWithPort(t, b.doc(npPath("erp-sales-1-0-0")), 8223), "引用方能连出去")
+}

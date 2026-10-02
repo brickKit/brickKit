@@ -135,6 +135,7 @@ file with the version in its name, `config/demo-hello@1.0.0.yaml`, holding your 
 # Component: demo/hello@1.0.0
 # Environment variables for this component; every key is injected as-is.
 # Shared variable: $var:NAME (config/vars.yaml) · environment variable: ${NAME} · local file: file://path
+# Another component's address: $endpoint:<scope>/<name>
 
 # === Optional: commented keys use the component's default; uncomment to override ===
 GREETING: Howdy

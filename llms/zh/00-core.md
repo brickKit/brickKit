@@ -73,7 +73,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `mode: debug` 只写在 `deploy.local.yaml`：那是"我正在自己机器上调它"这个个人事实，不进 Git。
 - `focus: <id>` 只写在 `deploy.local.yaml`——在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它，`up --all` 去掉它。写了它，就只启动这个组件（从源码跑）和它需要的组件；`sync` 不看它，`target: k8s` 下用不了。
 - 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
-- `$var:NAME` 从 `config/vars.yaml`（或部署文件的 `vars:`）取值；`${NAME}` 从进程环境与 `.env` 取值；`file://路径` 读文件。没有隐式的环境变量覆盖。
+- `$var:NAME` 从 `config/vars.yaml`（或部署文件的 `vars:`）取值；`${NAME}` 从进程环境与 `.env` 取值；`file://路径` 读文件；`$endpoint:<id>[/路径]` 是另一个组件的地址，按 `*_ENDPOINT` 的规则算（可以写在 `vars.yaml` 里；不进启动顺序，可以成环）。没有隐式的环境变量覆盖。
 - `brickkit up` 绝不构建镜像：本地该有的镜像没有时，它报错并告诉你跑 `brickkit build`。
 - `brickkit init <名字>` 新建目录；不带名字的 `brickkit init` 在当前目录补全缺的文件，`.gitignore` 缺必需条目时大声警告。已有的文件一个字节都不动——唯一的例外是 `AGENTS.md` 末尾由 brickkit 维护的那一段，它会原地改写。缺 `AGENTS.md`（作者自己的 AI 导读，末尾一段由 brickkit 维护）和 `CLAUDE.md`（`@AGENTS.md`）时会写上；没有项目级的 `BRICKKIT.md`。
 

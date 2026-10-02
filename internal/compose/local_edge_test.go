@@ -5,6 +5,7 @@
 package compose
 
 import (
+	"github.com/brickkit/brickkit/internal/resolver"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,14 +74,23 @@ func TestHostGateway(t *testing.T) {
 	assert.Equal(t, "host-gateway", hostGateway(""), "没指定引擎时按 Docker 处理")
 }
 
-// setVar 只改已有的变量：不存在意味着注入引擎判定"这条不该注入"
-// （比如弱依赖没启动），本地调试没有理由把它凭空补回来。
-func TestSetVarDoesNotCreateMissingVariable(t *testing.T) {
-	vars := []inject.Var{{Name: "A", Value: inject.Literal("1")}}
+// setAddress 只改已有的、指向这个目标这个端口的变量：不存在意味着注入引擎判定"这条不该注入"
+// （比如弱依赖没启动），本地调试没有理由把它凭空补回来。按 Target 认变量，不按名字；$endpoint: 写下的路径接在后面。
+func TestSetAddressRewritesByTargetAndKeepsPath(t *testing.T) {
+	api := resolver.Ref{ID: "erp/api", Version: "1.0.0"}
+	other := resolver.Ref{ID: "erp/other", Version: "1.0.0"}
+	vars := []inject.Var{
+		{Name: "ERP_API_ENDPOINT", Value: inject.Literal("x"), Target: api},
+		{Name: "API_JWKS_URL", Value: inject.Literal("x"), Target: api, Path: "/.well-known/jwks.json"},
+		{Name: "ERP_API_GRPC_ENDPOINT", Value: inject.Literal("x"), Target: api, Port: "grpc"},
+		{Name: "OTHER", Value: inject.Literal("keep"), Target: other},
+	}
 
-	setVar(vars, "B", "2")
-	setVar(vars, "A", "3")
+	setAddress(vars, api, "", "http://localhost:18080")
 
-	require.Len(t, vars, 1)
-	assert.Equal(t, "3", vars[0].Value.Text)
+	require.Len(t, vars, 4)
+	assert.Equal(t, "http://localhost:18080", vars[0].Value.Text)
+	assert.Equal(t, "http://localhost:18080/.well-known/jwks.json", vars[1].Value.Text)
+	assert.Equal(t, "x", vars[2].Value.Text, "别的端口不动")
+	assert.Equal(t, "keep", vars[3].Value.Text)
 }

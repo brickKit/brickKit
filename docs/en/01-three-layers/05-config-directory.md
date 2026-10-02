@@ -39,6 +39,7 @@ most likely an orphan left behind by a version change.
 # Component: department/tree@1.0.0
 # Environment variables for this component; every key is injected as-is.
 # Shared variable: $var:NAME (config/vars.yaml) · environment variable: ${NAME} · local file: file://path
+# Another component's address: $endpoint:<scope>/<name>
 
 # === Required: startup is blocked until these have a value ===
 DATABASE_HOST: ""  # string | PostgreSQL host name

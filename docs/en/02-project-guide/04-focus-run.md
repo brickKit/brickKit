@@ -129,7 +129,8 @@ read my personal file", and the focus is in it.
 
 Which components start is worked out the same way as always, only from a different starting point: without a focus,
 every top-level component starts; with one, only the focus and the components whose `mode` says they always run
-(`enabled`, `local`, `debug`). What they need follows, as usual. Shells count too: a focused shell runs with its members (`starting (hosted by …)`), and
+(`enabled`, `local`, `debug`). What they need follows, as usual — required and optional dependencies, and the components
+whose address their config refers to with `$endpoint:`. Shells count too: a focused shell runs with its members (`starting (hosted by …)`), and
 when the focus needs a component a shell hosts, that shell starts to host it (`starting (hosts …)`) rather than the
 member running on its own. A focus can't be a component that is `mode: disable` — that is a contradiction, and `up`
 refuses it without changing any file.

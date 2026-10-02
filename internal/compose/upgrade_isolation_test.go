@@ -37,10 +37,9 @@ func upgradedProject(t *testing.T) *builder {
 	// 而调用方的 Manifest 里写着 1.0.0
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
 		projecttest.Entry{})
-	// 1.0.0 只出现在依赖图里，不在 brickkit.yaml 的 components 列表里——
-	// 它是被 erp/backend 的依赖关系拉进来的
-	old := simple("people/basic", "1.0.0", 8080)
-	b.provider[old.Metadata.ID+"@"+old.Metadata.Version] = old
+	// 1.0.0 留在 brickkit.yaml 里，是 erp/backend 要它的兼容版本（requiredBy）——brickkit.yaml 是锁文件，
+	// 没声明的版本不会被解析进来
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{RequiredBy: []string{"erp/backend"}})
 	return b
 }
 

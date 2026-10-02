@@ -25,6 +25,7 @@ package k8s
 //	          由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -75,6 +76,8 @@ func dnsRule() map[string]any {
 // 流量是从外壳 Pod 发出去的。
 func (p *plan) dependencyTargets(c componentPlan) []any {
 	requires, optional := shell.Dependencies(p.proj, p.graph, p.states, c.Ref)
+	// 配置用 $endpoint: 引用的组件也会去连（外壳还包括它承载的成员引用的）
+	referenced := p.referencedTargets(c.Ref)
 
 	running := map[resolver.Ref]componentPlan{}
 	for _, other := range p.components {
@@ -87,7 +90,12 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 	}
 	var deps []depTarget
 	// 强依赖与弱依赖都算：弱依赖在对方存在时是真会去连的
-	for _, ref := range append(requires, optional...) {
+	seen := map[resolver.Ref]bool{}
+	for _, ref := range slices.Concat(requires, optional, referenced) {
+		if seen[ref] {
+			continue
+		}
+		seen[ref] = true
 		if dep, ok := running[ref]; ok {
 			deps = append(deps, depTarget{service: dep.Service, mf: dep.Manifest})
 			continue
@@ -118,6 +126,30 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 			}},
 			"ports": policyPorts(allPortsOf(dep.mf)),
 		})
+	}
+	return out
+}
+
+// referencedTargets 是这个 Pod 里的代码用 $endpoint: 引用的、这次在跑的组件：外壳还包括它承载的成员引用的。
+// 指向同一个 Pod 自己的不算（自己连自己不出 Pod）。
+func (p *plan) referencedTargets(ref resolver.Ref) []resolver.Ref {
+	refs := []resolver.Ref{ref}
+	for _, m := range p.served {
+		if m.Shell == ref {
+			refs = append(refs, m.Ref)
+		}
+	}
+	var out []resolver.Ref
+	for _, r := range refs {
+		node := p.graph.Node(r)
+		if node == nil {
+			continue
+		}
+		for _, target := range node.References {
+			if p.states.IsRunning(target) && !slices.Contains(refs, target) && !slices.Contains(out, target) {
+				out = append(out, target)
+			}
+		}
 	}
 	return out
 }

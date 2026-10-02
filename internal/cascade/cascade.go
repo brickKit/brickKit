@@ -8,6 +8,9 @@
 //
 // 一个组件被多个顶层共用时，只要还有一个上层在跑，它就跑。
 //
+// "上层"是依赖它的组件，加上配置用 $endpoint: 引用了它地址的组件（resolver.Node.Users）：
+// 引用不是依赖、不进启动顺序，可被引用的组件没跑，那个地址就没处可指——它同样跟着上层走。
+//
 // # 为什么这么写，而不是"没有启用中的组件需要它就不跑"
 //
 // 两者结论完全一样，但后者是**实现视角**：读的人要在脑子里把依赖图反着推一遍。
@@ -193,7 +196,7 @@ func computeStopped(
 				stopped[node.Ref], blocker[node.Ref], changed = true, dep, true
 				continue
 			}
-			if len(node.Dependents) > 0 && allStopped(node.Dependents, stopped) {
+			if users := node.Users(); len(users) > 0 && allStopped(users, stopped) {
 				stopped[node.Ref], changed = true, true
 			}
 		}
@@ -240,6 +243,10 @@ func seedOutsideFocus(
 			walk(dep)
 		}
 		for _, dep := range node.Optional {
+			walk(dep)
+		}
+		// 配置引用的地址也是焦点组件"需要的"：没有它，那个地址就没处可指
+		for _, dep := range node.References {
 			walk(dep)
 		}
 	}
@@ -313,7 +320,7 @@ func classify(
 	focus resolver.Ref, focused bool,
 ) Component {
 	ref := node.Ref
-	top := len(node.Dependents) == 0
+	top := len(node.Users()) == 0
 	c := Component{Ref: ref, TopLevel: top}
 
 	switch {
@@ -326,12 +333,12 @@ func classify(
 	case decl.disabled(ref):
 		c.State, c.Reason = StateDisabled, i18n.T(msgid.CascadeReasonDisabled)
 
-	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Dependents, running) &&
+	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Users(), running) &&
 		running[host.shellOf[ref]]:
 		// 焦点下因外壳而跑的成员：没有谁需要它，是它的外壳这次在跑、承载着它
 		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonHostedBy, host.shellOf[ref].ID)
 
-	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Dependents, running) &&
+	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Users(), running) &&
 		firstRunning(host.members[ref], running) != "":
 		// 焦点下因承载成员而跑的外壳：没有谁需要它本身，是它承载的成员被需要
 		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonHosts, firstRunning(host.members[ref], running))
@@ -367,8 +374,9 @@ func runningReason(
 
 	// 多个上层在跑时取字典序最前的那个：同一份配置每次都要给出同一句话，
 	// 否则连跑两次的输出不一样，使用者会以为哪里在飘
-	parents := make([]string, 0, len(node.Dependents))
-	for _, dep := range node.Dependents {
+	users := node.Users()
+	parents := make([]string, 0, len(users))
+	for _, dep := range users {
 		if running[dep] {
 			parents = append(parents, dep.ID)
 		}

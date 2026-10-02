@@ -185,3 +185,50 @@ func TestEnvNameRuleMatchesManifest(t *testing.T) {
 		assert.Equal(t, configdir.IsValidName(name), manifest.IsEnvName(name), name)
 	}
 }
+
+// $endpoint: 的写法：组件 ID 固定两段，后面依次可选 @版本、:端口名、/路径；第二段之后的第一个 / 一定是路径。
+func TestParseEndpointRef(t *testing.T) {
+	for in, want := range map[string]configdir.EndpointRef{
+		"$endpoint:infra/authz":                             {ID: "infra/authz"},
+		"$endpoint:infra/authz@2.0.1":                       {ID: "infra/authz", Version: "2.0.1"},
+		"$endpoint:infra/authz:grpc":                        {ID: "infra/authz", Port: "grpc"},
+		"$endpoint:infra/iam-casdoor/.well-known/jwks.json": {ID: "infra/iam-casdoor", Path: "/.well-known/jwks.json"},
+		"$endpoint:infra/iam@1.0.0:admin-api/v1/x?y=1":      {ID: "infra/iam", Version: "1.0.0", Port: "admin-api", Path: "/v1/x?y=1"},
+	} {
+		v, err := configdir.ParseValue(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, configdir.KindEndpointRef, v.Kind, in)
+		assert.Equal(t, want, v.Endpoint, in)
+		assert.Equal(t, in, v.String(), "还原成写下的样子")
+	}
+	for _, bad := range []string{
+		"$endpoint:", "$endpoint:authz", "$endpoint:Infra/Authz", "$endpoint:infra/authz@2.0",
+		"$endpoint:infra/authz:", "$endpoint:infra/authz:GRPC", "$endpoint:/x",
+	} {
+		_, err := configdir.ParseValue(bad)
+		require.Error(t, err, bad)
+		assert.Contains(t, err.Error(), "$endpoint:", bad)
+	}
+}
+
+// vars.yaml 里可以写 $endpoint:：槽位由谁填只写在这一个地方，引用它的组件用 $var: 取；Resolve 穿过 $var: 之后
+// 值就是那条引用（地址在注入阶段才算）。
+func TestEndpointRefThroughSharedVariable(t *testing.T) {
+	file, err := configdir.ParseVarsFile([]byte("IAM_URL: $endpoint:infra/iam-casdoor\n"), "config/vars.yaml")
+	require.NoError(t, err)
+	vars := map[string]configdir.Value{}
+	for _, e := range file.Entries {
+		vars[e.Key] = e.Value
+	}
+	res, err := configdir.Resolve(configdir.Input{
+		ComponentID: "erp/sales", Version: "1.0.0",
+		Schema: &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"IAM_URL": {Type: "string"}}},
+		File:   &configdir.File{Entries: []configdir.Entry{{Key: "IAM_URL", Value: configdir.Value{Kind: configdir.KindVarRef, Name: "IAM_URL"}}}},
+		Vars:   vars,
+	})
+	require.NoError(t, err)
+	got, ok := res.Get("IAM_URL")
+	require.True(t, ok)
+	assert.Equal(t, configdir.KindEndpointRef, got.Value.Kind)
+	assert.Equal(t, "infra/iam-casdoor", got.Value.Endpoint.ID)
+}

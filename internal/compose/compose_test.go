@@ -81,14 +81,17 @@ func (b *builder) build(opts compose.Options) (*compose.Result, error) {
 
 	b.proj = projecttest.Build(b.t, b.spec)
 	projecttest.FillShellCapability(b.spec, b.provider)
-	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
+	// 与 up 同一个入口：以 brickkit.yaml 声明的组件为根，并连上配置里的 $endpoint: 引用
+	graph, err := resolver.New(b.provider).ResolveProject(context.Background(), b.proj)
 	require.NoError(b.t, err)
 
 	states, err := cascade.Compute(b.proj, graph)
 	require.NoError(b.t, err)
 
 	env, err := inject.Build(b.proj, graph, states)
-	require.NoError(b.t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	if opts.Now == nil {
 		opts.Now = func() time.Time { return time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC) }

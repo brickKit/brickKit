@@ -357,7 +357,10 @@ to a `users` table in the database by default, and following that means not writ
     what can't, you write.
   - **Dependency aliases:** someone once proposed giving a dependency an alias (`as: iam`). An alias keeps only half of
     the two-way relation — `IAM_ENDPOINT` can't be traced back to the component it points at, and investigating "the
-    address points at the wrong place" starts exactly there.
+    address points at the wrong place" starts exactly there. What a slot family needs — the project deciding what it
+    points at — is `$endpoint:`: the config item's name is still the component's own, and what it points at is written in
+    `config/` or `vars.yaml`, in plain sight (see [Another component's
+    address](../01-three-layers/06-vars-and-var-ref.md)).
   - The cost is real too: the component ID turns, unchanged, into a variable name in every caller's code, so name
     components with the domain's own words, not with implementation details.
 - **How an AI copes:**

@@ -18,8 +18,9 @@ import (
 
 // 引用写法的前缀。
 const (
-	VarRefPrefix  = "$var:"
-	FileRefPrefix = "file://"
+	VarRefPrefix      = "$var:"
+	FileRefPrefix     = "file://"
+	EndpointRefPrefix = "$endpoint:"
 )
 
 // Kind 是一个配置值"是什么"：字面量，还是某种引用。
@@ -38,7 +39,29 @@ const (
 	KindFileRef
 	// KindSecretRef：{ existingSecret, key }，引用集群里已有的 K8s Secret。
 	KindSecretRef
+	// KindEndpointRef：$endpoint:<组件 ID>[@<版本>][:<端口名>][/<路径>]，项目里另一个组件的地址。
+	// 值由注入阶段算（与 *_ENDPOINT 同一条规则：外壳承载、本机进程都跟着改写），见 EndpointRef。
+	KindEndpointRef
 )
+
+// EndpointRef 是 $endpoint: 引用的那个地址。
+//
+// # 为什么有它
+//
+// 一个组件不能对槽位家族的某个具体成员声明依赖（那个成员就不可替换了），它只声明一个地址配置项，
+// 由项目填上这次装的成员的地址。手写的地址是带版本号的服务名（http://infra-authz-2-0-1:8223），
+// 成员一升版就悄悄失效，平台也不知道这条边。$endpoint: 让项目按组件 ID 写，地址由平台算——
+// 升版、进出外壳、换成本机进程都跟着变。"谁填这个槽位"仍然只写在 config/（或 vars.yaml）这一个地方，
+// 打开文件就看得到它指向谁：不是依赖别名。
+type EndpointRef struct {
+	// ID 是被引用的组件 ID；Version 为空表示项目里它的默认版本。
+	ID      string
+	Version string
+	// Port 是额外端口的名字；为空表示主端口。
+	Port string
+	// Path 原样接在地址后面（以 / 开头），为空表示只要地址。
+	Path string
+}
 
 // Value 是一个配置值。
 type Value struct {
@@ -52,6 +75,8 @@ type Value struct {
 	// SecretName / SecretKey：KindSecretRef 引用的 Secret 与其中的 key。
 	SecretName string
 	SecretKey  string
+	// Endpoint：KindEndpointRef 引用的地址。
+	Endpoint EndpointRef
 	// Null 表示 YAML 里写的是 null（KEY: 或 ~）：等于没写。
 	Null bool
 }
@@ -72,6 +97,8 @@ func (v Value) String() string {
 		return FileRefPrefix + v.Path
 	case KindSecretRef:
 		return fmt.Sprintf("{existingSecret: %s, key: %s}", v.SecretName, v.SecretKey)
+	case KindEndpointRef:
+		return EndpointRefPrefix + v.Endpoint.String()
 	default:
 		return v.Text
 	}
@@ -149,6 +176,12 @@ func parseString(s string) (Value, error) {
 			return Value{}, errors.New(i18n.T(msgid.ConfigdirVarRefBadName, s))
 		}
 		return Value{Kind: KindVarRef, Name: name}, nil
+	case strings.HasPrefix(s, EndpointRefPrefix):
+		ref, ok := parseEndpointRef(strings.TrimPrefix(s, EndpointRefPrefix))
+		if !ok {
+			return Value{}, errors.New(i18n.T(msgid.ConfigdirEndpointRefMalformed, s))
+		}
+		return Value{Kind: KindEndpointRef, Endpoint: ref}, nil
 	case strings.HasPrefix(s, FileRefPrefix):
 		path := strings.TrimPrefix(s, FileRefPrefix)
 		if path == "" {
@@ -163,6 +196,51 @@ func parseString(s string) (Value, error) {
 		return Value{Kind: KindEnvTemplate, Text: s}, nil
 	}
 	return literal(s), nil
+}
+
+// String 还原成 $endpoint: 后面的写法。
+func (r EndpointRef) String() string {
+	s := r.ID
+	if r.Version != "" {
+		s += "@" + r.Version
+	}
+	if r.Port != "" {
+		s += ":" + r.Port
+	}
+	return s + r.Path
+}
+
+// parseEndpointRef 解析 <scope>/<name>[@<版本>][:<端口名>][/<路径>]。组件 ID 固定两段，所以第二段之后的
+// 第一个 / 一定是路径的开头，不会有歧义。
+func parseEndpointRef(s string) (EndpointRef, bool) {
+	scope, rest, found := strings.Cut(s, "/")
+	if !found {
+		return EndpointRef{}, false
+	}
+	var ref EndpointRef
+	name, path, hasPath := strings.Cut(rest, "/")
+	if hasPath {
+		ref.Path = "/" + path
+	}
+	name, port, hasPort := strings.Cut(name, ":")
+	if hasPort {
+		if !manifest.IsValidPortName(port) {
+			return EndpointRef{}, false
+		}
+		ref.Port = port
+	}
+	name, version, hasVersion := strings.Cut(name, "@")
+	if hasVersion {
+		if !manifest.IsExactVersion(version) {
+			return EndpointRef{}, false
+		}
+		ref.Version = version
+	}
+	ref.ID = scope + "/" + name
+	if manifest.ComponentIDProblem(ref.ID) != "" {
+		return EndpointRef{}, false
+	}
+	return ref, true
 }
 
 func secretRef(m map[string]any) (name, key string, ok bool) {

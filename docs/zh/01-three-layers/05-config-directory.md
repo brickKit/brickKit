@@ -37,6 +37,7 @@ config/
 # Component: department/tree@1.0.0
 # 这个组件的环境变量，每个键原样注入。
 # 公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path
+# 另一个组件的地址：$endpoint:<scope>/<name>
 
 # === 必填：没有值就无法启动 ===
 DATABASE_HOST: ""  # string | PostgreSQL host name

@@ -224,3 +224,32 @@ func TestLintChecksShellKindAgainstManifest(t *testing.T) {
 	assert.Contains(t, r.stdout+r.stderr, "erp/api@1.0.0")
 	assert.Contains(t, r.stdout+r.stderr, "kind: shell")
 }
+
+// $endpoint: 引用的组件要在项目里，写了端口名的话它要有这个额外端口：lint 与 up 同一条规则，写错了（多半是拼错）是错误。
+// 写在 vars.yaml 里、经 $var: 取来的也查。deps 把引用画成一条带注记的边。
+func TestEndpointRefsAreCheckedAndShown(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+			"components:\n  - id: erp/api\n    version: 1.0.0\n  - id: infra/iam\n    version: 1.0.0\n",
+		"deploy.yaml":                         "target: docker\ncomponents:\n  - id: erp/api\n  - id: infra/iam\n",
+		"components/erp/api/component.yaml":   schemaComp("erp/api"),
+		"components/infra/iam/component.yaml": comp{ID: "infra/iam", Version: "1.0.0", Port: 8000}.yamlText(),
+		"config/vars.yaml":                    "IAM_URL: $endpoint:infra/iam/.well-known/jwks.json\n",
+		"config/erp-api.yaml":                 "DB_HOST: $var:IAM_URL\nTOKEN: $endpoint:infra/iamm\nCERT: $endpoint:infra/iam:grpc\n",
+	})
+
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "TOKEN is $endpoint:infra/iamm, but infra/iamm is not in brickkit.yaml")
+	assert.Contains(t, r.stdout, "infra/iam@1.0.0 has no extra port named grpc")
+	assert.NotContains(t, r.stdout, "DB_HOST is", "经 vars.yaml 的那条是对的")
+
+	writeTree(t, dir, map[string]string{"config/erp-api.yaml": "DB_HOST: $var:IAM_URL\n"})
+	r = runIn(t, dir, "deps", "erp/api")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "infra/iam@1.0.0 (address from config ($endpoint:))")
+	r = runIn(t, dir, "deps", "infra/iam")
+	assert.Contains(t, r.stdout, "Its address is used in the config of: erp/api@1.0.0")
+	assert.Contains(t, r.stdout, "Required by: nothing\n", "只被引用：不是顶层")
+}

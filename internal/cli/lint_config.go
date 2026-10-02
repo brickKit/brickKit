@@ -68,6 +68,7 @@ func lintConfig(proj *project.Project, strict bool, only string) lintConfigResul
 			continue
 		}
 		res.warnings = append(res.warnings, resolved.Warnings...)
+		res.errors = append(res.errors, endpointRefErrors(proj, ref, resolved)...)
 		if len(resolved.Missing) > 0 {
 			missing[ref] = resolved.Missing
 		}
@@ -82,6 +83,28 @@ func lintConfig(proj *project.Project, strict bool, only string) lintConfigResul
 		res.errors = append(res.errors, err)
 	}
 	return res
+}
+
+// endpointRefErrors 核对这个组件配置里的每条 $endpoint: 引用（与 up 注入时同一条规则，见 inject.CheckEndpointRef）。
+// 目标的 Manifest 取自盘上；还没取回来时只核对组件在不在项目里。
+func endpointRefErrors(proj *project.Project, ref resolver.Ref, resolved *configdir.Result) []*clierr.Error {
+	manifestOf := func(target resolver.Ref) *manifest.Manifest {
+		m, problem, found := diskManifest(proj, target.ID, target.Version)
+		if !found || problem != "" {
+			return nil
+		}
+		return m
+	}
+	var out []*clierr.Error
+	for _, r := range resolved.Values {
+		if r.Value.Kind != configdir.KindEndpointRef {
+			continue
+		}
+		if err := inject.CheckEndpointRef(proj, ref, r, manifestOf); err != nil {
+			out = append(out, clierr.As(err))
+		}
+	}
+	return out
 }
 
 // diskManifest 读一个组件版本在盘上的 Manifest，顺序与 up 取 Manifest 一致：本地源目录里正好是

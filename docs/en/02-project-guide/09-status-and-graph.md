@@ -132,6 +132,7 @@ graph TD
 | --- | --- |
 | Solid line | Required dependency |
 | Dashed line | Optional dependency; one missing from the project is drawn as a "not installed" node |
+| Dashed line labelled `$endpoint` | The config refers to its address with `$endpoint:` (filled in by the project, not a dependency the component declared; no start order) |
 | Greyed out | Won't start this time (here `demo/bus` is turned off with `mode: disable`) |
 | Group box | Members a shell hosts are drawn inside the shell's box; `--ignore-shells` shows each component on its own |
 | Special label | `mode: local` components are marked "managed locally" |

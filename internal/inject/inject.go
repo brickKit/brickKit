@@ -13,7 +13,9 @@ package inject
 
 import (
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -64,6 +66,12 @@ type Var struct {
 	Key string
 	// Owner 是配置类变量所属组件的版本化服务名（K8s 据此给生成的 Secret 命名）。
 	Owner string
+	// Target 是这条变量的值是谁的地址：依赖地址（*_ENDPOINT）与配置里 $endpoint: 引用的都填，其余为零值。
+	// Port 是额外端口的名字（主端口为空），Path 是 $endpoint: 接在地址后面的路径。之后改写地址的地方
+	// （外壳承载、本机进程）按 Target 与 Port 认变量，不按变量名——配置键叫什么由组件定，平台猜不出来。
+	Target resolver.Ref
+	Port   string
+	Path   string
 }
 
 // IsSecretRef 表示值是对外部已有 K8s Secret 的引用（{ existingSecret, key }）。
@@ -220,15 +228,32 @@ func buildComponent(
 		return Component{}, nil, nil, err
 	}
 	warnings := append([]*clierr.Error{}, resolved.Warnings...)
+	missing := resolved.Missing
 	for _, r := range resolved.Values {
 		if hit, reserved := manifest.ReservedHitFor(r.Key); reserved {
 			warnings = append(warnings, reservedConflictWarning(node.Ref.ID, hit))
 			continue
 		}
-		builder.set(Var{
+		v := Var{
 			Name: r.Key, Value: r.Value, Source: SourceConfig,
 			Secret: r.Secret, Key: r.Key, Owner: service,
-		})
+		}
+		if r.Value.Kind == configdir.KindEndpointRef {
+			resolvedRef, present, err := resolveEndpointRef(p, graph, states, node.Ref, r)
+			if err != nil {
+				return Component{}, nil, nil, err
+			}
+			if !present {
+				// 被引用的组件这次不跑：与弱依赖不在时同一个语义——没有这条变量，组件自己降级；
+				// 键是必填的就是缺了值（报错里说清是谁没跑）
+				if isRequired(schema, r.Key) {
+					return Component{}, nil, nil, endpointTargetNotRunning(node.Ref, r)
+				}
+				continue
+			}
+			v = resolvedRef(v)
+		}
+		builder.set(v)
 	}
 
 	entry := p.DeployEntry(node.Ref.ID, node.Ref.Version)
@@ -241,7 +266,102 @@ func buildComponent(
 		Labels:                 manifest.MergeLabels(manifestLabels(m), entry.Labels),
 		StopGracePeriodSeconds: stopGracePeriod(m, entry.StopGracePeriodSeconds),
 	}
-	return component, warnings, resolved.Missing, nil
+	return component, warnings, missing, nil
+}
+
+// resolveEndpointRef 把配置里的 $endpoint: 算成地址：与 *_ENDPOINT 同一条规则（被外壳承载的指向外壳、端口是它自己的），
+// 后面接上写下的路径。present 为假表示被引用的组件这次不跑。fill 把算好的值、Target、Port、Path 填进变量。
+func resolveEndpointRef(
+	p *project.Project, graph *resolver.Graph, states *cascade.Result, owner resolver.Ref, r configdir.Resolved,
+) (fill func(Var) Var, present bool, err error) {
+	e := r.Value.Endpoint
+	manifestOf := func(ref resolver.Ref) *manifest.Manifest {
+		if node := graph.Node(ref); node != nil {
+			return node.Manifest
+		}
+		return nil
+	}
+	if err := CheckEndpointRef(p, owner, r, manifestOf); err != nil {
+		return nil, false, err
+	}
+	target, _ := resolver.EndpointTarget(p, e)
+	if !states.IsRunning(target) {
+		return nil, false, nil
+	}
+	m := manifestOf(target)
+	if m == nil {
+		return nil, false, nil
+	}
+	port := m.Deployment.Port
+	if extra, ok := m.ExtraPortNamed(e.Port); ok {
+		port = extra.Port
+	}
+	host := target
+	if shell, hosted := states.HostOf(p, target); hosted {
+		host = shell
+	}
+	address := endpoint(manifest.ServiceName(host.ID, host.Version), port)
+	return func(v Var) Var {
+		v.Value = Literal(address + e.Path)
+		v.Target, v.Port, v.Path = target, e.Port, e.Path
+		return v
+	}, true, nil
+}
+
+// CheckEndpointRef 核对一条 $endpoint: 引用说得通：指向的组件（与版本）在 brickkit.yaml 里，写了端口名的话
+// 那个组件有这个额外端口。up 的注入与 lint 共用它；manifestOf 取不到目标的 Manifest 时不核对端口
+// （lint 不建依赖图，Manifest 可能还没取回来）。
+func CheckEndpointRef(p *project.Project, owner resolver.Ref, r configdir.Resolved, manifestOf func(resolver.Ref) *manifest.Manifest) error {
+	e := r.Value.Endpoint
+	target, declared := resolver.EndpointTarget(p, e)
+	if !declared {
+		return endpointTargetUndeclared(owner, r, target)
+	}
+	if e.Port == "" {
+		return nil
+	}
+	m := manifestOf(target)
+	if m == nil {
+		return nil
+	}
+	if _, ok := m.ExtraPortNamed(e.Port); !ok {
+		return endpointPortUnknown(owner, r, target, m)
+	}
+	return nil
+}
+
+func isRequired(schema *manifest.ConfigSchema, key string) bool {
+	return schema != nil && slices.Contains(schema.Required, key)
+}
+
+func endpointTargetUndeclared(owner resolver.Ref, r configdir.Resolved, target resolver.Ref) error {
+	what := target.ID
+	if r.Value.Endpoint.Version != "" {
+		what = target.String()
+	}
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InjectEndpointUndeclared, owner.String(), r.Key, r.Value.String(), what)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.InjectEndpointUndeclaredReason)).
+		WithHint(i18n.T(msgid.InjectHintAddReferenced, what), i18n.T(msgid.InjectHintFixReference))
+}
+
+func endpointPortUnknown(owner resolver.Ref, r configdir.Resolved, target resolver.Ref, m *manifest.Manifest) error {
+	names := make([]string, 0, len(m.Deployment.ExtraPorts))
+	for _, extra := range m.Deployment.ExtraPorts {
+		names = append(names, extra.Name)
+	}
+	available := strings.Join(names, ", ")
+	if available == "" {
+		available = i18n.T(msgid.InjectNoExtraPorts)
+	}
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InjectEndpointPortUnknown, owner.String(), r.Key, r.Value.String(), target.String(), r.Value.Endpoint.Port)).
+		WithDetail(i18n.T(msgid.InjectLabelExtraPorts), available).
+		WithHint(i18n.T(msgid.InjectHintFixReference))
+}
+
+func endpointTargetNotRunning(owner resolver.Ref, r configdir.Resolved) error {
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InjectEndpointNotRunning, owner.String(), r.Key, r.Value.String(), r.Value.Endpoint.ID)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.InjectEndpointNotRunningReason)).
+		WithHint(i18n.T(msgid.InjectHintRunReferenced, r.Value.Endpoint.ID), i18n.T(msgid.InjectHintFixReference))
 }
 
 // ============================================================
@@ -267,12 +387,15 @@ func (b *envBuilder) addEndpoints(ref, host resolver.Ref, node *resolver.Node) {
 		Name:   manifest.EndpointEnvVar(ref.ID),
 		Value:  Literal(endpoint(service, node.Manifest.Deployment.Port)),
 		Source: SourceEndpoint,
+		Target: ref,
 	})
 	for _, extra := range node.Manifest.Deployment.ExtraPorts {
 		b.set(Var{
 			Name:   manifest.ExtraPortEndpointEnvVar(ref.ID, extra.Name),
 			Value:  Literal(endpoint(service, extra.Port)),
 			Source: SourceEndpoint,
+			Target: ref,
+			Port:   extra.Name,
 		})
 	}
 }

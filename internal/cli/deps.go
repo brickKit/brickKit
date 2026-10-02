@@ -117,17 +117,28 @@ func depsNotInProject(target, id string, known []string) error {
 		WithHint(i18n.T(msgid.CliDepsHintAdd, id), i18n.T(msgid.CliDepsHintList)), id, known)
 }
 
-// requiredByLine 列出直接依赖这个组件版本的组件（强弱依赖都算）。
+// requiredByLine 列出直接依赖这个组件版本的组件（强弱依赖都算），另起一行列出配置用 $endpoint: 引用它的组件。
 func requiredByLine(node *resolver.Node) string {
-	if len(node.Dependents) == 0 {
-		return i18n.T(msgid.CliDepsRequiredByNone)
+	line := i18n.T(msgid.CliDepsRequiredByNone)
+	if len(node.ReferencedBy) > 0 {
+		line = i18n.T(msgid.CliDepsRequiredByNothing) // 只被引用：不是顶层
 	}
-	names := make([]string, 0, len(node.Dependents))
-	for _, d := range node.Dependents {
-		names = append(names, d.String())
+	if len(node.Dependents) > 0 {
+		line = i18n.T(msgid.CliDepsRequiredBy, sortedRefs(node.Dependents))
+	}
+	if len(node.ReferencedBy) > 0 {
+		line += "\n" + i18n.T(msgid.CliDepsReferencedBy, sortedRefs(node.ReferencedBy))
+	}
+	return line
+}
+
+func sortedRefs(refs []resolver.Ref) string {
+	names := make([]string, 0, len(refs))
+	for _, r := range refs {
+		names = append(names, r.String())
 	}
 	sort.Strings(names)
-	return i18n.T(msgid.CliDepsRequiredBy, strings.Join(names, ", "))
+	return strings.Join(names, ", ")
 }
 
 // depsTree 把依赖图画成树。一个组件版本在一次输出里只展开一次，再出现时标"见上"：
@@ -137,7 +148,8 @@ type depsTree struct {
 	printed map[resolver.Ref]bool
 }
 
-// project 画全项目：每个顶层组件（项目里没有谁依赖它）一棵树，按 brickkit.yaml 的顺序。
+// project 画全项目：每个顶层组件（项目里没有谁依赖它、也没有谁的配置引用它——与 cascade 的"顶层"同一个判据）
+// 一棵树，按 brickkit.yaml 的顺序。
 // 没被任何一棵树画到的（只在弱依赖环里互相依赖）也各自成树，一个都不漏。
 func (t *depsTree) project(proj *project.Project) string {
 	var order []resolver.Ref
@@ -149,7 +161,7 @@ func (t *depsTree) project(proj *project.Project) string {
 	}
 	var blocks []string
 	for _, ref := range order {
-		if len(t.graph.Node(ref).Dependents) == 0 {
+		if len(t.graph.Node(ref).Users()) == 0 {
 			blocks = append(blocks, t.render(ref))
 		}
 	}
@@ -171,8 +183,8 @@ func (t *depsTree) render(ref resolver.Ref) string {
 }
 
 type depsChild struct {
-	ref               resolver.Ref
-	optional, missing bool
+	ref                           resolver.Ref
+	optional, missing, referenced bool
 }
 
 func (t *depsTree) children(b *strings.Builder, ref resolver.Ref, prefix string, path map[resolver.Ref]bool) {
@@ -187,6 +199,9 @@ func (t *depsTree) children(b *strings.Builder, ref resolver.Ref, prefix string,
 	for _, r := range node.MissingOptional {
 		kids = append(kids, depsChild{ref: r, optional: true, missing: true})
 	}
+	for _, r := range node.References {
+		kids = append(kids, depsChild{ref: r, referenced: true})
+	}
 	for i, k := range kids {
 		branch, next := "├── ", prefix+"│   "
 		if i == len(kids)-1 {
@@ -199,6 +214,8 @@ func (t *depsTree) children(b *strings.Builder, ref resolver.Ref, prefix string,
 			notes = append(notes, i18n.T(msgid.CliDepsOptionalMissing))
 		case k.optional:
 			notes = append(notes, i18n.T(msgid.CliDepsOptional))
+		case k.referenced:
+			notes = append(notes, i18n.T(msgid.CliDepsReferenced))
 		}
 		expand := !k.missing
 		switch {

@@ -56,6 +56,7 @@ components:
 # Component: demo/caller@1.0.0
 # 这个组件的环境变量，每个键原样注入。
 # 公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path
+# 另一个组件的地址：$endpoint:<scope>/<name>
 
 # === 可选：注释掉的键使用组件默认值，取消注释即可覆盖 ===
 # DATABASE_HOST:  # string | PostgreSQL host name

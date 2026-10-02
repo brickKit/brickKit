@@ -113,6 +113,9 @@ const (
 	classMissing  = "missing"
 )
 
+// endpointEdgeLabel 是引用边上的标签：写的正是使用者在配置里写的那个前缀，不随语言变。
+const endpointEdgeLabel = "$endpoint"
+
 // mermaidClassDefs 按输出顺序列出样式类。用 classDef + class 而不是逐节点 style：
 // 一处改样式，全图跟着变。
 var mermaidClassDefs = []struct{ name, style string }{
@@ -242,6 +245,10 @@ func renderMermaid(
 		}
 		for _, dep := range node.MissingOptional {
 			fmt.Fprintf(&b, "    %s -.-> %s\n", from, mermaidID(dep))
+		}
+		// 配置用 $endpoint: 引用的地址：虚线带标签，与弱依赖分得开（它不是组件声明的依赖，是项目填的）
+		for _, dep := range node.References {
+			fmt.Fprintf(&b, "    %s -. %s .-> %s\n", from, endpointEdgeLabel, mermaidID(dep))
 		}
 	}
 

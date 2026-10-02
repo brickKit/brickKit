@@ -85,7 +85,7 @@ No overlay, no inheritance. `brickkit.yaml` and `config/` are shared; per-enviro
 config go through `$var:NAME` references, overridden by the deploy file's `vars:` block. `-f` ignores
 local mode entirely.
 
-**5. Config keys are env var names; values take five forms.**
+**5. Config keys are env var names; values take six forms.**
 
 ```yaml
 DB_PORT: 5432                          # literal
@@ -93,7 +93,14 @@ DB_HOST: $var:DB_HOST                  # from config/vars.yaml, overridden by th
 DB_PASSWORD: ${DB_PASSWORD}            # process environment, then .env (never committed)
 TLS_CERT: file://.secrets/cert.pem     # file contents, path relative to the project root
 API_TOKEN: { existingSecret: api, key: token }   # K8s only, secret keys only
+IAM_URL: $endpoint:infra/iam/.well-known/jwks.json   # another component's address (+ optional path)
 ```
+
+`$endpoint:<id>[@<version>][:<port name>][/path]` is worked out like `*_ENDPOINT` (versioned service
+name, rewritten for shells and processes on this machine). Use it wherever a component takes an
+address item instead of a dependency (slot families), and put it in `config/vars.yaml` when several
+components share it. It adds no start order and may form cycles; the target runs along with whoever
+refers to it; when the target doesn't run, an optional item is left out and a required one is an error.
 
 The default version reads `config/<scope>-<name>.yaml`; a `requiredBy` version reads
 `config/<scope>-<name>@<version>.yaml`.

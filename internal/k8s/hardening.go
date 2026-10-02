@@ -112,9 +112,11 @@ func (p *plan) dependentsOf(node *resolver.Node) []any {
 		running[other.Ref] = other.Service
 	}
 
+	// 依赖方，加上配置用 $endpoint: 引用了它的组件：它们同样会连过来
+	users := node.Users()
 	seen := map[string]bool{}
-	services := make([]string, 0, len(node.Dependents))
-	for _, dep := range node.Dependents {
+	services := make([]string, 0, len(users))
+	for _, dep := range users {
 		service, ok := running[dep]
 		if !ok {
 			// 依赖方被外壳承载：它的流量从外壳 Pod 发出

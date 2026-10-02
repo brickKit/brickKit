@@ -17,6 +17,7 @@ package compose
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -457,7 +458,8 @@ func (p *plan) addShellMemberHostPort(shellHostService string, hostPort, contain
 		hostPortMapping{hostPort: hostPort, containerPort: containerPort})
 }
 
-// runningDependencies 返回该组件本次实际启动的依赖（强依赖 + 起来了的弱依赖）。
+// runningDependencies 返回该组件本次要连、又真的在跑的组件：强依赖、起来了的弱依赖，以及配置用 $endpoint:
+// 引用了地址的组件——给宿主机上的进程开映射、改写地址都按它算（启动顺序不看它，那是 workloadDependencies）。
 func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 	node := p.graph.Node(ref)
 	if node == nil {
@@ -465,7 +467,7 @@ func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 	}
 
 	var out []resolver.Ref
-	for _, dep := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {
+	for _, dep := range slices.Concat(node.Requires, node.Optional, node.References) {
 		if p.states.IsRunning(dep) {
 			out = append(out, dep)
 		}
@@ -532,11 +534,44 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 			add(service + ":" + hostGateway(p.engine))
 		}
 	}
+	// 配置用 $endpoint: 引用的组件不进启动顺序（不在 workloadDependencies 里），可它在宿主机上跑时，
+	// 这个容器同样要能把它的服务名解析到宿主机
+	for _, target := range p.referencedTargets(c.Ref) {
+		host := target
+		if s, onHost := p.hostMember(target); onHost {
+			host = s.Shell
+		}
+		service := manifest.ServiceName(host.ID, host.Version)
+		if _, isLocal := p.localPort[service]; isLocal {
+			add(service + ":" + hostGateway(p.engine))
+		}
+	}
 	if p.usesHostMachineResource(c) {
 		add(hostMachineAlias + ":" + hostGateway(p.engine))
 	}
 
 	sort.Strings(out)
+	return out
+}
+
+// referencedTargets 是这个容器里的代码用 $endpoint: 引用的、这次在跑的组件：外壳还包括它承载的成员引用的。
+func (p *plan) referencedTargets(ref resolver.Ref) []resolver.Ref {
+	refs := []resolver.Ref{ref}
+	for _, s := range p.served {
+		if s.Shell == ref {
+			refs = append(refs, s.Ref)
+		}
+	}
+	var out []resolver.Ref
+	for _, r := range refs {
+		if node := p.graph.Node(r); node != nil {
+			for _, target := range node.References {
+				if p.states.IsRunning(target) && !slices.Contains(out, target) {
+					out = append(out, target)
+				}
+			}
+		}
+	}
 	return out
 }
 
@@ -618,7 +653,7 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 			if !isLocal {
 				continue
 			}
-			setVar(env, manifest.EndpointEnvVar(dep.ID), serviceEndpoint(service, port))
+			setAddress(env, dep, "", serviceEndpoint(service, port))
 			// 额外端口不改：宿主机上的进程仍然监听 Manifest 里声明的那些端口
 		}
 	}
@@ -717,6 +752,27 @@ func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool)
 	return lookup(name)
 }
 
+// pointSelfAtLocalhost 改写 $endpoint: 指向自己的地址（比如把自己的回调地址交给外部系统）：进程在宿主机上，
+// 自己的服务名在这里解析不了，换成它在宿主机上监听的端口——自己是 local 组件就是分给它的端口，
+// 被裸进程外壳承载就是它自己声明的端口（外壳进程替它监听）。额外端口在宿主机上按声明的号监听。
+func (p *plan) pointSelfAtLocalhost(ref resolver.Ref, vars []inject.Var) {
+	node := p.graph.Node(ref)
+	if node == nil || node.Manifest == nil {
+		return
+	}
+	port, ok := p.localPort[manifest.ServiceName(ref.ID, ref.Version)]
+	if _, hosted := p.hostMember(ref); hosted {
+		port, ok = node.Manifest.Deployment.Port, true
+	}
+	if !ok {
+		return
+	}
+	setAddress(vars, ref, "", localhostEndpoint(port))
+	for _, extra := range node.Manifest.Deployment.ExtraPorts {
+		setAddress(vars, ref, extra.Name, localhostEndpoint(extra.Port))
+	}
+}
+
 // pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口。
 func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var) {
 	for _, dep := range p.runningDependencies(ref) {
@@ -725,7 +781,7 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 			continue
 		}
 		if port, ok := p.hostAccessPort(dep); ok {
-			setVar(vars, manifest.EndpointEnvVar(dep.ID), localhostEndpoint(port))
+			setAddress(vars, dep, "", localhostEndpoint(port))
 		}
 
 		service := manifest.ServiceName(dep.ID, dep.Version)
@@ -752,10 +808,10 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 				}
 				port = extra.Port
 			}
-			setVar(vars, manifest.ExtraPortEndpointEnvVar(dep.ID, extra.Name),
-				localhostEndpoint(port))
+			setAddress(vars, dep, extra.Name, localhostEndpoint(port))
 		}
 	}
+	p.pointSelfAtLocalhost(ref, vars)
 }
 
 // renderEnvFile 渲染 .env 文件内容。
@@ -852,11 +908,12 @@ func (p *plan) localMigrationWarnings() []*clierr.Error {
 //
 // 不存在意味着注入引擎判定"这条不该注入"（比如弱依赖没启动），
 // 本地调试没有理由把它凭空补回来。
-func setVar(vars []inject.Var, name, value string) {
+// setAddress 把指向 target 的 port 端口（主端口为空）的每一条地址变量改成 base——依赖地址（*_ENDPOINT）
+// 与配置里 $endpoint: 引用的一视同仁，后者接着它写下的路径。按 Target 认变量，不按名字：配置键叫什么由组件定。
+func setAddress(vars []inject.Var, target resolver.Ref, port, base string) {
 	for i := range vars {
-		if vars[i].Name == name {
-			vars[i].Value = inject.Literal(value)
-			return
+		if vars[i].Target == target && vars[i].Port == port {
+			vars[i].Value = inject.Literal(base + vars[i].Path)
 		}
 	}
 }

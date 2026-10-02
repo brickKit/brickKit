@@ -68,6 +68,11 @@ type Node struct {
 	MissingOptional []Ref
 	// Dependents 是依赖本组件的组件，供卸载检查与错误提示使用。
 	Dependents []Ref
+	// References 是这个组件的配置用 $endpoint: 引用了地址的组件（项目里声明了的、不含它自己），
+	// ReferencedBy 是反方向。见 references.go：这种边只管地址、级联、网络策略与展示，
+	// 不进启动顺序、不判环，也不算 Dependents（requiredBy 只由 Manifest 里的依赖决定）。
+	References   []Ref
+	ReferencedBy []Ref
 }
 
 // Graph 是一次依赖解析的结果。
@@ -131,6 +136,8 @@ func (g *Graph) Subgraph(refs []Ref) *Graph {
 			Optional:        filterRefs(node.Optional, keep),
 			MissingOptional: node.MissingOptional,
 			Dependents:      filterRefs(node.Dependents, keep),
+			References:      filterRefs(node.References, keep),
+			ReferencedBy:    filterRefs(node.ReferencedBy, keep),
 		}
 		out.Nodes = append(out.Nodes, copied)
 		out.index[copied.Ref] = copied
@@ -213,7 +220,12 @@ func (r *Resolver) ResolveProject(ctx context.Context, p *project.Project) (*Gra
 	// brickkit.yaml 是锁文件：只在声明过的版本里解析。没声明的依赖没有部署条目、没有配置
 	// 文件，替使用者从安装源拉下来运行，等于绕过了三份文件
 	scoped := &Resolver{provider: declaredOnly{inner: r.provider, declared: declared}}
-	return scoped.Resolve(ctx, roots...)
+	graph, err := scoped.Resolve(ctx, roots...)
+	if err != nil {
+		return nil, err
+	}
+	addReferences(graph, p)
+	return graph, nil
 }
 
 // declaredOnly 只提供 brickkit.yaml 里声明过的组件版本。

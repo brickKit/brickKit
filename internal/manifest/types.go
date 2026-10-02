@@ -353,5 +353,15 @@ func (h HealthCheck) StartPeriod() int {
 // 。那句话对这种情形是误导的（它不是拼写错误），
 // 也正是把 minCliVersion 加回来的信号之一。
 
+// ExtraPortNamed 按名字找额外端口。
+func (m *Manifest) ExtraPortNamed(name string) (ExtraPort, bool) {
+	for _, extra := range m.Deployment.ExtraPorts {
+		if extra.Name == name {
+			return extra, true
+		}
+	}
+	return ExtraPort{}, false
+}
+
 // IsOptional 返回该依赖是否为弱依赖。
 func (d ComponentDep) IsOptional() bool { return d.Optional }
