@@ -307,6 +307,9 @@ func (f *File) targetWarnings() []*clierr.Error {
 	}
 	var checks []fieldCheck
 	if f.Target == TargetK8s {
+		if f.Network != "" {
+			warn("network", nil)
+		}
 		checks = []fieldCheck{
 			{"exposePort", func(c Entry) bool { return c.ExposePort != 0 }},
 			{"skipWaitFor", func(c Entry) bool { return len(c.SkipWaitFor) > 0 }},

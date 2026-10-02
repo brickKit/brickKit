@@ -599,7 +599,7 @@ func start(
 
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
 	if err := eng.Up(ctx, engine.UpRequest{
-		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
+		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services, Network: plan.proj.Deploy.Network,
 		RunAfter:      plan.runAfter(),
 		PruneSelector: pruneSelector,
 	}); err != nil {

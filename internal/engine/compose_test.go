@@ -555,3 +555,22 @@ func TestUpWithOnlyOneShotsStopsOldContainers(t *testing.T) {
 	assert.NotContains(t, first, "-v")
 	assert.Contains(t, strings.Join(rec.calls[1], " "), "run --rm --no-deps")
 }
+
+// 部署文件说网络由项目提供：up 之前先确认它在。不在就停下，给出创建命令（按引擎的命令名），一个容器都不起。
+func TestUpChecksTheProjectProvidedNetwork(t *testing.T) {
+	rec := newRecorder()
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{File: "f", Project: "p", Network: "shop-net"}))
+	assert.Equal(t, "docker network inspect shop-net", strings.Join(rec.calls[0], " "))
+
+	rec = newRecorder()
+	rec.fail["network inspect"] = errors.New("exit status 1")
+	err := dockerWith(rec).Up(context.Background(), UpRequest{File: "f", Project: "p", Network: "shop-net"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shop-net")
+	assert.Contains(t, strings.Join(clierr.As(err).Hints, "\n"), "docker network create shop-net")
+	assert.Len(t, rec.calls, 1, "网络不在就不往下走")
+
+	rec = newRecorder()
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{File: "f", Project: "p"}))
+	assert.NotContains(t, strings.Join(rec.calls[0], " "), "network inspect", "没写 network: 不查")
+}

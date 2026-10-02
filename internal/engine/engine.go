@@ -56,6 +56,9 @@ type UpRequest struct {
 	// 固定放在 .brickkit/generated/ 下——那样**所有** BrickKit 项目在同一台
 	// 机器上都会叫 "generated"，彼此的容器互相顶替。
 	Project string
+	// Network 是部署文件声明由项目提供的网络（network:）；空表示由 compose 自己建。
+	// 非空时 Up 先确认它存在：compose 遇到不存在的 external 网络只会甩一句英文，不说该怎么办。
+	Network string
 	// ProjectDir 是项目根目录（brickkit.yaml 所在处）。
 	//
 	// compose 默认在**部署文件旁边**找 .env，而我们的文件固定放在

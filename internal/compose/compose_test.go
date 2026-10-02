@@ -1036,3 +1036,15 @@ func TestStopGracePeriod(t *testing.T) {
 	assert.Equal(t, "40s", serviceOf(t, doc, "erp-consumer-1-0-0")["stop_grace_period"], "部署条目覆盖组件的推荐值")
 	assert.NotContains(t, serviceOf(t, doc, "erp-api-1-0-0"), "stop_grace_period")
 }
+
+// 部署文件写了 network:，项目的网络就是它：生成的 compose 只引用（external），不建也不删；
+// 服务照旧挂在同一个网络键上，别名不变。
+func TestProjectProvidedNetworkIsExternal(t *testing.T) {
+	b := newBuilder(t)
+	b.spec.Network = "shop-net"
+	b.component(simple("erp/api", "1.0.0", 8080), projecttest.Entry{})
+
+	doc := b.parsed()
+	assert.Equal(t, map[string]any{"brickkit-net": map[string]any{"name": "shop-net", "external": true}}, doc["networks"])
+	assert.Equal(t, []any{"brickkit-net"}, serviceOf(t, doc, "erp-api-1-0-0")["networks"])
+}

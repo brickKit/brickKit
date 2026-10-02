@@ -155,6 +155,18 @@ components:
 	assert.NotContains(t, all, "components[", "点名组件用 id，不用下标")
 }
 
+// network: 是 Docker / Podman 的网络：K8s 下写了只警告，不静默忽略。
+func TestNetworkIsIgnoredWithWarningOnK8s(t *testing.T) {
+	_, warnings, err := parse(t, "target: k8s\nnetwork: shop-net\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0].Format(), "network has no effect with target: k8s")
+
+	_, warnings, err = parse(t, "target: docker\nnetwork: shop-net\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+}
+
 func TestSettingsDefaults(t *testing.T) {
 	f, _, err := parse(t, "target: k8s\n", deployfile.RoleTeam)
 	require.NoError(t, err)

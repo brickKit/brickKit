@@ -48,6 +48,10 @@ type File struct {
 	// Focus 是焦点组件（裸 ID）：只有它和它需要的组件启动，它从源码跑。
 	// 只允许写在个人文件 deploy.local.yaml 里，与 mode: debug 同一条规则。
 	Focus string `yaml:"focus,omitempty"`
+	// Network 是项目自己提供的 Docker / Podman 网络：写了就加入它，不再由 brickkit 建 brickkit-<项目名>-net。
+	// 项目之外的东西（自己的数据库、IdP、网关的 compose）要和组件在同一个网络里时用：网络归项目，谁先起都行，
+	// down 也不会去删它。网络得先存在（docker network create），up 在启动之前核对。K8s 下没有意义，写了会警告。
+	Network string `yaml:"network,omitempty"`
 	// K8s 收拢所有只在 target: k8s 下有意义的项目级设置；其它 target 下写了会警告。
 	K8s *K8s `yaml:"k8s,omitempty"`
 	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A）。

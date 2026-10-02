@@ -10,6 +10,7 @@
 | --- | --- | --- | --- |
 | `target` | 字符串 | ✅ | `docker` / `podman` / `k8s` |
 | `focus` | 字符串 | | 只能写在 `deploy.local.yaml` 里：一个组件 ID。只有这个组件和它需要的组件启动，它从源码跑（按 `mode: local`，写了 `mode: debug` 就按 debug）；`target: k8s` 下不能用。见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
+| `network` | 字符串 | | 只对 Docker / Podman：项目自己提供的网络名。写了就加入这个已存在的网络（生成的 compose 标成 `external`），不再建 `brickkit-<项目名>-net`，`down` 也不删它；`up` 之前核对它存在。K8s 下写了只警告 |
 | `vars` | 映射 | | 覆盖 `config/vars.yaml` 里的同名公共变量，只影响 `$var:` 的查找；键必须是合法的环境变量名 |
 
 ## k8s

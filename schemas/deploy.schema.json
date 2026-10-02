@@ -526,6 +526,12 @@
         "null"
       ]
     },
+    "network": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "target": {
       "enum": [
         "docker",

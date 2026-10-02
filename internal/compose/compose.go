@@ -104,6 +104,10 @@ func Generate(
 			"driver": "bridge",
 		},
 	}
+	// 部署文件说网络由项目提供：只引用，不建也不删（compose 对 external 网络两样都不做）
+	if name := proj.Deploy.Network; name != "" {
+		networks[networkAlias] = map[string]any{"name": name, "external": true}
+	}
 
 	doc := map[string]any{
 		"services": plan.services(),
