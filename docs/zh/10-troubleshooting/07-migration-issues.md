@@ -123,7 +123,7 @@ DATABASE_HOST: $var:PG_HOST:5432
 ❌ 错误：demo-caller.yaml 校验失败
    文件：config/demo-caller.yaml
    DATABASE_HOST："$var:PG_HOST:5432" 不是合法的 $var: 引用；写成 $var:NAME，NAME 由字母、数字、下划线组成
-   建议：config/ 文件的写法：docs/zh/01-three-layers/05-config-directory.md（英文版把 zh 换成 en）
+   建议：config/ 文件的写法：brickkit docs 01-three-layers/05-config-directory（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/01-three-layers/05-config-directory.md）
 ```
 
 `$var:` 必须是整个值，不能嵌进字符串。

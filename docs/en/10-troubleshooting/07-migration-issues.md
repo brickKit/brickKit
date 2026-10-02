@@ -147,7 +147,7 @@ DATABASE_HOST: $var:PG_HOST:5432
 ❌ Error: demo-caller.yaml failed validation
    File: config/demo-caller.yaml
    DATABASE_HOST: "$var:PG_HOST:5432" is not a valid $var: reference; write $var:NAME, where NAME uses letters, digits and underscores
-   Suggestion: How config/ files are written: docs/en/01-three-layers/05-config-directory.md (swap en for zh for the Chinese version)
+   Suggestion: How config/ files are written: brickkit docs 01-three-layers/05-config-directory (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/01-three-layers/05-config-directory.md)
 ```
 
 `$var:` has to be the whole value; it can't be embedded in a string.

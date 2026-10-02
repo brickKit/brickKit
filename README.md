@@ -215,7 +215,7 @@ target: k8s          # was docker
 Not a line of component code changes: the address format is the same in both environments,
 `http://<versioned-service-name>:<port>` (for example `http://people-basic-1-0-0:8080`).
 
-**21 commands, plus `version`, `lang` and `completion`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+**21 commands, plus `version`, `lang`, `docs` and `completion`:** `init` `skills` `graph` `lint` `new` `add` `remove`
 `fetch` `upgrade` `up` `down` `status` `sync` `local` `restore` `deps` `build` `release` `publish` `login` `logout`
 
 Want to walk through it yourself? The [five-minute quick start](docs/en/00-intro/02-quick-start.md) takes this whole

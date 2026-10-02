@@ -330,6 +330,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newReleaseCommand(opts),
 		newVersionCommand(opts),
 		newLangCommand(opts),
+		newDocsCommand(opts),
 	)
 
 	localize(root)

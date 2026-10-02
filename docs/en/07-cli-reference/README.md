@@ -1,6 +1,6 @@
 # CLI reference
 
-The BrickKit CLI has 21 business commands, plus `version`, `lang` and `completion`, which are about the CLI itself. This page covers
+The BrickKit CLI has 21 business commands, plus `version`, `lang`, `docs` and `completion`, which are about the CLI itself. This page covers
 every command, every subcommand and every flag; it agrees with `brickkit <command> --help`, and `--help` is the
 authority.
 
@@ -35,6 +35,7 @@ what it *actually* looks like lives in the engine underneath (Docker / Podman / 
 | Release | [`logout`](#brickkit-logout) | Log out of a component market |
 | CLI | [`version`](#brickkit-version) | The CLI version, the supported manifest version and deploy targets |
 | CLI | [`lang`](#brickkit-lang) | Show or change the language the CLI speaks |
+| CLI | [`docs`](#brickkit-docs) | Print BrickKit's documentation for this version, offline |
 | CLI | [`completion`](#brickkit-completion) | Print the script that makes TAB complete commands, component IDs and versions |
 
 ## Global flag
@@ -1082,6 +1083,46 @@ brickkit lang set <en|zh> [flags]
 ```bash
 brickkit lang set zh                 # speak Chinese from now on
 BRICKKIT_LANG=en brickkit status     # English for this one command
+```
+
+## `brickkit docs`
+
+BrickKit's documentation, built into the CLI: the pages of exactly the version you run, readable without a network. With
+no argument it lists every page; with a page it prints that page as Markdown, ready to read or to pipe to an AI.
+
+A page is named by its path under `docs/<lang>/` without `.md` — `04-shell/02-json-injection`; a directory names its
+README (`04-shell`), and `README` is the front page. A path copied from a link or an error message works too
+(`docs/en/04-shell/README.md`). Links inside a page are relative to it, as in the repository. Error suggestions that point
+at a page name it this way, with its online address next to it:
+
+```text
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
+```
+
+The online address points at the tag of the CLI's own version (a development build points at `main`), so it never
+describes a different version from the one running.
+
+```text
+brickkit docs [<page>] [flags]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--lang <en\|zh>` | The language of the pages; by default the CLI's language |
+
+```bash
+brickkit docs                                      # list every page
+brickkit docs 04-shell                             # the shell chapter's front page
+brickkit docs 11-reference/01-component-yaml-schema
+brickkit docs 02-project-guide/03-local-debug-workflow --lang zh
+```
+
+```text
+📚 BrickKit v1.1.0 documentation (en) — brickkit docs <page> prints one
+
+  00-intro                                         Overview and getting started
+  00-intro/01-what-is-brickkit                     What BrickKit is
+  00-intro/02-quick-start                          Quick start (five minutes)
 ```
 
 ## `brickkit completion`

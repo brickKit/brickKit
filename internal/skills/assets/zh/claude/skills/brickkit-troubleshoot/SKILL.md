@@ -224,6 +224,7 @@ docker / podman 用就留着，否则删掉。
 
 ## 去哪查更细的
 
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——排障 `brickkit docs 10-troubleshooting`、全部错误码 `brickkit docs 06-architecture/09-error-codes`
 - 参数：`brickkit <命令> --help`
 - 组件自己的说明（配置怎么填、依赖为什么要）：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`
 - 「为什么这样设计」的完整论证与全部错误码：<https://github.com/brickKit/brickKit> 根目录 `AGENTS.zh.md`

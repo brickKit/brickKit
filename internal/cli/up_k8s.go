@@ -15,6 +15,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
@@ -96,7 +97,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sKubectlGetNetworkpolicyShowsThem))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheDefaultCniOfMinikube))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sThePlatformCanTDetect))
-	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sSeeSecurityDoc))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sSeeSecurityDoc, docpages.Ref(docpages.PageSecurity)...))
 }
 
 // projectSelector 是本项目全部生成物共有的标签选择器。

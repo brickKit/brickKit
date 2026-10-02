@@ -171,7 +171,7 @@ A focus run needs a process on your machine that the other components reach, so 
 ❌ Error: deploy.local.yaml failed validation
    File: deploy.local.yaml
    focus: a focus run starts a process on your machine, which a cluster cannot reach; use target docker or podman
-   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
 ```
 
 ## Moving versions forward

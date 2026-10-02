@@ -1,9 +1,9 @@
 package doccheck
 
 import (
-	"slices"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"

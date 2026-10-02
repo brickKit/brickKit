@@ -75,7 +75,7 @@ A typical error:
 ❌ Error: deploy.yaml failed validation
    File: deploy.yaml
    components[0].exposed: unknown field (line 7), did you mean expose?
-   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
 ✅ deploy.local.yaml
 ✅ ./ (docs)
 ✅ components/demo/hello/component.yaml

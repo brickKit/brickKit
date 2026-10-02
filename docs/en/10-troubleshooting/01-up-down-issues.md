@@ -54,7 +54,7 @@ version added appear in the config file as `KEY: ""`, and need filling in too.
 ❌ Error: deploy.yaml failed validation
    File: deploy.yaml
    components[2].exposePort: conflicts with components[0].exposePort (host port 18080 is already taken)
-   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
 ```
 
 **Fix**: give one of them another `exposePort` (or `localPort`).

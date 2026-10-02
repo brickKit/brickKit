@@ -61,4 +61,5 @@ description: 在 BrickKit 项目里来了新需求、新功能或一处改动，
 
 - 写组件的文档：`brickkit-component` 技能
 - 增删、升级、运行组件：`brickkit-assemble` 技能
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——判断需求的完整做法：`brickkit docs 08-ai-guide/03-judging-a-requirement`
 - 参数：`brickkit <命令> --help`

@@ -159,7 +159,7 @@ brickkit up --all
 ❌ 错误：deploy.local.yaml 校验失败
    文件：deploy.local.yaml
    focus：焦点运行要在你的机器上起进程，集群够不着；改用 target docker 或 podman
-   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
+   建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
 ```
 
 ## 版本往前走

@@ -133,6 +133,7 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 
 ## 去哪查更细的
 
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——项目怎么跑 `brickkit docs 02-project-guide`、`brickkit.yaml` 全部字段 `brickkit docs 11-reference/02-brickkit-yaml-schema`
 - 参数：`brickkit <命令> --help`。这份技能刻意不复刻参数清单
 - 某个组件怎么用、要配什么：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`；
   项目里有哪些组件、各干什么：`AGENTS.md` 末尾的组件表（`add` / `remove` / `upgrade` 维护；

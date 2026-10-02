@@ -69,7 +69,7 @@ brickkit lint
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[0].exposed：未知字段（第 7 行），是不是想写 expose？
-   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
+   建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
 ✅ deploy.local.yaml
 ✅ ./（文档）
 ✅ components/demo/hello/component.yaml

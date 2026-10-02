@@ -69,4 +69,5 @@ description: Use when the user brings a new requirement, a feature or a change i
 
 - Writing the component's documents: the `brickkit-component` skill
 - Adding, upgrading and running components: the `brickkit-assemble` skill
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — judging a requirement in full: `brickkit docs 08-ai-guide/03-judging-a-requirement`
 - Flags: `brickkit <command> --help`

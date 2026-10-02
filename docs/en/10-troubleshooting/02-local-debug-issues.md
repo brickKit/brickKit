@@ -52,7 +52,7 @@ adding them by hand (option B) is quicker.
 ❌ Error: deploy.yaml failed validation
    File: deploy.yaml
    components[0].mode: mode: debug can only be written in deploy.local.yaml: it records that you are debugging this component on your machine right now, which is not a team decision. Run brickkit local on and set it there
-   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
 ```
 
 **Cause**: `mode: debug` is your personal fact of the moment, and can only be written in the personal file. **Fix**:

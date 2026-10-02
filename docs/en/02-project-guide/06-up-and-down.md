@@ -153,7 +153,7 @@ with one call path that never works.
 ❌ Error: deploy.yaml failed validation
    File: deploy.yaml
    components[1].exposePort: conflicts with components[0].exposePort (host port 18080 is already taken)
-   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
+   Suggestion: Full field reference: brickkit docs 11-reference/03-deploy-yaml-schema (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/11-reference/03-deploy-yaml-schema.md)
 ```
 
 When another program on the machine holds the port, Docker reports it when starting the container — pick another

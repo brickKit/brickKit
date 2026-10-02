@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -237,7 +238,7 @@ func (c *Compose) failure(args []string, out []byte, err error, lines int) error
 	// 或子命令收窄——down 之外，up 的 --remove-orphans 清理孤儿容器时也会撞
 	// 上同一个失败，同样该给这条提示。
 	if strings.Contains(string(out), "kill network process: permission denied") {
-		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor))
+		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor, docpages.Ref(docpages.PageUpDownIssues)...))
 	}
 	return failure
 }

@@ -204,7 +204,7 @@ target: k8s          # 原本是 docker
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**21 个命令，加 `version`、`lang` 与 `completion`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+**21 个命令，加 `version`、`lang`、`docs` 与 `completion`：** `init` `skills` `graph` `lint` `new` `add` `remove`
 `fetch` `upgrade` `up` `down` `status` `sync` `local` `restore` `deps` `build` `release`
 `publish` `login` `logout`
 

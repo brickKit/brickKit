@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -66,5 +67,5 @@ func newProblems(source string) *clierr.ProblemSet {
 		source = FileName
 	}
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, FileName)).
-		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.ProjfileHintFieldReference))
+		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.ProjfileHintFieldReference, docpages.Ref(docpages.PageBrickkitYAML)...))
 }

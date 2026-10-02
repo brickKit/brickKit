@@ -201,6 +201,7 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 
 ## 去哪查更细的
 
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——写组件 `brickkit docs 03-component-guide`、组件文档 `brickkit docs 03-component-guide/08-component-doc-spec`、外壳 `brickkit docs 04-shell`、`component.yaml` 全部字段 `brickkit docs 11-reference/01-component-yaml-schema`
 - 参数：`brickkit new --help`、`brickkit lint --help`、`brickkit build --help`、`brickkit release --help`
 - 完整规范：<https://github.com/brickKit/brickKit> 根目录 `AGENTS.zh.md`
 - 别的组件的写法样例：你项目里 `.brickkit/manifests/` 下缓存的 `component.yaml` 与 `BRICKKIT.md`

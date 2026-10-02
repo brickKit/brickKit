@@ -145,6 +145,7 @@ shell is reached at the shell's address. **To see the generated files** without 
 
 ## Where to dig deeper
 
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — troubleshooting `brickkit docs 10-troubleshooting`, every error code `brickkit docs 06-architecture/09-error-codes`
 - Flags: `brickkit <command> --help`
 - A component's own notes (configuration, known pitfalls): `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`
 - The full specification and the reasoning behind each design choice:

@@ -81,7 +81,7 @@ components:
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[0].mode：mode: debug 只能写在 deploy.local.yaml 里：它记录的是"我此刻在本机调试这个组件"，不是团队决策。先 brickkit local on，再到那里设置
-   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
+   建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
 ```
 
 `local` 和 `debug` 的进程跑在你的机器上，所以只在 `docker` / `podman` 目标下有意义；集群里的 Pod 连不到你的笔记本。

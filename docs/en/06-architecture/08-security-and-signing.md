@@ -110,7 +110,7 @@ generates network policies it reminds you:
       kubectl get networkpolicy shows them, yet traffic is not restricted at all — with no error whatsoever.
       The default CNI of minikube / kind is exactly this kind.
    The platform can't detect this (K8s has no API for it), so you have to verify it yourself once:
-      See docs/en/06-architecture/08-security-and-signing.md (swap en for zh for the Chinese version)
+      See brickkit docs 06-architecture/08-security-and-signing (online: https://github.com/brickKit/brickKit/blob/v1.1.0/docs/en/06-architecture/08-security-and-signing.md)
 ```
 
 **Verify it yourself once:** after deploying, reach the same target from an **authorised** component and from an

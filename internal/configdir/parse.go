@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
@@ -143,5 +144,5 @@ func parseFlat(data []byte, source string, isVars bool) (*File, error) {
 
 func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, filepath.Base(source))).
-		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.ConfigdirHintFieldReference))
+		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.ConfigdirHintFieldReference, docpages.Ref(docpages.PageConfigDir)...))
 }

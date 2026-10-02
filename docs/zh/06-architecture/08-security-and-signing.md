@@ -92,7 +92,7 @@ Kubernetes 没有提供"这个集群执行 NetworkPolicy 吗"的 API，平台测
       kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。
       minikube / kind 的默认 CNI 就属于这一类。
    平台测不出来（K8s 没有这个 API），只能你自己验一次：
-      详见 docs/zh/06-architecture/08-security-and-signing.md（英文版把 zh 换 en）
+      详见 brickkit docs 06-architecture/08-security-and-signing（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/06-architecture/08-security-and-signing.md）
 ```
 
 **自己验一次：** 部署之后，分别从一个**被授权**的组件和一个**没被授权**的组件去访问同一个目标。

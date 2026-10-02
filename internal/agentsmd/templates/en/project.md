@@ -6,7 +6,7 @@ This project is assembled with [BrickKit](https://github.com/brickKit/brickKit):
 - `brickkit add` / `remove` / `upgrade` keep the three layers in step: never hand-edit one and forget another.
 - Config keys are the environment variable names the component's `configSchema` declares; secrets are `${VAR}` or `file://.secrets/…`, never plaintext.
 - A health check checks only its own process. To work on one component, run `brickkit up` in its directory; `brickkit up --all` runs everything again.
-- Task skills are in `.claude/skills/brickkit-*`; for flags ask `brickkit <command> --help`.
+- Task skills are in `.claude/skills/brickkit-*`; for flags ask `brickkit <command> --help`; BrickKit's own documentation, for the version installed, is `brickkit docs` (it lists the pages; `brickkit docs 04-shell` prints one).
 
 ## Components
 

@@ -141,7 +141,7 @@ brickkit down
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 18080 已被占用）
-   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
+   建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
 ```
 
 端口被本机别的程序占着，则是 Docker 启动容器时报错——换一个 `exposePort`。

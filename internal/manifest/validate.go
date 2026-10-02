@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/runcmd"
@@ -54,7 +55,7 @@ func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeManifestInvalid, i18n.T(msgid.ProblemValidationFailed, FileName)).
 		WithSource(i18n.T(msgid.LabelFile), source).
 		WithHint(
-			i18n.T(msgid.ManifestHintFieldReference),
+			i18n.T(msgid.ManifestHintFieldReference, docpages.Ref(docpages.PageComponentYAML)...),
 		)
 }
 

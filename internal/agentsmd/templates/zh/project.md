@@ -6,7 +6,7 @@
 - `brickkit add` / `remove` / `upgrade` 会让三层文件一起改：别手改一层、忘了另一层。
 - 配置项的键就是组件 `configSchema` 声明的环境变量名；密钥写成 `${VAR}` 或 `file://.secrets/…`，不写明文。
 - 健康检查只查自己这个进程。只想改一个组件时，在它的目录里 `brickkit up`；`brickkit up --all` 回到全部运行。
-- 按任务分的技能在 `.claude/skills/brickkit-*`；参数问 `brickkit <命令> --help`。
+- 按任务分的技能在 `.claude/skills/brickkit-*`；参数问 `brickkit <命令> --help`；BrickKit 自己的文档（与装着的版本一致）用 `brickkit docs` 看（列出全部页；`brickkit docs 04-shell` 打印一页）。
 
 ## 组件
 

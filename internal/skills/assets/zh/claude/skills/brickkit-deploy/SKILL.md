@@ -185,6 +185,7 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 
 ## 去哪查更细的
 
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——三层文件 `brickkit docs 01-three-layers`、本地调试 `brickkit docs 02-project-guide/03-local-debug-workflow`、外壳 `brickkit docs 04-shell`、部署文件全部字段 `brickkit docs 11-reference/03-deploy-yaml-schema`
 - 参数：`brickkit up --help`、`brickkit local --help`、`brickkit build --help`、`brickkit lint --help`
   （`lint --strict` 还会查 `${VAR}` 和 `file://` 引用能否取到）
 - 某个组件要配哪些值：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md` 的配置指南

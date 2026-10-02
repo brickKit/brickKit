@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
@@ -59,7 +60,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	if root.Kind == 0 || len(root.Content) == 0 {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestEmpty, FileName)).
 			WithDetail(i18n.T(msgid.LabelFile), source).
-			WithHint(i18n.T(msgid.ManifestHintFieldReference))
+			WithHint(i18n.T(msgid.ManifestHintFieldReference, docpages.Ref(docpages.PageComponentYAML)...))
 	}
 
 	doc := root.Content[0]

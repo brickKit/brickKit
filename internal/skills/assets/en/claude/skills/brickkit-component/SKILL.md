@@ -199,6 +199,7 @@ treat it as a project; `release` reads only `component.yaml`.
 
 ## Where to dig deeper
 
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — writing a component `brickkit docs 03-component-guide`, its documents `brickkit docs 03-component-guide/08-component-doc-spec`, shells `brickkit docs 04-shell`, every `component.yaml` field `brickkit docs 11-reference/01-component-yaml-schema`
 - Flags: `brickkit new --help`, `brickkit lint --help`, `brickkit build --help`, `brickkit release --help`
 - The full specification: <https://github.com/brickKit/brickKit> and its root `AGENTS.md`
 - Examples: the cached `BRICKKIT.md` and `component.yaml` of any component under `.brickkit/manifests/`

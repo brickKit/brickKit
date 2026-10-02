@@ -151,6 +151,7 @@ never local mode, so their output is the same for everyone. `down` never deletes
 
 ## Where to dig deeper
 
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — running a project `brickkit docs 02-project-guide`, every `brickkit.yaml` field `brickkit docs 11-reference/02-brickkit-yaml-schema`
 - Flags and exact behavior: `brickkit <command> --help` (`add`, `remove`, `upgrade`, `deps`, `sync`,
   `up`, `local`). This skill deliberately doesn't duplicate the flag reference
 - A component's own guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`; which

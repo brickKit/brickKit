@@ -106,7 +106,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 成员的迁移照常单独跑，用成员自己的镜像与配置，所以每个成员都必须有自己的镜像（`image` 或 `build`）。
 - 外壳本身也是组件：有自己的 `configSchema` 和 `config/` 文件。
 
-## §5 命令集（21 个 + version + lang + completion）
+## §5 命令集（21 个 + version + lang + docs + completion）
 
 | 命令 | 核心行为 |
 | --- | --- |
@@ -132,7 +132,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `login` | 登录组件市场 |
 | `logout` | 退出组件市场（吊销令牌、删本地凭据） |
 
-`version` 打印版本（`brickkit --version` / `-v` 打印的一样）；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）；`completion` 打印某种 shell 的 TAB 补全脚本（`install.sh` 会给 bash、zsh、fish 装好）。
+`version` 打印版本（`brickkit --version` / `-v` 打印的一样）；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）；`docs` 离线打印正在跑的这个版本的 BrickKit 文档（`brickkit docs` 列出全部页，`brickkit docs 04-shell` 打印一页）；`completion` 打印某种 shell 的 TAB 补全脚本（`install.sh` 会给 bash、zsh、fish 装好）。
 
 ### 参数
 
@@ -268,6 +268,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/schemagen/` | 从 Go 结构体生成 JSON Schema 到 `schemas/` |
 | `internal/userconfig/` | 机器级的偏好（CLI 的显示语言） |
 | `internal/version/` | 版本与能力常量 |
+| `internal/docpages/` | 编进 CLI 的文档（`docs/en`、`docs/zh`，由 `docs/embed.go` 嵌入）：页 ID、`brickkit docs`、报错建议指到的页及其带版本的网页地址 |
 | `internal/llmsgen/` | `llms/` 下的文档合集与 `llms*.txt` 里的合集清单 |
 | `internal/mdtext/` | 文档合集与 lint 文档检查共用的 Markdown 扫描：代码块围栏、链接、小节、表格单元格 |
 | `cmd/brickkit/` | CLI 的 `main` |
@@ -294,6 +295,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `init`、`new` | `internal/cli/init.go`、`internal/cli/new.go`、`internal/cli/hooks.go` | `project`、`manifest`、`skills` |
 | `release`、`publish`、`login`、`logout` | `internal/cli/release.go`、`internal/cli/publish*.go`、`internal/cli/login.go`、`internal/cli/logout.go`、`internal/cli/notes.go`（发版说明的两个参数） | `release`、`market`、`security` |
 | `skills`、`lang`、`version` | `internal/cli/skills.go`、`internal/cli/lang.go`、`internal/cli/version.go` | `skills`、`i18n`、`userconfig` |
+| `docs`，以及指到某一页的报错建议 | `internal/cli/docs.go` | `docpages`、`docs/embed.go` |
 | 往上找项目根 | `internal/project/findroot.go`、`internal/cli/root.go` | |
 | 焦点运行 | `internal/cli/focus.go` | `internal/cascade/cascade.go`、`internal/deployfile/focus.go` |
 | 只有一个 `components/`（嵌套副本） | `internal/cli/nested.go` | `internal/project/nested.go` |

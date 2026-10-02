@@ -197,6 +197,7 @@ service) → start the engine → supervise `mode: local` processes.
 
 ## Where to dig deeper
 
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — the three files `brickkit docs 01-three-layers`, local debugging `brickkit docs 02-project-guide/03-local-debug-workflow`, shells `brickkit docs 04-shell`, every deploy field `brickkit docs 11-reference/03-deploy-yaml-schema`
 - Flags: `brickkit up --help`, `brickkit local --help`, `brickkit build --help`, `brickkit lint --help`
   (`lint --strict` also checks that `${VAR}` and `file://` references resolve)
 - A component's configuration guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`

@@ -110,7 +110,7 @@ Don't load every component's documentation at once: read only the components the
 - Members' migrations still run on their own, with each member's own image and config — so every member needs its own image (`image` or `build`).
 - A shell is a component too: it has its own `configSchema` and its own `config/` file.
 
-## §5 Commands (21, plus version, lang and completion)
+## §5 Commands (21, plus version, lang, docs and completion)
 
 | Command | What it does |
 | --- | --- |
@@ -136,7 +136,7 @@ Don't load every component's documentation at once: read only the components the
 | `login` | Log in to a component market |
 | `logout` | Log out of a component market (revokes the token, deletes local credentials) |
 
-`version` prints the version (`brickkit --version` / `-v` print the same); `lang` shows or sets the language the CLI speaks (`lang set en|zh`); `completion` prints the TAB-completion script for a shell (`install.sh` installs it for bash, zsh and fish).
+`version` prints the version (`brickkit --version` / `-v` print the same); `lang` shows or sets the language the CLI speaks (`lang set en|zh`); `docs` prints BrickKit's documentation for the running version, offline (`brickkit docs` lists the pages, `brickkit docs 04-shell` prints one); `completion` prints the TAB-completion script for a shell (`install.sh` installs it for bash, zsh and fish).
 
 ### Flags
 
@@ -273,6 +273,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/schemagen/` | JSON Schemas generated from the Go structs into `schemas/` |
 | `internal/userconfig/` | Machine-level preferences (the CLI's language) |
 | `internal/version/` | Version and capability constants |
+| `internal/docpages/` | The documentation built into the CLI (`docs/en`, `docs/zh`, embedded by `docs/embed.go`): page IDs, `brickkit docs`, the pages error hints point at, their versioned URLs |
 | `internal/llmsgen/` | The documentation bundles in `llms/` and the bundle list in `llms*.txt` |
 | `internal/mdtext/` | Markdown scanning shared by the doc bundles and lint's doc checks: fences, links, sections, table cells |
 | `cmd/brickkit/` | The CLI's `main` |
@@ -302,6 +303,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 | `init`, `new` | `internal/cli/init.go`, `internal/cli/new.go`, `internal/cli/hooks.go` | `project`, `manifest`, `skills` |
 | `release`, `publish`, `login`, `logout` | `internal/cli/release.go`, `internal/cli/publish*.go`, `internal/cli/login.go`, `internal/cli/logout.go`, `internal/cli/notes.go` (the release-notes flags) | `release`, `market`, `security` |
 | `skills`, `lang`, `version` | `internal/cli/skills.go`, `internal/cli/lang.go`, `internal/cli/version.go` | `skills`, `i18n`, `userconfig` |
+| `docs`, and error hints that point at a page | `internal/cli/docs.go` | `docpages`, `docs/embed.go` |
 | Finding the project upward | `internal/project/findroot.go`, `internal/cli/root.go` | |
 | Focus run | `internal/cli/focus.go` | `internal/cascade/cascade.go`, `internal/deployfile/focus.go` |
 | One `components/` (nested copies) | `internal/cli/nested.go` | `internal/project/nested.go` |

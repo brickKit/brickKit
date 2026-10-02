@@ -1,6 +1,6 @@
 # CLI 命令参考
 
-BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`completion` 三个关于 CLI 自身的命令。这一页把每条命令、每个子命令、
+BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`docs`、`completion` 四个关于 CLI 自身的命令。这一页把每条命令、每个子命令、
 每个参数都写全了；内容与 `brickkit <命令> --help` 一致，`--help` 是权威。
 
 没有长驻进程：每条命令跑完就退出。项目的"应该是什么样"写在三层文件里（`brickkit.yaml`、部署文件、`config/`，
@@ -33,6 +33,7 @@ BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`completion` �
 | 发布 | [`logout`](#brickkit-logout) | 退出组件市场的登录 |
 | CLI | [`version`](#brickkit-version) | 查看 CLI 版本、支持的 Manifest 版本与部署目标 |
 | CLI | [`lang`](#brickkit-lang) | 查看或切换 CLI 的显示语言 |
+| CLI | [`docs`](#brickkit-docs) | 离线打印这个版本的 BrickKit 文档 |
 | CLI | [`completion`](#brickkit-completion) | 打印让 TAB 补全命令、组件 ID 和版本的脚本 |
 
 ## 全局参数
@@ -985,6 +986,43 @@ brickkit lang set <en|zh> [flags]
 ```bash
 brickkit lang set zh                 # 从此说中文
 BRICKKIT_LANG=en brickkit status     # 只对这一条命令说英文
+```
+
+## `brickkit docs`
+
+CLI 自带的 BrickKit 文档：正好是你在跑的这个版本的那些页，不联网也读得到。不带参数列出全部页；带一个页，把那一页按 Markdown 原文打印出来，
+可以直接读，也可以交给 AI。
+
+页用它在 `docs/<语言>/` 下的路径去掉 `.md` 来指——`04-shell/02-json-injection`；目录名指它的 README（`04-shell`），`README` 是文档首页。
+从链接或报错里抄来的路径也行（`docs/zh/04-shell/README.md`）。页里的链接相对这一页，和在仓库里一样。报错建议指到某一页时就这样写，旁边附上网页地址：
+
+```text
+   建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
+```
+
+网页地址指向 CLI 自己那个版本的 tag（开发构建指向 `main`），所以讲的永远是正在跑的这个版本。
+
+```text
+brickkit docs [<page>] [flags]
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--lang <en\|zh>` | 页面的语言；默认是 CLI 的语言 |
+
+```bash
+brickkit docs                                      # 列出全部页
+brickkit docs 04-shell                             # 外壳这一章的首页
+brickkit docs 11-reference/01-component-yaml-schema
+brickkit docs 02-project-guide/03-local-debug-workflow --lang en
+```
+
+```text
+📚 BrickKit v1.1.0 文档（zh）——brickkit docs <页> 打印其中一页
+
+  00-intro                                         概览与入门
+  00-intro/01-what-is-brickkit                     BrickKit 是什么
+  00-intro/02-quick-start                          快速开始（5 分钟）
 ```
 
 ## `brickkit completion`

@@ -20,9 +20,9 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/03-config-schema-design.md … docs/zh/04-shell/06-special-characters.md
 - [llms/zh/04.md](llms/zh/04.md): docs/zh/04-shell/07-shell-upgrade.md … docs/zh/06-architecture/04-deploy-file-generation.md
 - [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
-- [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/02-ai-dev-workflow.md
-- [llms/zh/07.md](llms/zh/07.md): docs/zh/08-ai-guide/03-judging-a-requirement.md … docs/zh/10-troubleshooting/01-up-down-issues.md
-- [llms/zh/08.md](llms/zh/08.md): docs/zh/10-troubleshooting/02-local-debug-issues.md … docs/zh/11-reference/05-json-schemas.md
+- [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/01-ai-routing-table.md
+- [llms/zh/07.md](llms/zh/07.md): docs/zh/08-ai-guide/02-ai-dev-workflow.md … docs/zh/10-troubleshooting/README.md
+- [llms/zh/08.md](llms/zh/08.md): docs/zh/10-troubleshooting/01-up-down-issues.md … docs/zh/11-reference/05-json-schemas.md
 - [llms/zh/09.md](llms/zh/09.md): docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 

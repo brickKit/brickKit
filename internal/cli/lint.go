@@ -26,11 +26,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/doccheck"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/doccheck"
 	"github.com/brickkit/brickkit/internal/i18n"
-	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/inject"
+	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"

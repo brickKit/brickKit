@@ -6,6 +6,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/suggest"
@@ -105,7 +106,7 @@ func (p *Project) inconsistencyError(missing, extra []string) *clierr.Error {
 func (p *Project) checkMembers() error {
 	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid,
 		i18n.T(msgid.ProblemValidationFailed, filepath.Base(p.DeployPath))).
-		WithSource(i18n.T(msgid.LabelFile), p.DeployPath).WithHint(i18n.T(msgid.DeployfileHintFieldReference))
+		WithSource(i18n.T(msgid.LabelFile), p.DeployPath).WithHint(i18n.T(msgid.DeployfileHintFieldReference, docpages.Ref(docpages.PageDeployYAML)...))
 	p.shellOf = map[string]string{}
 	hostedBy := map[string]string{}
 

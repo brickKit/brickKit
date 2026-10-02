@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docpages"
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -112,5 +113,5 @@ func checkFieldShapes(item *yaml.Node, field string, p *clierr.ProblemSet) {
 
 func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, filepath.Base(source))).
-		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.DeployfileHintFieldReference))
+		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.DeployfileHintFieldReference, docpages.Ref(docpages.PageDeployYAML)...))
 }
