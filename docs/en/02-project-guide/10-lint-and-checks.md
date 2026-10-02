@@ -140,6 +140,17 @@ documents themselves are written: [A component's documentation](../03-component-
 [The project's `AGENTS.md`](01-init-and-project-creation.md#the-projects-agentsmd) and
 [The project's other documents](01-init-and-project-creation.md#the-projects-other-documents).
 
+## Two notes
+
+Besides errors and warnings, `lint` says two things about `brickkit.yaml`. Both are within the rules and `up` runs as
+usual, so they are notes (`ℹ️`) and `--strict` doesn't fail on them; but they are rarely what you meant, and nothing else
+will ever mention them — `brickkit.yaml` changes only on an explicit `add` / `upgrade` / `remove`.
+
+| Note | When | What to do |
+| --- | --- | --- |
+| The source is another version | A component's local source directory has moved its `metadata.version` on, and the project still pins the earlier one — what runs in a container is the pinned version | To run the new one: `brickkit upgrade <id>@<the source's version>` |
+| A compatibility version nobody needs | The components named in a line's `requiredBy` no longer depend on that version, by their current `component.yaml` (see [Several versions side by side](../03-component-guide/09-multi-version-coexistence.md)) | `brickkit remove <id>@<version>` |
+
 ## `--strict`
 
 `--strict` checks one more kind of thing — whether referenced **values** exist: a `${VAR}` found in neither the process

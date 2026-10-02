@@ -1785,6 +1785,8 @@ cli.add.local_init_hint_kept: "nothing was added to this project; workbenches al
 cli.add.local_init_done: "Workbench created in %[1]s (%[2]s added)"
 count.dependencies: "%[1]d dependencies"
 count.dependencies.one: "%[1]d dependency"
+cli.lint.note_source_version: "%[1]s: the source in %[2]s is version %[3]s, but the project pins %[4]s and keeps running that one — brickkit upgrade %[1]s@%[3]s moves the project to the source's version"
+cli.lint.note_orphan_version: "%[1]s is in the project only for %[2]s, and by their current component.yaml none of them depends on it any more — brickkit remove %[1]s takes it out"
 cli.lint.config_unchecked: "configuration not checked (no manifest on disk yet — brickkit up or add fetches it): %[1]s"
 cli.lint.env_ref_unset: "Warning: %[1]s's %[2]s references an environment variable that is not set here"
 cli.lint.label_variable: "Variable"

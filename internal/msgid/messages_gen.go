@@ -1707,6 +1707,8 @@ const (
 	CliAddLocalInitHintKept                                    ID = "cli.add.local_init_hint_kept"
 	CliAddLocalInitDone                                        ID = "cli.add.local_init_done"
 	CountDependencies                                          ID = "count.dependencies"
+	CliLintNoteSourceVersion                                   ID = "cli.lint.note_source_version"
+	CliLintNoteOrphanVersion                                   ID = "cli.lint.note_orphan_version"
 	CliLintConfigUnchecked                                     ID = "cli.lint.config_unchecked"
 	CliLintEnvRefUnset                                         ID = "cli.lint.env_ref_unset"
 	CliLintLabelVariable                                       ID = "cli.lint.label_variable"

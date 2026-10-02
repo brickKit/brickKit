@@ -284,6 +284,7 @@ func lintOneComponent(opts *Options, layout project.Layout, id string, strict bo
 	for _, u := range cfg.unreadable {
 		notes = append(notes, i18n.T(msgid.CliLintManifestUnreadable, u[0], strings.TrimPrefix(strings.TrimSpace(u[1]), "❌ ")))
 	}
+	notes = append(notes, declNotes(opts, proj, id)...)
 	return append(files, cf), notes, nil
 }
 
@@ -351,6 +352,7 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 	for _, u := range cfg.unreadable {
 		notes = append(notes, i18n.T(msgid.CliLintManifestUnreadable, u[0], strings.TrimPrefix(strings.TrimSpace(u[1]), "❌ ")))
 	}
+	notes = append(notes, declNotes(opts, proj, "")...)
 	files := []lintFile{f}
 	if opts.DeployFile != "" {
 		return files, notes

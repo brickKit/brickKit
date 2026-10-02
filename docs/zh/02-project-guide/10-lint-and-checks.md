@@ -127,6 +127,16 @@ brickkit lint
 每一条要你做什么，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。文档本身怎么写，见
 [组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)、[项目的其他文档](01-init-and-project-creation.md#项目的其他文档)。
 
+## 两条提示
+
+除了错误和警告，`lint` 还会对 `brickkit.yaml` 说两件事。它们都符合规则，`up` 也照常跑，所以只是提示（`ℹ️`），`--strict` 不因为它们失败；
+但多半不是你想要的，而且别处不会有任何东西说出来——`brickkit.yaml` 只在你显式 `add` / `upgrade` / `remove` 时才变。
+
+| 提示 | 什么时候出现 | 怎么办 |
+| --- | --- | --- |
+| 源码是另一个版本 | 组件的本地源目录里 `metadata.version` 已经升了，项目钉的还是原来那个——以容器方式跑的仍是钉着的版本 | 要跑新版本：`brickkit upgrade <id>@<源码的版本>` |
+| 兼容版本没人要了 | 带 `requiredBy` 的那一行列出的组件，按它们现在的 `component.yaml` 已经没有谁依赖这个版本（见[多版本共存](../03-component-guide/09-multi-version-coexistence.md)） | `brickkit remove <id>@<版本>` |
+
 ## `--strict`
 
 `--strict` 多查一类东西——引用的**值**在不在：进程环境与 `.env` 里都找不到的 `${VAR}`、文件不存在的 `file://`。

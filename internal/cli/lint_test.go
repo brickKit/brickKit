@@ -525,3 +525,54 @@ func TestLintChecksDocsEvenWhenTheManifestIsInvalid(t *testing.T) {
 	assert.Contains(t, r.stdout, "dependancies")
 	assert.Contains(t, r.stdout, "BRICKKIT.md is missing")
 }
+
+// 本地源里的 component.yaml 升了版本、项目钉的还是原来那个：lint 提一句（ℹ️，不算警告），并给出 upgrade 命令。
+// 本地源的版本就是项目里声明的版本时不提。
+func TestLintNotesLocalSourceVersionDiffersFromPinned(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+			"components:\n  - id: erp/api\n    version: 1.0.0\n  - id: erp/web\n    version: 1.0.0\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n  - id: erp/web\n",
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.1.0"}.yamlText(),
+		"components/erp/web/component.yaml": comp{ID: "erp/web", Version: "1.0.0", Port: 8081}.yamlText(),
+	})
+
+	r := runIn(t, dir, "lint", "--strict")
+	note := "ℹ️ erp/api: the source in " + filepath.Join("components", "erp", "api") +
+		" is version 1.1.0, but the project pins 1.0.0 and keeps running that one — brickkit upgrade erp/api@1.1.0"
+	assert.Contains(t, r.stdout, note)
+	assert.NotContains(t, r.stdout, "erp/web: the source in")
+	assert.Contains(t, r.stdout, "10 warnings", "它是提示，不计入警告：这 10 条都是夹具缺的文档")
+
+	r = runIn(t, filepath.Join(dir, "components", "erp", "web"), "lint")
+	assert.NotContains(t, r.stdout, "erp/api: the source in", "只查一个组件时只说它自己的")
+	r = runIn(t, filepath.Join(dir, "components", "erp", "api"), "lint")
+	assert.Contains(t, r.stdout, "brickkit upgrade erp/api@1.1.0")
+}
+
+// 兼容版本那一行列出的依赖方，按它现在的 component.yaml 已经不依赖这个版本了（版本号没变、依赖改钉了）：
+// lint 提一句并给出 remove 命令。依赖方还依赖它、或依赖方的 Manifest 盘上没有（说不准）时不提。
+func TestLintNotesCompatibilityVersionNobodyNeeds(t *testing.T) {
+	project := func(webRequires string) string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+				"components:\n  - id: erp/api\n    version: 2.0.1\n  - id: erp/api\n    version: 2.0.0\n    requiredBy: [erp/web]\n" +
+				"  - id: erp/web\n    version: 1.0.0\n",
+			"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n  - id: erp/api@2.0.0\n  - id: erp/web\n",
+			"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "2.0.1"}.yamlText(),
+		})
+		if webRequires != "" {
+			writeTree(t, dir, map[string]string{
+				"components/erp/web/component.yaml": comp{ID: "erp/web", Version: "1.0.0", Port: 8081, Requires: []string{webRequires}}.yamlText(),
+			})
+		}
+		return dir
+	}
+	const note = "ℹ️ erp/api@2.0.0 is in the project only for erp/web, and by their current component.yaml none of them depends on it any more — brickkit remove erp/api@2.0.0 takes it out"
+
+	assert.Contains(t, runIn(t, project("erp/api@2.0.1"), "lint").stdout, note)
+	assert.NotContains(t, runIn(t, project("erp/api@2.0.0"), "lint").stdout, "is in the project only for", "还依赖着")
+	assert.NotContains(t, runIn(t, project(""), "lint").stdout, "is in the project only for", "依赖方的 Manifest 不在盘上：说不准就不说")
+}

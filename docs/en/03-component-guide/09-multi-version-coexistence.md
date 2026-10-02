@@ -88,3 +88,11 @@ Needed:
 Not needed: once every caller has upgraded, the old version has no `requiredBy` left, and `upgrade` / `remove` clears it
 naturally. Coexistence is a transition, not a goal — every extra version is another image, another config file, another
 set of containers to look after.
+
+In one case the old version doesn't go by itself: a dependent whose **version didn't change** now pins the new version
+(common while developing in a local source). `upgrade` sees the dependent is already current and does nothing, so the
+line with `requiredBy` stays. `brickkit lint` points it out, with the command to run:
+
+```text
+ℹ️ demo/hello@1.0.0 is in the project only for demo/caller, and by their current component.yaml none of them depends on it any more — brickkit remove demo/hello@1.0.0 takes it out
+```
