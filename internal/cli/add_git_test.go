@@ -673,3 +673,53 @@ func TestUpgradeShowsReleaseNotesOfEveryVersionInBetween(t *testing.T) {
 	r = g.mustRun(dir, "upgrade", "erp/api")
 	assert.Contains(t, r.stdout, "- an export endpoint")
 }
+
+// add / remove 每次写 brickkit.yaml 与部署文件，都把组件条目按 ID 排好（默认版本在前，
+// 外壳下面的成员各自排）：加入的先后不决定它在文件里的位置，手写乱了的也顺手理好。
+func TestAddKeepsComponentEntriesSorted(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "mdm/customer", Version: "1.0.0"})
+	g.release(comp{ID: "erp/sales", Version: "1.0.0", Requires: []string{"mdm/customer@1.0.0"}})
+	g.release(comp{ID: "crm/lead", Version: "1.0.0", Port: 8083})
+	g.release(comp{ID: "crm/account", Version: "1.0.0", Port: 8084})
+	g.release(comp{ID: "crm/shell", Version: "1.0.0", ShellMembers: []string{"crm/lead@1.0.0", "crm/account@1.0.0"}})
+	dir := g.project()
+
+	g.mustRun(dir, "add", "erp/sales@1.0.0")
+	g.mustRun(dir, "add", "crm/shell@1.0.0")
+
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, `components:
+  - id: crm/account
+    version: 1.0.0
+  - id: crm/lead
+    version: 1.0.0
+  - id: crm/shell
+    version: 1.0.0
+    kind: shell
+  - id: erp/sales
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.0
+`)
+	assert.Equal(t, `target: docker
+components:
+  - id: crm/shell
+    members:
+      - id: crm/account
+      - id: crm/lead
+  - id: erp/sales
+  - id: mdm/customer
+`, readFile(t, filepath.Join(dir, "deploy.yaml")))
+
+	g.mustRun(dir, "remove", "erp/sales")
+	assert.Equal(t, `target: docker
+components:
+  - id: crm/shell
+    members:
+      - id: crm/account
+      - id: crm/lead
+  - id: mdm/customer
+`, readFile(t, filepath.Join(dir, "deploy.yaml")))
+	g.mustRun(dir, "up", "--dry-run")
+}

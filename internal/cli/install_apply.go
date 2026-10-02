@@ -285,6 +285,7 @@ func (a *applier) editDecl(plan *install.Plan) error {
 	for _, r := range plan.RemoveLines {
 		e.RemoveWhere(componentsKey, yamlfile.Selector{ID: r.ID, Version: r.Version})
 	}
+	e.SortEntries(componentsKey, install.EntryBefore)
 	return e.Save()
 }
 
@@ -324,6 +325,7 @@ func (a *applier) editDeploy(path string, plan *install.Plan) error {
 	for _, entry := range plan.NestEntries {
 		e.Nest(componentsKey, entry.Under, entry.ID)
 	}
+	e.SortEntries(componentsKey, install.EntryBefore)
 	if err := e.Save(); err != nil {
 		return err
 	}

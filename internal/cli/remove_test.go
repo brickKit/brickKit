@@ -113,7 +113,7 @@ func TestRemoveShellReleasesMembers(t *testing.T) {
 	assert.NotContains(t, decl, "erp/shell")
 	assert.NotContains(t, decl, "version: 1.0.0\n    requiredBy", "只为外壳保留的 erp/b 1.0.0 一并移除")
 	deploy := readFile(t, filepath.Join(dir, "deploy.yaml"))
-	assert.Equal(t, "target: docker\ncomponents:\n  - id: erp/b\n  - id: erp/a\n", deploy)
+	assert.Equal(t, "target: docker\ncomponents:\n  - id: erp/a\n  - id: erp/b\n", deploy)
 	assert.Contains(t, r.stdout, "erp/a")
 	g.mustRun(dir, "up", "--dry-run")
 }

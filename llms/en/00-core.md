@@ -4,7 +4,7 @@ Contains: AGENTS.md, docs/en/00-intro/01-what-is-brickkit.md, docs/en/00-intro/0
 
 File paths below are relative to the repository root, https://raw.githubusercontent.com/brickKit/brickKit/main/ ; links inside pages are relative to this file
 
-Next: The rest of the documentation, every page once, in reading order: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/01.md … 09.md
+Next: The rest of the documentation, every page once, in reading order: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/01.md … 10.md
 
 ---
 

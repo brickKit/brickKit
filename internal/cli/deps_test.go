@@ -30,14 +30,15 @@ func depsProject(t *testing.T) (*gitOrgProject, string) {
 func TestDepsProjectTrees(t *testing.T) {
 	g, dir := depsProject(t)
 	r := g.mustRun(dir, "deps")
-	want := "erp/portal@1.0.0\n" +
-		"├── erp/api@1.0.0\n" +
-		"│   ├── erp/db@1.0.0\n" +
-		"│   └── infra/cache@1.0.0 (optional, not installed)\n" +
+	// 树按 brickkit.yaml 的顺序，而那里的组件按 ID 排着：erp/admin 在 erp/portal 前面
+	want := "erp/admin@1.0.0\n" +
 		"└── erp/auth@1.0.0\n" +
-		"    └── erp/db@1.0.0 (shown above)\n" +
+		"    └── erp/db@1.0.0\n" +
 		"\n" +
-		"erp/admin@1.0.0\n" +
+		"erp/portal@1.0.0\n" +
+		"├── erp/api@1.0.0\n" +
+		"│   ├── erp/db@1.0.0 (shown above)\n" +
+		"│   └── infra/cache@1.0.0 (optional, not installed)\n" +
 		"└── erp/auth@1.0.0 (shown above)\n"
 	assert.Equal(t, want, r.stdout)
 }

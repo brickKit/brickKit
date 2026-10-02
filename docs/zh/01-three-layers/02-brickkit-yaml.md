@@ -19,14 +19,14 @@ sources:                          # 去哪里找组件，按顺序依次尝试
 components:
   - id: erp/backend
     version: 1.2.0
+  - id: erp/shell
+    version: 1.0.0
+    kind: shell                   # 外壳，由 CLI 维护
   - id: people/basic
     version: 1.0.0
   - id: people/basic              # 同一个组件的另一个版本：只因 erp/legacy 依赖它而在
     version: 0.9.0
     requiredBy: [erp/legacy]
-  - id: erp/shell
-    version: 1.0.0
-    kind: shell                   # 外壳，由 CLI 维护
   - id: vendor/billing
     version: 3.1.0
     source:                       # 这一个组件不按安装源推导，指定仓库
@@ -52,6 +52,11 @@ installer:
 | `kind` | | 只有一个值 `shell`，标记外壳；由 `add` 按组件的 `component.yaml` 写上，`lint` 核对它与 Manifest 一致 |
 | `requiredBy` | | 这个版本只因这些组件依赖它才在项目里（见下面的"默认版本"） |
 | `source` | | 为这一个组件指定来源，不按安装源推导：`type`（`git` / `local`）；`git` 写 `repo`（Git 地址），可选再写 `path`（组件在这个仓库里的子目录，用于 monorepo，不能指到仓库外面）；`local` 写 `path`（本机目录，相对项目根） |
+
+**条目的顺序由 CLI 维护。** `add` / `remove` / `upgrade` 每次写这个文件，都把 `components` 按组件 ID 的字典序排好
+（同一个 scope 的自然挨在一起）；同一个 ID 有几行时，默认版本在前，带 `requiredBy` 的兼容版本按版本号从低到高跟在后面。
+所以找一个组件按名字找，不用记它是什么时候加进来的。你手写时放在哪里都可以——顺序不影响什么会运行、怎么运行（只决定 `deps`、`graph` 这类输出里谁先谁后），下一次 `add` 会顺手理好。
+条目上方的注释和行尾注释跟着条目一起挪。`sources` 不排：它的顺序是查找的优先级。
 
 ### 精确版本：它就是锁文件
 

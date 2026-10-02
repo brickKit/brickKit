@@ -19,15 +19,15 @@ vars:                             # 覆盖 config/vars.yaml 里的同名公共�
   PG_HOST: pg.prod.internal
 
 components:
-  - id: portal/web
-    expose: true
-    hostname: shop.example.com    # K8s 下 expose 生成 Ingress，要写域名
-    replicas: 3
   - id: erp/shell                 # 外壳：成员嵌在它下面
     members:
       - id: erp/api
       - id: people/basic
   - id: people/basic@0.9.0        # 同一组件的另一个版本：只覆盖这一个版本，独立部署
+  - id: portal/web
+    expose: true
+    hostname: shop.example.com    # K8s 下 expose 生成 Ingress，要写域名
+    replicas: 3
   - id: report/batch
     mode: disable                 # 这个环境不跑它
 ```
@@ -113,3 +113,6 @@ components:
 | `brickkit upgrade` | 默认版本变了时，条目跟着走；外壳升级时，成员条目随外壳编进的新版本调整 |
 
 `deploy.yaml` 与存在的 `deploy.local.yaml` 会被一起更新：你的个人文件不会因为 `add` 而落后。
+
+每次这样改完，`components` 都按组件 ID 的字典序排好，和 `brickkit.yaml` 是同一个顺序：裸 ID 的条目在前，同一个组件的
+`id@版本` 条目按版本号跟在后面；外壳下面的 `members` 各自排。条目的字段和注释跟着条目一起挪，顺序不影响什么会运行、怎么运行。

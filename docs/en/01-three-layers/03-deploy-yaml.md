@@ -20,15 +20,15 @@ vars:                             # overrides shared variables of the same name 
   PG_HOST: pg.prod.internal
 
 components:
-  - id: portal/web
-    expose: true
-    hostname: shop.example.com    # on Kubernetes, expose generates an Ingress, which needs a host name
-    replicas: 3
   - id: erp/shell                 # a shell: its members nest under it
     members:
       - id: erp/api
       - id: people/basic
   - id: people/basic@0.9.0        # another version of the same component: this entry covers only that version, deployed on its own
+  - id: portal/web
+    expose: true
+    hostname: shop.example.com    # on Kubernetes, expose generates an Ingress, which needs a host name
+    replicas: 3
   - id: report/batch
     mode: disable                 # doesn't run in this environment
 ```
@@ -121,3 +121,7 @@ component's config file — see [Where a value comes from](08-resolution-priorit
 | `brickkit upgrade` | When the default version changes, the entry follows; when a shell is upgraded, the member entries follow the versions the new shell compiles in |
 
 `deploy.yaml` and `deploy.local.yaml` (when it exists) are updated together: `add` never leaves your personal file behind.
+
+After each of these, `components` is sorted by component ID, the same order as `brickkit.yaml`: the bare-ID entry first, the
+same component's `id@version` entries after it by version; the `members` under a shell are sorted among themselves. An
+entry's fields and comments move with it, and the order changes nothing about what runs or how.

@@ -19,14 +19,14 @@ sources:                          # where to look for components, tried in order
 components:
   - id: erp/backend
     version: 1.2.0
+  - id: erp/shell
+    version: 1.0.0
+    kind: shell                   # a shell, maintained by the CLI
   - id: people/basic
     version: 1.0.0
   - id: people/basic              # another version of the same component: here only because erp/legacy needs it
     version: 0.9.0
     requiredBy: [erp/legacy]
-  - id: erp/shell
-    version: 1.0.0
-    kind: shell                   # a shell, maintained by the CLI
   - id: vendor/billing
     version: 3.1.0
     source:                       # this one component names its repository instead of following the sources
@@ -53,6 +53,13 @@ which `k8s.namespace` in the deploy file can override). The 54 is a Kubernetes n
 | `kind` | | Only one value, `shell`, marking a shell; written by `add` from the component's `component.yaml`, and `lint` checks it agrees with the manifest |
 | `requiredBy` | | This version is in the project only because these components depend on it (see "The default version" below) |
 | `source` | | A source for this one component instead of the install sources: `type` (`git` / `local`); for `git`, `repo` (the Git address) and optionally `path` (the component's subdirectory in that repository, for a monorepo; it can't leave the repository); for `local`, `path` (a directory relative to the project root) |
+
+**The CLI keeps the entries in order.** Every time `add` / `remove` / `upgrade` writes this file, `components` is sorted by
+component ID (so one scope's components sit together); when an ID has several lines, the default version comes first and the
+compatibility versions with `requiredBy` follow, lowest version first. You find a component by its name, not by when it was
+added. Where you put an entry by hand doesn't matter — the order changes nothing about what runs or how (only which comes first in
+output such as `deps` and `graph`), and the next `add` tidies it. A comment
+above an entry, or at the end of its line, moves with the entry. `sources` is never sorted: its order is the lookup priority.
 
 ### Exact versions: it is the lock file
 
