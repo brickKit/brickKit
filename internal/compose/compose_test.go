@@ -483,7 +483,7 @@ func TestHealthcheckTriesMoreThanOneTool(t *testing.T) {
 	joined := strings.Join(command, " ")
 	assert.Contains(t, joined, "wget")
 	assert.Contains(t, joined, "curl")
-	assert.Contains(t, joined, "http://localhost:8080/healthz")
+	assert.Contains(t, joined, "http://127.0.0.1:8080/healthz")
 }
 
 func TestHealthcheckFromManifest(t *testing.T) {
@@ -495,11 +495,14 @@ func TestHealthcheckFromManifest(t *testing.T) {
 	require.True(t, ok, "12.3 应有 healthcheck：%v", svc)
 
 	assert.Equal(t, []any{"CMD-SHELL",
-		"wget -q --spider http://localhost:8080/healthz || " +
-			"curl -fsS http://localhost:8080/healthz || exit 1"},
+		"wget -q --spider http://127.0.0.1:8080/healthz || " +
+			"curl -fsS http://127.0.0.1:8080/healthz || exit 1"},
 		health["test"])
 	assert.NotEmpty(t, health["interval"])
 	assert.NotEmpty(t, health["retries"])
+	// 127.0.0.1 而不是 localhost：Alpine 的 wget / nc 把 localhost 解析成 ::1，只监听 0.0.0.0 的服务
+	// （Python、Node 的常见写法）就被判成不健康——组件好好的。这是真跑起来撞到的
+	assert.NotContains(t, fmt.Sprint(health["test"]), "localhost")
 }
 
 // 启动宽限期必须写进 healthcheck。
@@ -1067,7 +1070,7 @@ func TestHealthcheckProbesReadinessWhenDeclared(t *testing.T) {
 
 	doc := b.parsed()
 	test := fmt.Sprint(serviceOf(t, doc, "erp-api-1-0-0")["healthcheck"].(map[string]any)["test"])
-	assert.Contains(t, test, "http://localhost:8080/readyz")
+	assert.Contains(t, test, "http://127.0.0.1:8080/readyz")
 	assert.NotContains(t, test, "/healthz")
-	assert.Contains(t, fmt.Sprint(serviceOf(t, doc, "erp-quiet-1-0-0")["healthcheck"]), "nc -z localhost 8081")
+	assert.Contains(t, fmt.Sprint(serviceOf(t, doc, "erp-quiet-1-0-0")["healthcheck"]), "nc -z 127.0.0.1 8081")
 }

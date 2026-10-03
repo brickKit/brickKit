@@ -35,6 +35,11 @@ const (
 	healthcheckInterval = "10s"
 	healthcheckTimeout  = "3s"
 	healthcheckRetries  = 3
+	// healthcheckHost 是容器里探自己时用的地址。写 127.0.0.1 而不是 localhost：容器的 /etc/hosts 里 localhost
+	// 同时指向 127.0.0.1 与 ::1，busybox（Alpine）的 wget / nc 取到的是 ::1，而只监听 0.0.0.0 的服务
+	// （Python、Node 的常见写法）在 IPv6 上没人接——组件好好的，却被判成不健康。监听 :: 的服务（Go 的缺省）
+	// 两个地址都接，所以 127.0.0.1 对两种都成立。这是真跑起来撞到的。
+	healthcheckHost = "127.0.0.1"
 )
 
 // Options 是生成选项。
@@ -625,7 +630,7 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	checkType, path := m.ReadyCheck()
 	switch checkType {
 	case manifest.HealthCheckHTTP:
-		url := fmt.Sprintf("http://localhost:%d%s", m.Deployment.Port, path)
+		url := fmt.Sprintf("http://%s:%d%s", healthcheckHost, m.Deployment.Port, path)
 		// wget 与 curl 都试一遍。
 		//
 		// compose 的健康检查跑在**容器内部**，用的必须是镜像里真有的命令。
@@ -643,7 +648,7 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	case manifest.HealthCheckTCP:
 		return map[string]any{
 			"test": []string{"CMD-SHELL",
-				fmt.Sprintf("nc -z localhost %d", m.Deployment.Port)},
+				fmt.Sprintf("nc -z %s %d", healthcheckHost, m.Deployment.Port)},
 			"interval":     healthcheckInterval,
 			"timeout":      healthcheckTimeout,
 			"retries":      healthcheckRetries,

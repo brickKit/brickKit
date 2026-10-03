@@ -54,7 +54,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
       start_period: 60s
       test:
         - CMD-SHELL
-        - wget -q --spider http://localhost:8080/healthz || curl -fsS http://localhost:8080/healthz || exit 1
+        - wget -q --spider http://127.0.0.1:8080/healthz || curl -fsS http://127.0.0.1:8080/healthz || exit 1
       timeout: 3s
     image: demo-caller:1.0.0
     networks:
@@ -88,7 +88,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
       start_period: 60s
       test:
         - CMD-SHELL
-        - wget -q --spider http://localhost:8080/healthz || curl -fsS http://localhost:8080/healthz || exit 1
+        - wget -q --spider http://127.0.0.1:8080/healthz || curl -fsS http://127.0.0.1:8080/healthz || exit 1
       timeout: 3s
     image: demo-hello:1.0.0
     networks:

@@ -116,8 +116,8 @@ dependencies:
 
 检查间隔 10 秒、超时 3 秒、连续 3 次失败算不健康，由平台固定，不可配置。
 
-每种类型实际跑什么：Docker 下检查在容器里经由 `/bin/sh` 执行——`http` 先用 `wget`、不行再用 `curl` 访问 `http://localhost:<端口><路径>`，
-`tcp` 执行 `nc -z localhost <端口>`，所以镜像里要有 shell 和这些工具（`scratch`、distroless 这类没有 shell 的镜像两种都过不了）。
+每种类型实际跑什么：Docker 下检查在容器里经由 `/bin/sh` 执行——`http` 先用 `wget`、不行再用 `curl` 访问 `http://127.0.0.1:<端口><路径>`，
+`tcp` 执行 `nc -z 127.0.0.1 <端口>`，所以镜像里要有 shell 和这些工具（`scratch`、distroless 这类没有 shell 的镜像两种都过不了）。
 K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`none` 不生成检查：依赖方只等容器启动。
 见 [组件日志正常，平台却说它不健康](../10-troubleshooting/01-up-down-issues.md#组件日志正常平台却说它不健康)。
 
