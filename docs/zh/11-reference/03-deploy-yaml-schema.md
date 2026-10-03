@@ -57,6 +57,7 @@
 | `components[].exposePort` | 整数 | | Docker 下映射到的宿主机端口，缺省等于组件端口；只在 `expose: true` 时能写；不能冲突；K8s 下忽略 |
 | `components[].hostname` | 字符串 | 见规则 | Ingress 的域名；`target: k8s` 且 `expose: true` 时必填 |
 | `components[].tlsSecret` | 字符串 | | Ingress 的 TLS 证书 Secret；只在 `expose: true` 时能写 |
+| `components[].paths` | 字符串列表 | | 这个组件在 `hostname` 下接的路径前缀（`/api/sales`）；不写是整个域名。每项以 `/` 开头，各段用字母、数字和 `.` `_` `~` `-`，不认通配符和正则；只在 `expose: true` 时能写。同一个域名下一条路径只能归一个组件，共用域名的条目 `tlsSecret` 要相同 |
 | `components[].replicas` | 整数 | | K8s 副本数，缺省 1，必须 ≥ 1；大于 1 时自动生成 PodDisruptionBudget；不能与 `mode: local` / `debug` 同时写。要关掉组件用 `mode: disable` |
 | `components[].serviceAccountName` | 字符串 | | K8s 下用一个已有的 ServiceAccount（平台只引用，不创建） |
 | `components[].resources.requests.cpu` | 字符串 | | 覆盖组件建议的配额，逐字段 |
@@ -84,6 +85,7 @@
 | `components[].members[].exposePort` | 整数 | | 同上 |
 | `components[].members[].hostname` | 字符串 | | 同上 |
 | `components[].members[].tlsSecret` | 字符串 | | 同上 |
+| `components[].members[].paths` | 字符串列表 | | 同上 |
 | `components[].members[].replicas` | 整数 | | 同上 |
 | `components[].members[].serviceAccountName` | 字符串 | | 同上 |
 | `components[].members[].labels` | 字符串映射 | | 同上 |
@@ -98,6 +100,6 @@
 
 | 只在 | 字段 | 在另一种目标下 |
 | --- | --- | --- |
-| k8s | `k8s` 块、`replicas`、`hostname`、`tlsSecret`、`serviceAccountName` | 警告、忽略 |
+| k8s | `k8s` 块、`replicas`、`hostname`、`tlsSecret`、`paths`、`serviceAccountName` | 警告、忽略 |
 | docker、podman | `exposePort`、`skipWaitFor` | 警告、忽略 |
 | docker、podman | `mode: local`、`mode: debug` | `k8s` 下报错（集群里的 Pod 到不了你的机器） |

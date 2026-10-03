@@ -95,6 +95,15 @@
                     "null"
                   ]
                 },
+                "paths": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
                 "replicas": {
                   "type": [
                     "integer",
@@ -202,6 +211,15 @@
             ],
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
               "null"
             ]
           },

@@ -274,3 +274,39 @@ func TestAppProtocols(t *testing.T) {
 		assert.Contains(t, clierr.As(err).Error(), c.want, name)
 	}
 }
+
+// paths：expose 的组件在它的 hostname 下接的路径前缀。只按前缀匹配，所以通配符、正则、百分号编码都不收；
+// 没 expose 时写了也白写；同一条目里 /a 与 /a/ 是同一条。docker / podman 下没有 Ingress，提醒一句不起作用。
+func TestEntryPaths(t *testing.T) {
+	entry := func(body string) string {
+		return "target: k8s\ncomponents:\n  - id: erp/sales\n    hostname: app.example.com\n" + body
+	}
+	f, _, err := parse(t, entry("    expose: true\n    paths: [/api/sales, /webhooks/sales/, /]\n"), deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/api/sales", "/webhooks/sales/", "/"}, f.Components[0].RoutePaths())
+
+	f, _, err = parse(t, entry("    expose: true\n"), deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/"}, f.Components[0].RoutePaths(), "没写 paths：整个域名")
+
+	for name, c := range map[string]struct{ body, want string }{
+		"没 expose": {"    paths: [/api]\n", "components[0].paths"},
+		"不以 / 开头":  {"    expose: true\n    paths: [api/sales]\n", "components[0].paths[0]"},
+		"通配符":      {"    expose: true\n    paths: [\"/api/*\"]\n", "components[0].paths[0]"},
+		"正则":       {"    expose: true\n    paths: [\"/api(/|$)(.*)\"]\n", "components[0].paths[0]"},
+		"连续的斜杠":    {"    expose: true\n    paths: [/api//sales]\n", "components[0].paths[0]"},
+		"只差结尾的 /":  {"    expose: true\n    paths: [/api, /api/]\n", "components[0].paths[1]"},
+	} {
+		_, _, err := parse(t, entry(c.body), deployfile.RoleTeam)
+		require.Error(t, err, name)
+		assert.Contains(t, clierr.As(err).Error(), c.want, name)
+	}
+
+	_, warnings, err := parse(t, "target: docker\ncomponents:\n  - id: erp/sales\n    expose: true\n    paths: [/api/sales]\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	var all string
+	for _, w := range warnings {
+		all += w.Format()
+	}
+	assert.Contains(t, all, "paths has no effect with target: docker")
+}

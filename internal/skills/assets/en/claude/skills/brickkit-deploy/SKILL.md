@@ -198,6 +198,10 @@ several versions coexist.
 **Exposing**: `expose: true`. On K8s it needs a `hostname` (an Ingress is generated; `tlsSecret`
 optional); on Docker the port is mapped to the host (`exposePort` changes the host port). Not written:
 not exposed. `replicas > 1` on K8s adds a PodDisruptionBudget.
+Several components on one domain, split by path: on K8s share the `hostname` and give each entry its
+own `paths: [/api/sales]` (prefix match, no rewriting; a path belongs to one component, and `tlsSecret`
+must be the same); on Docker the platform generates no gateway — write the routes in each entry's
+`labels` for a gateway such as Traefik.
 
 **Migrations**: on K8s a separate Job (not an init container, so several replicas never migrate at
 once); on Docker a one-shot container. A failure keeps the main service from starting.

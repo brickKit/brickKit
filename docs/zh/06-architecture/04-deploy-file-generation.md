@@ -222,7 +222,8 @@ spec:
   type: ClusterIP
 ```
 
-**Ingress**：只有 `expose: true` 的组件才有，`hostname` 必填。
+**Ingress**：只有 `expose: true` 的组件才有，`hostname` 必填。条目写了 `paths` 时，规则里是那几条前缀而不是 `/`——
+几个组件[共用一个域名](../01-three-layers/03-deploy-yaml.md#几个组件共用一个域名)靠它分流。
 
 ```yaml
 kind: Ingress

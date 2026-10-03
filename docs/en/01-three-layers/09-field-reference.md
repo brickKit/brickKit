@@ -44,6 +44,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `components[].localPort` | | With `local` / `debug` (or on the `focus` component's entry), the port of the process on your machine |
 | `components[].expose` / `exposePort` | | Open it to the outside; the host port on Docker |
 | `components[].hostname` / `tlsSecret` | | The Kubernetes Ingress host name and certificate |
+| `components[].paths` | | On Kubernetes, the path prefixes this component takes under its `hostname` (when several components share a domain); without it, the whole domain |
 | `components[].replicas` | | Kubernetes replicas |
 | `components[].resources` | | `cpu` and `memory` for `requests` / `limits` |
 | `components[].stopGracePeriodSeconds` | | Overrides the stop grace period the component recommends (seconds) |

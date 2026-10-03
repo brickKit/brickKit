@@ -54,6 +54,7 @@ components:
 | `expose` | 对外开放：Docker 下映射到宿主机端口，K8s 下生成 Ingress。不写就不可达 |
 | `exposePort` | Docker 下映射到宿主机的哪个端口（缺省与组件端口相同）；K8s 下不用 |
 | `hostname`、`tlsSecret` | K8s 下 Ingress 的域名与 TLS 证书 Secret |
+| `paths` | K8s 下这个组件在 `hostname` 下接的路径前缀；不写就是整个域名。见[几个组件共用一个域名](#几个组件共用一个域名) |
 | `replicas` | K8s 下的副本数（缺省 1）；大于 1 时自动生成 PodDisruptionBudget |
 | `resources` | 资源配额 `requests` / `limits`，覆盖组件建议的值 |
 | `serviceAccountName` | K8s 下用一个运维已经建好的 ServiceAccount |
@@ -62,9 +63,59 @@ components:
 | `skipWaitFor` | 启动时不等这几个强依赖就绪（只去掉等待，照样连得到它们）。只对 Docker / Podman 有效：K8s 没有启动顺序。见 [外壳合并造成的启动环](../04-shell/04-members-management.md) |
 | `members` | 只有外壳条目有：它承载的成员，每个成员也是一个完整的条目 |
 
-只对 K8s 有意义的字段（`hostname`、`tlsSecret`、`replicas`、`serviceAccountName`）在别的 `target` 下写了只警告，
+只对 K8s 有意义的字段（`hostname`、`tlsSecret`、`paths`、`replicas`、`serviceAccountName`）在别的 `target` 下写了只警告，
 命令照常执行——同一份条目可以在两种目标之间切换。反过来也一样：只对 Docker / Podman 有意义的 `exposePort`、
 `skipWaitFor` 在 `target: k8s` 下写了也只警告。
+
+## 几个组件共用一个域名
+
+前端和几个后端共用一个域名、按路径分给不同的组件（`/` 给门户，`/api/sales` 给销售），是很常见的上线形态。
+
+**Kubernetes：** 共用同一个 `hostname`，各写各的 `paths`：
+
+```yaml
+target: k8s
+components:
+  - id: portal/web
+    expose: true
+    hostname: app.example.com            # 没写 paths：接整个域名
+  - id: erp/sales
+    expose: true
+    hostname: app.example.com
+    paths: [/api/sales, /webhooks/sales]
+```
+
+- 路径按前缀匹配，以路径段为界：`/api/sales` 接 `/api/sales` 和 `/api/sales/…`，不接 `/api/salesman`。长的前缀先匹配，
+  所以没写 `paths` 的组件接的是"其余的全部"。不认通配符和正则。
+- 请求原样转给组件，路径不改写：组件要自己在这个前缀下提供服务。
+- 同一个域名下，同一条路径只能归一个组件，写重了 `up` 报错并点名是哪两个。共用域名的条目要写同一个 `tlsSecret`（或者都不写）：一个域名只有一张证书。
+- 每个组件仍是自己的一份 Ingress，规则里的服务名随版本变——升级其中一个组件，不用改任何路由。同一个域名的几份 Ingress
+  由 Ingress 控制器合并，nginx-ingress、Traefik、HAProxy 都这样；给每份 Ingress 各建一个负载均衡器的控制器（GKE 自带的那种）做不到，
+  在那里按路径分流要自己写一份 Ingress。
+
+**Docker / Podman：** 平台不生成网关，`paths` 在这里不起作用（会提醒一句）。让网关自己发现组件：路由写在条目的 `labels` 里，
+它们原样成为容器标签，跟着容器走，所以同样不依赖带版本号的服务名。以 Traefik 为例——
+
+```yaml
+target: docker
+network: shop-net                        # 你建的网络：Traefik 也接在它上面
+components:
+  - id: portal/web
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.web.rule: Host(`app.example.com`)
+      traefik.http.services.web.loadbalancer.server.port: "8080"
+  - id: erp/sales
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.sales.rule: Host(`app.example.com`) && PathPrefix(`/api/sales`)
+      traefik.http.services.sales.loadbalancer.server.port: "8080"
+```
+
+Traefik 在你自己的 compose 里跑，接在同一个网络上（`network:` 的用法见
+[部署文件生成](../06-architecture/04-deploy-file-generation.md#docker-compose)），用 Docker provider 读容器标签。组件不需要 `expose`：
+对外的只有 Traefik。注意 Traefik 的 `PathPrefix` 是按字符串匹配的，`/api/sales` 也会接到 `/api/salesman`；要以路径段为界就写成
+`PathPrefix(`/api/sales/`) || Path(`/api/sales`)`。
 
 ## `mode`：跑不跑、怎么跑
 

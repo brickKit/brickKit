@@ -74,6 +74,29 @@ func (f *File) validateK8s(p *clierr.ProblemSet) {
 	validateNetworkPolicy(p, k.NetworkPolicy)
 }
 
+// routePathRe：以 / 开头，各段是字母、数字与 . _ ~ -，段之间一个 /，结尾可以带 /。
+// 平台只做前缀匹配，不认正则、通配符与百分号编码——写了这些的路径在不同的 Ingress 控制器上含义不同。
+var routePathRe = regexp.MustCompile(`^/([A-Za-z0-9._~-]+/?)*$`)
+
+// validatePaths：paths 只在 expose: true 时有意义；每一项是合法的路径前缀；同一条目里不重复（/a 与 /a/ 是同一条）。
+func validatePaths(p *clierr.ProblemSet, field string, c Entry) {
+	if len(c.Paths) > 0 && !c.Expose {
+		p.Add(field+".paths", i18n.T(msgid.ConfigPathsNeedExpose))
+	}
+	seen := map[string]bool{}
+	for i, path := range c.Paths {
+		item := yamlfile.Indexed(field+".paths", i)
+		switch normalized := NormalizeRoutePath(path); {
+		case !routePathRe.MatchString(path):
+			p.Add(item, i18n.T(msgid.ConfigPathInvalid, path))
+		case seen[normalized]:
+			p.Add(item, i18n.T(msgid.ConfigPathDuplicate, path))
+		default:
+			seen[normalized] = true
+		}
+	}
+}
+
 // appProtocolRe 是 K8s 对 appProtocol 的要求（qualified name）：可选的 DNS 前缀加 /，后面是字母数字开头结尾、
 // 中间可以有 - _ . 的名字。在这里拦下，报错指得到是哪一行；留给 apply 时才报，整份清单都已经生成完了。
 var appProtocolRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9.-]*[a-z0-9])?/)?[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$`)
@@ -193,6 +216,7 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 		if c.Expose && c.Hostname == "" && f.Target == TargetK8s {
 			p.Add(field+".hostname", i18n.T(msgid.ConfigHostnameMissing))
 		}
+		validatePaths(p, field, c)
 		validateReplicas(p, field, c)
 		manifest.ValidateStopGracePeriod(c.StopGracePeriodSeconds, field+".stopGracePeriodSeconds", p.Add)
 		manifest.ValidateLabels(c.Labels, field+".labels", p.Add)
@@ -347,6 +371,7 @@ func (f *File) targetWarnings() []*clierr.Error {
 			{"serviceAccountName", func(c Entry) bool { return c.ServiceAccountName != "" }},
 			{"tlsSecret", func(c Entry) bool { return c.TLSSecret != "" }},
 			{"hostname", func(c Entry) bool { return c.Hostname != "" }},
+			{"paths", func(c Entry) bool { return len(c.Paths) > 0 }},
 		}
 	}
 	for _, check := range checks {

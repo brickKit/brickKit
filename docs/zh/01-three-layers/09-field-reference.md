@@ -44,6 +44,7 @@
 | `components[].localPort` | | `local` / `debug` 时（或写在 `focus` 组件的条目上）本机进程的端口 |
 | `components[].expose` / `exposePort` | | 对外开放；Docker 下的宿主机端口 |
 | `components[].hostname` / `tlsSecret` | | K8s Ingress 的域名与证书 |
+| `components[].paths` | | K8s 下这个组件在 `hostname` 下接的路径前缀（几个组件共用一个域名时）；不写是整个域名 |
 | `components[].replicas` | | K8s 副本数 |
 | `components[].resources` | | `requests` / `limits` 的 `cpu`、`memory` |
 | `components[].stopGracePeriodSeconds` | | 覆盖组件建议的停机宽限期（秒） |

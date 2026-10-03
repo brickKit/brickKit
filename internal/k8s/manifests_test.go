@@ -331,3 +331,81 @@ func TestWriteFilesClearsStaleManifests(t *testing.T) {
 	_, err = os.Stat(filepath.Join(dir, "deployments", "people-basic-1-0-0.yaml"))
 	assert.NoError(t, err)
 }
+
+// 几个组件共用一个域名、按路径分流：各写各的 paths，每个组件仍是自己的一份 Ingress，规则是同一个 host 下它的那几条前缀。
+// 没写 paths 的那个接整个域名（"/"），和带前缀的不冲突——长的前缀先匹配。
+func TestComponentsShareAHostnameByPaths(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/web", "1.0.0", 80),
+		projecttest.Entry{Expose: true, Hostname: "app.example.com"})
+	b.component(simple("erp/sales", "1.0.0", 8080),
+		projecttest.Entry{Expose: true, Hostname: "app.example.com", Paths: []string{"/api/sales", "/webhooks/sales"}})
+
+	pathsOf := func(file string) []any {
+		rules, ok := dig(t, b.doc(file), "spec", "rules").([]any)
+		require.True(t, ok && len(rules) == 1)
+		assert.Equal(t, "app.example.com", dig(t, rules[0], "host"))
+		paths, ok := dig(t, rules[0], "http", "paths").([]any)
+		require.True(t, ok)
+		return paths
+	}
+	backend := func(service string, port int) map[string]any {
+		return map[string]any{"service": map[string]any{"name": service, "port": map[string]any{"number": port}}}
+	}
+
+	assert.Equal(t, []any{
+		map[string]any{"path": "/", "pathType": "Prefix", "backend": backend("portal-web-1-0-0", 80)},
+	}, pathsOf("ingress/portal-web-1-0-0.yaml"))
+	assert.Equal(t, []any{
+		map[string]any{"path": "/api/sales", "pathType": "Prefix", "backend": backend("erp-sales-1-0-0", 8080)},
+		map[string]any{"path": "/webhooks/sales", "pathType": "Prefix", "backend": backend("erp-sales-1-0-0", 8080)},
+	}, pathsOf("ingress/erp-sales-1-0-0.yaml"))
+}
+
+// 同一个域名下的同一条路径被两个组件占了：报错，点名域名加路径和两个组件，并给出"各写各的 paths"这条出路。
+// 结尾带不带 / 是同一条前缀；路径不同就不冲突。
+func TestSamePathOnASharedHostnameIsAnError(t *testing.T) {
+	build := func(a, b []string) error {
+		bd := newBuilder(t)
+		bd.component(simple("erp/sales", "1.0.0", 8080),
+			projecttest.Entry{Expose: true, Hostname: "app.example.com", Paths: a})
+		bd.component(simple("crm/opportunity", "1.0.0", 8081),
+			projecttest.Entry{Expose: true, Hostname: "app.example.com", Paths: b})
+		_, err := bd.build()
+		return err
+	}
+
+	err := build([]string{"/api", "/api/sales"}, []string{"/api/sales/"})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
+	assert.Contains(t, err.Error(), "app.example.com/api/sales is routed to more than one component")
+	assert.Contains(t, err.Error(), "erp/sales@1.0.0")
+	assert.Contains(t, err.Error(), "crm/opportunity@1.0.0")
+	assert.Contains(t, strings.Join(clierr.As(err).Hints, "\n"), "paths: [/api/sales]")
+
+	require.NoError(t, build([]string{"/api/sales"}, []string{"/api/crm"}))
+	require.NoError(t, build(nil, []string{"/api"}), "整个域名与一个前缀并存")
+}
+
+// 共用域名的条目要写同一个 tlsSecret：一个域名只有一张证书，各说各的（或有的写、有的没写）时用哪张由控制器定。
+func TestSharedHostnameNeedsOneTLSSecret(t *testing.T) {
+	build := func(a, b string) error {
+		bd := newBuilder(t)
+		bd.component(simple("portal/web", "1.0.0", 80),
+			projecttest.Entry{Expose: true, Hostname: "app.example.com", TLSSecret: a})
+		bd.component(simple("erp/sales", "1.0.0", 8080),
+			projecttest.Entry{Expose: true, Hostname: "app.example.com", TLSSecret: b, Paths: []string{"/api/sales"}})
+		_, err := bd.build()
+		return err
+	}
+
+	err := build("app-tls", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the entries sharing domain app.example.com don't name the same tlsSecret")
+	assert.Contains(t, err.Error(), "portal/web@1.0.0=app-tls")
+	assert.Contains(t, err.Error(), "erp/sales@1.0.0=(none)")
+	require.Error(t, build("app-tls", "other-tls"))
+
+	require.NoError(t, build("app-tls", "app-tls"))
+	require.NoError(t, build("", ""))
+}

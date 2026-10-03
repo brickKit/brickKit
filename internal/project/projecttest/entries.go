@@ -24,6 +24,7 @@ type Entry struct {
 	ExposePort             int
 	Hostname               string
 	TLSSecret              string
+	Paths                  []string
 	Replicas               *int
 	ServiceAccountName     string
 	Resources              *manifest.Resources
@@ -90,7 +91,7 @@ func Render(t testing.TB, spec Spec) Files {
 	for _, e := range spec.Entries {
 		entry := deployfile.Entry{
 			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
-			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
+			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret, Paths: e.Paths,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
 			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
 			StopGracePeriodSeconds: e.StopGracePeriodSeconds,
@@ -122,7 +123,7 @@ func Render(t testing.TB, spec Spec) Files {
 		}
 		deploy.Components = append(deploy.Components, deployfile.Component{Entry: deployfile.Entry{
 			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
-			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
+			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret, Paths: e.Paths,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
 			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
 			StopGracePeriodSeconds: e.StopGracePeriodSeconds,

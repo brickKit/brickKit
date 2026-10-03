@@ -237,7 +237,9 @@ spec:
   type: ClusterIP
 ```
 
-**Ingress**: only for `expose: true` components, and `hostname` is required.
+**Ingress**: only for `expose: true` components, and `hostname` is required. When the entry has `paths`, the rules
+carry those prefixes instead of `/` — that is how several components
+[share one domain](../01-three-layers/03-deploy-yaml.md#several-components-on-one-domain).
 
 ```yaml
 kind: Ingress

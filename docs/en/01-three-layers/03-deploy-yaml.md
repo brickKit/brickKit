@@ -56,6 +56,7 @@ both `lint` and `up` check this.
 | `expose` | Open it to the outside: on Docker it maps a host port, on Kubernetes it generates an Ingress. Without it, the component isn't reachable from outside |
 | `exposePort` | On Docker, which host port to map (defaults to the component's port); not used on Kubernetes |
 | `hostname`, `tlsSecret` | On Kubernetes, the Ingress host name and the TLS certificate Secret |
+| `paths` | On Kubernetes, the path prefixes this component takes under its `hostname`; without it, the whole domain. See [Several components on one domain](#several-components-on-one-domain) |
 | `replicas` | On Kubernetes, the number of replicas (default 1); above 1, a PodDisruptionBudget is generated |
 | `resources` | Resource `requests` / `limits`, overriding the component's recommended values |
 | `serviceAccountName` | On Kubernetes, use a ServiceAccount your operators already created |
@@ -64,9 +65,65 @@ both `lint` and `up` check this.
 | `skipWaitFor` | Don't wait for these required dependencies at start (only the wait goes; the connection stays). Docker / Podman only: Kubernetes has no start order. See [start cycles created by merging into a shell](../04-shell/04-members-management.md) |
 | `members` | Only on a shell's entry: the members it hosts, each a full entry in its own right |
 
-Fields that only mean something on Kubernetes (`hostname`, `tlsSecret`, `replicas`, `serviceAccountName`) only warn
+Fields that only mean something on Kubernetes (`hostname`, `tlsSecret`, `paths`, `replicas`, `serviceAccountName`) only warn
 under another `target` and the command goes ahead — the same entry can move between the two targets. The other way
 round, the Docker / Podman-only fields `exposePort` and `skipWaitFor` only warn under `target: k8s`.
+
+## Several components on one domain
+
+A front end and several back ends behind one domain, split by path (`/` to the portal, `/api/sales` to sales), is one
+of the most common ways to go live.
+
+**Kubernetes:** share one `hostname` and give each entry its own `paths`:
+
+```yaml
+target: k8s
+components:
+  - id: portal/web
+    expose: true
+    hostname: app.example.com            # no paths: the whole domain
+  - id: erp/sales
+    expose: true
+    hostname: app.example.com
+    paths: [/api/sales, /webhooks/sales]
+```
+
+- Paths match by prefix, on path-segment boundaries: `/api/sales` takes `/api/sales` and `/api/sales/…`, not
+  `/api/salesman`. The longer prefix wins, so the component without `paths` takes "everything else". No wildcards, no
+  regular expressions.
+- The request reaches the component as it is; the path isn't rewritten. The component has to serve under that prefix.
+- Under one domain, a path belongs to one component: write it twice and `up` fails, naming both. Entries sharing a
+  domain write the same `tlsSecret` (or none of them does): a domain has one certificate.
+- Each component still gets an Ingress of its own, and the service name in its rules follows the version — upgrade one
+  of them and no route needs changing. The Ingresses for one domain are merged by the Ingress controller, as
+  nginx-ingress, Traefik and HAProxy do; a controller that builds one load balancer per Ingress (the one built into
+  GKE) can't, and there path routing takes an Ingress you write yourself.
+
+**Docker / Podman:** the platform generates no gateway, and `paths` has no effect here (it says so). Let the gateway
+discover the components: write the routes in each entry's `labels`, which become container labels as they are and
+travel with the container — so they don't depend on the versioned service name either. With Traefik, for example:
+
+```yaml
+target: docker
+network: shop-net                        # a network you created; Traefik is on it too
+components:
+  - id: portal/web
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.web.rule: Host(`app.example.com`)
+      traefik.http.services.web.loadbalancer.server.port: "8080"
+  - id: erp/sales
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.sales.rule: Host(`app.example.com`) && PathPrefix(`/api/sales`)
+      traefik.http.services.sales.loadbalancer.server.port: "8080"
+```
+
+Traefik runs in a compose of your own, on the same network (for `network:` see
+[Generating deployment files](../06-architecture/04-deploy-file-generation.md#docker-compose)), and reads container
+labels through its Docker provider. The components need no `expose`: only Traefik faces outward. Note that Traefik's
+`PathPrefix` compares strings, so `/api/sales` also takes `/api/salesman`; to stop at the segment, write
+`PathPrefix(`/api/sales/`) || Path(`/api/sales`)`.
 
 ## `mode`: whether it runs, and how
 

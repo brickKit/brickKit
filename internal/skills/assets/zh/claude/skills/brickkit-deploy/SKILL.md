@@ -177,6 +177,8 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 
 **暴露**：`expose: true`。K8s 下必须给 `hostname`（生成 Ingress），`tlsSecret` 可选；Docker 下映射到宿主
 端口，`exposePort` 可改。不写就不暴露。`replicas > 1` 时 K8s 自动生成 PDB。
+几个组件共用一个域名、按路径分流：K8s 下共用 `hostname`、各写各的 `paths: [/api/sales]`（前缀匹配，不改写路径；
+同一条路径只能归一个组件，`tlsSecret` 要相同）；Docker 下平台不生成网关，路由写在条目的 `labels` 里交给 Traefik 这类网关。
 
 **迁移**：K8s 下是一个独立的 Job（不是 InitContainer，避免多副本并发迁移），Docker 下是一次性容器；
 失败则主服务不启动。

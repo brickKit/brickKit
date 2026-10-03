@@ -4,6 +4,8 @@
 package deployfile
 
 import (
+	"strings"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -138,6 +140,9 @@ type Entry struct {
 	ExposePort         int                 `yaml:"exposePort,omitempty"`
 	Hostname           string              `yaml:"hostname,omitempty"`
 	TLSSecret          string              `yaml:"tlsSecret,omitempty"`
+	// Paths 是这个组件在 hostname 下接的路径前缀，可选；不写就是整个域名（"/"）。
+	// 几个组件共用一个域名、按路径分流时写它（见 RoutePaths）。只对 K8s 的 Ingress 有意义。
+	Paths []string `yaml:"paths,omitempty"`
 	Replicas           *int                `yaml:"replicas,omitempty"`
 	ServiceAccountName string              `yaml:"serviceAccountName,omitempty"`
 	Resources          *manifest.Resources `yaml:"resources,omitempty"`
@@ -250,6 +255,29 @@ func (f *File) withFocus(l Located, isDefault bool) Located {
 		l.Mode = ModeLocal
 	}
 	return l
+}
+
+// RootPath 是没写 paths 时的路径：整个域名。
+const RootPath = "/"
+
+// RoutePaths 是这个条目在它的 hostname 下接的路径前缀：写了 paths 用它，没写是整个域名。
+//
+// 路径按前缀匹配、以路径段为界（/api/sales 接 /api/sales 与 /api/sales/…，不接 /api/salesman），
+// 请求原样转给组件，不改写路径——组件要自己在这个前缀下提供服务。
+func (c Entry) RoutePaths() []string {
+	if len(c.Paths) == 0 {
+		return []string{RootPath}
+	}
+	return c.Paths
+}
+
+// NormalizeRoutePath 去掉结尾的 /（根路径除外）：/api/sales 与 /api/sales/ 按前缀匹配是同一条路由，
+// 判重时要当成一个。
+func NormalizeRoutePath(path string) string {
+	if trimmed := strings.TrimRight(path, "/"); trimmed != "" {
+		return trimmed
+	}
+	return RootPath
 }
 
 // AppProtocol 是组件声明的端口协议在这个集群里写成的 appProtocol：k8s.appProtocols 里有就用它，没有就原样。
