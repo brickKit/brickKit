@@ -27,10 +27,19 @@ components:
       - id: shop/cart
 ```
 
-For a component that was in the project before a shell able to host it came along, `add` **doesn't** move it into the
-shell for you, and doesn't ask whether to: whether it runs inside a shell is a decision about how you deploy — saving memory
-or scaling separately, merging in this environment or not — that only you can make, and it may differ per deploy file. To
-put it in, move its entry under the shell entry's `members`.
+A member that was already in the project, at exactly the version the shell compiles in, is **moved under the shell too**,
+and the output says so:
+
+```text
+   🔗 shop/stock moved into shell shop/shell
+```
+
+Adding the shell is the decision to merge its members, and the result is the same whichever came first. Only `add`ing
+the shell itself moves anything: once the shell is in the project, `add` never moves an entry under it again, so a member
+you moved out to run on its own stays out (a component added later that the shell compiles in is nested from the
+start). A member already nested under another shell stays there, with a note. `add` writes `deploy.yaml` (and
+`deploy.local.yaml`); other deploy files you pick with `-f` are listed as not changed. To keep a member running on its
+own in an environment, move its entry back to the top level in that file ([Moving out of a shell](#moving-out-of-a-shell)).
 
 ## Moving out of a shell
 
