@@ -28,6 +28,8 @@ const (
 	// 早先设计里的样例 `brickkit.io/component-id: people/basic`
 	// 会被 API Server 整份拒绝，连 Deployment 都建不出来。
 	annotationComponentID = "brickkit.io/component-id"
+	// annotationSecretDigest 是 Pod 模板上的密钥摘要（见 secretDigest）。
+	annotationSecretDigest = "brickkit.io/secret-digest"
 )
 
 // 探针参数。
@@ -104,6 +106,11 @@ func (p *plan) passthroughAnnotationsOf(c componentPlan) map[string]any {
 func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 	labels := p.labelsOf(c)
 	annotations := p.passthroughAnnotationsOf(c)
+	// 只加在 Pod 模板上：要的是"密钥变了就滚动更新"，而触发滚动更新的只有模板
+	podAnnotations := p.passthroughAnnotationsOf(c)
+	if digest := p.secretDigest(c); digest != "" {
+		podAnnotations[annotationSecretDigest] = digest
+	}
 
 	return map[string]any{
 		"apiVersion": "apps/v1",
@@ -126,7 +133,7 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 					"labels": labels,
 					// Pod 也要带：抓取类注解（prometheus.io/*）读的是 Pod，
 					// 只写在 Deployment 上等于没写
-					"annotations": annotations,
+					"annotations": podAnnotations,
 				},
 				"spec": p.podSpec(c, p.containerDoc(c)),
 			},

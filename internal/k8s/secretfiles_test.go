@@ -165,3 +165,81 @@ func TestMountFileKeepsBinaryContent(t *testing.T) {
 	assert.Equal(t, base64.StdEncoding.EncodeToString([]byte(binary)), dig(t, secret, "data", "KEYSTORE_FILE"))
 	assert.Equal(t, "plain-text", dig(t, secret, "stringData", "TOKEN_FILE"))
 }
+
+func podAnnotations(t *testing.T, b *builder, service string) map[string]any {
+	t.Helper()
+	annotations, _ := dig(t, b.doc("deployments/"+service+".yaml"), "spec", "template", "metadata", "annotations").(map[string]any)
+	return annotations
+}
+
+// 密钥进环境变量是在容器启动的那一刻。只改一个密钥的值，Deployment 的清单一个字都不变（它只写着 secretKeyRef），
+// kubectl apply 就不会滚动更新：Secret 是新的，Pod 手里还是旧的——而 Docker 下同一次改动会重建容器。
+// 所以 Pod 模板上带一个密钥摘要：值变了它就变，滚动更新照常发生。只在 Pod 模板上，不在 Deployment 自己身上。
+func TestSecretDigestRollsThePodWhenASecretChanges(t *testing.T) {
+	build := func(token, greeting string) *builder {
+		m := simple("erp/sales", "1.0.0", 8080)
+		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+			"API_TOKEN": {Type: "string", Secret: true},
+			"GREETING":  {Type: "string"},
+		}}
+		b := newBuilder(t)
+		b.component(m, projecttest.Entry{Config: map[string]any{"API_TOKEN": token, "GREETING": greeting}})
+		return b
+	}
+	const key = "brickkit.io/secret-digest"
+
+	one := podAnnotations(t, build("token-one", "hello"), "erp-sales-1-0-0")[key]
+	require.NotEmpty(t, one)
+	assert.Len(t, one, 16)
+	assert.Equal(t, one, podAnnotations(t, build("token-one", "hello"), "erp-sales-1-0-0")[key], "同样的值，同样的摘要：不平白滚动")
+	assert.NotEqual(t, one, podAnnotations(t, build("token-two", "hello"), "erp-sales-1-0-0")[key], "密钥变了，模板跟着变")
+	assert.Equal(t, one, podAnnotations(t, build("token-one", "hi"), "erp-sales-1-0-0")[key],
+		"明文的值不算进去：它本来就写在清单里，变了自然会滚动")
+
+	b := build("token-one", "hello")
+	assert.NotContains(t, dig(t, b.doc("deployments/erp-sales-1-0-0.yaml"), "metadata", "annotations"), key)
+	assert.NotContains(t, string(b.file("deployments/erp-sales-1-0-0.yaml").YAML), "token-one")
+}
+
+// 不算进摘要的两类：以文件交付的（有意不重启，组件自己重新读）和 existingSecret（平台读不到它的值）。
+// 一项经环境变量交付的平台密钥都没有时，根本没有这条注解。
+func TestSecretDigestLeavesOutFilesAndExistingSecrets(t *testing.T) {
+	build := func(key string) *builder {
+		m := simple("erp/sales", "1.0.0", 8080)
+		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+			"SIGNING_KEY_FILE": fileItem(),
+			"DB_PASSWORD":      {Type: "string", Secret: true},
+		}}
+		b := newBuilder(t)
+		b.component(m, projecttest.Entry{Config: map[string]any{
+			"SIGNING_KEY_FILE": key,
+			"DB_PASSWORD":      map[string]any{"existingSecret": "db", "key": "password"},
+		}})
+		return b
+	}
+	assert.NotContains(t, podAnnotations(t, build("key-one"), "erp-sales-1-0-0"), "brickkit.io/secret-digest")
+	assert.Equal(t,
+		string(build("key-one").file("deployments/erp-sales-1-0-0.yaml").YAML),
+		string(build("key-two").file("deployments/erp-sales-1-0-0.yaml").YAML),
+		"以文件交付的值变了，Deployment 逐字节不变：不滚动")
+}
+
+// 外壳的成员 JSON 在外壳的环境变量里：成员的配置变了，外壳要重启才读得到。
+func TestSecretDigestCoversTheShellsMemberJSON(t *testing.T) {
+	build := func(mode string) *builder {
+		member := simple("mdm/customer", "1.0.7", 8080)
+		member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+			"MODE": {Type: "string"},
+		}}
+		entry := servedByEntry("infra/shell-go-core", "1.0.0")
+		entry.Config = map[string]any{"MODE": mode}
+		b := newBuilder(t)
+		b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+		b.component(member, entry)
+		return b
+	}
+	const key = "brickkit.io/secret-digest"
+	strict := podAnnotations(t, build("strict"), "infra-shell-go-core-1-0-0")[key]
+	require.NotEmpty(t, strict)
+	assert.NotEqual(t, strict, podAnnotations(t, build("relaxed"), "infra-shell-go-core-1-0-0")[key])
+}

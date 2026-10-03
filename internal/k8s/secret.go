@@ -7,7 +7,10 @@ package k8s
 // Secret 单独一份文件，可以单独设权限、单独排除出版本库。
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"fmt"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -84,6 +87,51 @@ func (p *plan) collectSecrets() error {
 	}
 	sort.Slice(p.secrets, func(i, j int) bool { return p.secrets[i].Name < p.secrets[j].Name })
 	return p.expand.check()
+}
+
+// secretDigest 是 c 的 Pod 经 secretKeyRef 读的、由平台生成的那些密钥的摘要；一项都没有时是空串。
+//
+// # 为什么需要
+//
+// 密钥进环境变量是在容器启动的那一刻：之后 Secret 再怎么变，已经在跑的 Pod 手里还是旧值。而改一个密钥的值，
+// Deployment 的清单一个字都不变（它只写着 secretKeyRef），`kubectl apply` 就不会滚动更新——`up` 报成功，
+// Secret 是新的，组件用的是旧的，要等到 Pod 哪天因为别的原因重启才换过来。Docker 下同一次改动会重建容器
+// （env 文件变了），两个目标说法不一。在 minikube 上真跑撞到的。
+// 把摘要写在 Pod 模板上：值一变，模板就变，滚动更新照常发生，waitRollout 也照常等它。
+//
+// # 算进去的与不算的
+//
+//	算     经 secretKeyRef 进环境变量、值由平台生成的那些（含外壳的成员 JSON：成员的配置变了，外壳要重启）
+//	不算   以文件交付的（mount: file）——那些有意不重启，组件自己重新读文件
+//	不算   existingSecret——平台读不到它的值。别的工具轮换了它，环境变量形式的要自己重启 Pod
+//
+// # 摘要会不会泄露密钥
+//
+// 它是密钥内容的确定性函数：能读 Deployment 却读不了 Secret 的人，可以离线验证对**弱**密钥的猜测。
+// 这与 Helm 的 checksum 注解是同一个取舍。几项一起算、只留 64 位，猜的人得同时猜中这个组件的全部密钥；
+// 真正的防线仍是密钥本身够强。
+func (p *plan) secretDigest(c componentPlan) string {
+	h := sha256.New()
+	found := false
+	// c.Env.Env 按变量名排序（inject 的约定），摘要因此稳定
+	for _, v := range c.Env.Env {
+		if envPlacement(v) != placeGeneratedSecret {
+			continue
+		}
+		// 求值错误已经在 collectSecrets 里报过，这里不会再出现
+		value, err := p.valueOf(v)
+		if err != nil {
+			continue
+		}
+		found = true
+		// 带长度前缀：否则 A="b", C="d" 与 A="bC=d" 这样的两组值会算出同一个摘要
+		// hash.Hash 的 Write 从不返回错误
+		_, _ = fmt.Fprintf(h, "%d:%s=%d:%s", len(v.Name), v.Name, len(value), value)
+	}
+	if !found {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // withVariable 给求值错误补上"是哪个组件的哪一项"。

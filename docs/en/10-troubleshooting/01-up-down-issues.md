@@ -328,6 +328,9 @@ looks after containers, and can't reach into another terminal's process tree.
 - The file changed isn't the one read this time: with local mode on, `deploy.local.yaml` is read, while you changed `vars:`
   in `deploy.yaml`. `brickkit local status` shows which one is read this time.
 - What changed is code, not config: after changing code, `brickkit build --force`; see [Build problems](05-build-issues.md).
+- On Kubernetes, what changed is the external Secret an `existingSecret` points at: the platform can't read its value, so
+  it doesn't know it changed. A Pod reading it through an environment variable needs a restart to use the new value
+  (`kubectl rollout restart deployment/<service name>`); a secret in the project's own `config/` rolls the Pod on `up`.
 - What changed is a secret delivered as a file (the component declares `mount: file` in its `configSchema`): `up` only
   gives the file its new content and **does not restart the component**. A component that reads the file once at start
   needs a restart to use the new value (`brickkit down`, then `brickkit up`); on Kubernetes the file changes once the

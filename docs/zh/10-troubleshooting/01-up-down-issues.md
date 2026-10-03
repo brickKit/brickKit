@@ -286,6 +286,8 @@ systemctl --user enable --now podman.socket
 - 键名写错了：`up` 的输出里会有"不在组件的 configSchema 里，不会生效"的警告，见 [配置冲突问题](03-config-conflict-issues.md#配置写了却没有生效)。
 - 改的不是这次读的文件：本地模式开着时读的是 `deploy.local.yaml`，而 `vars:` 你改在了 `deploy.yaml` 里。`brickkit local status` 看这次读哪份。
 - 改的是代码而不是配置：代码改了要 `brickkit build --force`，见 [构建问题](05-build-issues.md)。
+- Kubernetes 上，改的是 `existingSecret` 指向的那份外部 Secret：平台读不到它的值，也就不知道它变了。用环境变量读它的 Pod 要重启才用上新值
+  （`kubectl rollout restart deployment/<服务名>`）；项目自己 `config/` 里的密钥变了，`up` 会滚动更新，不用管。
 - 改的是一项以文件交付的密钥（组件在 `configSchema` 里声明了 `mount: file`）：`up` 只把文件换成新内容，**不重启组件**。
   只在启动时读一次文件的组件要重启才用上新值（`brickkit down` 再 `brickkit up`）；Kubernetes 上文件要等 kubelet 同步，通常在一分钟之内。
   见 [以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file)。
