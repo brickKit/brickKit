@@ -50,6 +50,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | 组件拿到的环境变量（连接串、密钥、开关） | `config/<组件 ID 把 / 换成 ->.yaml`，带版本号的 `config/<…>@<版本>.yaml` 优先 |
 | 公共变量 | `config/vars.yaml`（部署文件的 `vars:` 可以覆盖同名项） |
 | 组件的依赖、能力声明、`configSchema` | `.brickkit/manifests/<scope>/<name>/<版本>/component.yaml`，本地源组件读源码里的 `component.yaml` |
+| 一个事件谁在发布、谁在订阅（经消息系统传的事件不是依赖） | `brickkit deps` 最后的事件清单，来自各组件 `component.yaml` 的 `events`；`brickkit graph` 把它画成带标签的虚线 |
 | 依赖组件怎么用、负责什么不负责什么、配置项什么意思 | `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）；本地源里正好是这个版本时，读源码目录里那份 |
 | 项目里有哪些组件、各干什么 | 项目 `AGENTS.md` 末尾的组件表（`add` / `remove` / `upgrade` 维护） |
 | 怎么改一个组件：代码地图、构建与测试、易错点 | 组件自己的 `AGENTS.md` |

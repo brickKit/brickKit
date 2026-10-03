@@ -217,6 +217,52 @@ artifacts:
 `type` and `format` are free strings the platform doesn't interpret; it only delivers `files` into the user's
 `.brickkit/artifacts/`. See [Contracts and artifacts](06-artifacts-and-contracts.md).
 
+## events: what I publish and subscribe to
+
+```yaml
+events:                             # optional
+  publishes:
+    - erp.inventory.adjusted.v1
+  subscribes:
+    - crm.opportunity.won.v1
+    - infra.workflow.*              # ends in *: every event whose name starts with what comes before it
+```
+
+Events that travel between components through a messaging system (NATS, Kafka, RabbitMQ…) don't show in `dependencies`:
+a publisher doesn't know who is listening, and a subscriber doesn't need the publisher to start first. Two components
+can have no dependency between them and still be tied together by events — and then "who is affected if I change this
+event" takes a search of every repository. Written here, the project can see them:
+
+| Command | What it does with them |
+| --- | --- |
+| `brickkit graph` | Draws a dashed edge from the publisher to the subscriber, labelled with the subscription |
+| `brickkit deps <id>` | Who subscribes to each event the component publishes, and who publishes what it subscribes to; `brickkit deps` ends with every event in the project |
+| `brickkit lint` | A note when a component subscribes to an event no component in the project publishes (`ℹ️`, not a warning: an event may come from outside the project) |
+
+It is a spec sheet, in the same position as `configSchema`, and **changes nothing about the deployment**: no start
+order, no say in what runs, no environment variables; the platform doesn't connect to the messaging system and doesn't
+check that the code really publishes the event. Keeping the declaration and the code in step is the component's own
+job — when there is an event contract file, have the build generate this block from it, or compare the two in a test.
+
+There are two rules, and they follow no messaging system's syntax:
+
+- **An event name is an opaque string.** It starts with a letter or digit, followed by letters, digits and `.` `_` `/`
+  `:` `-`. The platform doesn't split it into segments or recognise a separator, so a dotted subject, a slash-separated
+  topic and a Kafka topic name are all written as they are.
+- **There are two ways to match.** Exactly equal; or, when a subscription ends in `*`, every event whose name starts
+  with what comes before it (a `*` alone is every event). `publishes` takes no wildcard: list each event published.
+
+When the messaging system has wildcards of its own (NATS `*` and `>`, RabbitMQ `*` and `#`, MQTT `+` and `#`), translate
+the subscription into a prefix: `orders.>` becomes `orders.*`; a wildcard in the middle (`erp.*.created.v1`) becomes
+the part before it (`erp.*`). The declaration then covers a little more than the real subscription — it is only shown,
+so too wide does no harm, while too narrow leaves an edge undrawn.
+
+Several components may publish the same event (every member of a
+[slot family](../09-patterns/01-component-design.md#component-or-config-switch-recognising-a-slot-family) does): matching is by name and never asks who the publisher is.
+The format of an event (what the payload holds) isn't written here; it is a contract file, listed under
+[`artifacts`](#artifacts-my-contract-for-callers). A breaking change to the format is a new event name (`….v2`),
+published alongside the old one.
+
 ## local: how to start me as a process on the machine
 
 When a user sets the component to `mode: local`, BrickKit recognises the language from the source directory and starts it

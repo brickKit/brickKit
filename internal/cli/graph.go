@@ -116,6 +116,20 @@ const (
 // endpointEdgeLabel 是引用边上的标签：写的正是使用者在配置里写的那个前缀，不随语言变。
 const endpointEdgeLabel = "$endpoint"
 
+// maxEventEdgeLines 是一条事件边的标签上最多列几个订阅项；再多的只写个数，完整的清单在 brickkit deps 里。
+// 订阅一整类事件用一个前缀就是一行，所以超出的只会是逐个列了很多事件名的订阅方——全画出来，标签会盖住半张图。
+const maxEventEdgeLines = 3
+
+// eventEdgeLabel 把订阅项排成边上的标签：一行一个。事件名的字符集（manifest.IsEventName）里没有引号与尖括号，
+// 放进带引号的 Mermaid 标签里不需要转义。
+func eventEdgeLabel(subscriptions []string) string {
+	if len(subscriptions) <= maxEventEdgeLines {
+		return strings.Join(subscriptions, "<br/>")
+	}
+	return strings.Join(subscriptions[:maxEventEdgeLines], "<br/>") +
+		fmt.Sprintf("<br/>… +%d", len(subscriptions)-maxEventEdgeLines)
+}
+
 // mermaidClassDefs 按输出顺序列出样式类。用 classDef + class 而不是逐节点 style：
 // 一处改样式，全图跟着变。
 var mermaidClassDefs = []struct{ name, style string }{
@@ -250,6 +264,13 @@ func renderMermaid(
 		for _, dep := range node.References {
 			fmt.Fprintf(&b, "    %s -. %s .-> %s\n", from, endpointEdgeLabel, mermaidID(dep))
 		}
+	}
+
+	// 事件：从发布方指向订阅方的虚线，标的是订阅方声明的订阅项。它不是依赖——谁也不等谁——
+	// 所以方向跟着数据走，与上面"依赖方指向被依赖方"的边分得开的是标签：那里只有 $endpoint，这里是事件名
+	for _, flow := range graph.EventIndex().Flows() {
+		fmt.Fprintf(&b, "    %s -.->|\"%s\"| %s\n",
+			mermaidID(flow.Publisher), eventEdgeLabel(flow.Subscriptions), mermaidID(flow.Subscriber))
 	}
 
 	for _, def := range mermaidClassDefs {

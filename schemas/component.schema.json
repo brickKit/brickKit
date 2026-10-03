@@ -330,6 +330,35 @@
       ],
       "type": "object"
     },
+    "events": {
+      "additionalProperties": false,
+      "properties": {
+        "publishes": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._/:-]*$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "subscribes": {
+          "items": {
+            "pattern": "^([A-Za-z0-9][A-Za-z0-9._/:-]*[*]?|[*])$",
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "healthCheck": {
       "additionalProperties": false,
       "properties": {

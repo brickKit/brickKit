@@ -31,6 +31,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `target` | ✅ | `docker` / `podman` / `k8s` |
 | `focus` | | Only in `deploy.local.yaml`: run just this component (from source) and what it needs — see [Developing inside the project](../02-project-guide/04-focus-run.md) |
 | `vars` | | Overrides shared variables of the same name in `config/vars.yaml` |
+| `network` | | Docker / Podman only: the name of a network the project provides; the generated compose joins it and never creates or removes it |
 | `k8s.context` / `k8s.namespace` / `k8s.createNamespace` | | Which cluster and namespace to deploy to |
 | `k8s.podSecurity` | | `restricted`: generate for the Pod Security "restricted" level |
 | `k8s.imagePullSecrets` | | Names of the Secrets used to pull images |
@@ -44,6 +45,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `components[].hostname` / `tlsSecret` | | The Kubernetes Ingress host name and certificate |
 | `components[].replicas` | | Kubernetes replicas |
 | `components[].resources` | | `cpu` and `memory` for `requests` / `limits` |
+| `components[].stopGracePeriodSeconds` | | Overrides the stop grace period the component recommends (seconds) |
 | `components[].serviceAccountName` | | Use an existing ServiceAccount on Kubernetes |
 | `components[].labels` | | Labels passed through as-is |
 | `components[].skipWaitFor` | | Required dependencies not to wait for at start |
@@ -72,11 +74,14 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `deployment.port` | ✅ | The main port |
 | `deployment.extraPorts[]` | | Extra ports: `name`, `port`. Each gives callers `<ID>_<NAME>_ENDPOINT`, the name uppercased with `-` turned into `_` (port `admin-api` of `people/basic` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`) |
 | `deployment.resources` | | Recommended resources |
+| `deployment.stopGracePeriodSeconds` | | Seconds the component needs to finish its work after a stop signal (1–3600); a deploy entry may override it |
 | `deployment.labels` | | Labels passed through |
 | `migration.command` | | The database migration command (an array) |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
 | `healthCheck.path` | for `http` | The HTTP path, starting with `/` |
 | `healthCheck.startPeriodSeconds` | | The startup grace period in seconds (default 60) |
+| `readinessCheck.type` / `path` | | The readiness check (`http` / `tcp`), for a component that is alive but can't take traffic yet; without it, readiness follows `healthCheck` |
+| `events.publishes` / `events.subscribes` | | Names of the events published and subscribed to (a subscription may be a prefix ending in `*`); only shown and hinted at by `graph` / `deps` / `lint` |
 | `shell.members` | | The members a shell compiles in, as exact `id@version` |
 | `local.language` / `local.runCommand` | | For `mode: local`, the language, or the start command given outright |
 

@@ -95,6 +95,9 @@ healthCheck:
 readinessCheck:
   type: http
   path: /readyz
+events:
+  publishes: [demo.hello.greeted.v1]
+  subscribes: [demo.other.changed.v1]
 `
 
 const baselineProject = `project: demo
@@ -824,6 +827,20 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"shell", "members", 0}, errField: "shell.members[0]",
 			valid:   []any{"demo/member@1.0.0", "demo/member@10.2.3"},
 			invalid: []any{"demo/member@^1.0.0", "demo/member@latest", "demo/member@1.0", "demo/member@", "demo/member", ""},
+		},
+		{
+			// 事件名：不透明的字符串，平台不认分隔符；通配符一个都不收（发布的事件逐个列出）。
+			name: "events.publishes[0]", doc: "component", schemaPath: "events/publishes[]",
+			dataPath: []any{"events", "publishes", 0}, errField: "events.publishes[0]",
+			valid:   []any{"erp.inventory.adjusted.v1", "shop/orders/created", "urn:shop:order-paid", "OrderPaid_v2", "a"},
+			invalid: []any{"orders.*", "orders.>", "orders.#", "+/orders", "has space", ".leading", ""},
+		},
+		{
+			// 订阅项：事件名，或以 * 结尾的前缀。别家的通配符、写在中间的 * 都不收。
+			name: "events.subscribes[0]", doc: "component", schemaPath: "events/subscribes[]",
+			dataPath: []any{"events", "subscribes", 0}, errField: "events.subscribes[0]",
+			valid:   []any{"erp.inventory.adjusted.v1", "erp.inventory.*", "shop/orders/*", "erp.inv*", "*"},
+			invalid: []any{"orders.>", "orders.#", "erp.*.created.v1", "**", "has space", ""},
 		},
 	}
 }

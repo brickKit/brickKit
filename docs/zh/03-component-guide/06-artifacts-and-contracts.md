@@ -31,7 +31,8 @@ artifacts:
 
 一条约定，不是规则：组件发布或消费的事件格式，用 `type: event-contract`（`format` 写 `asyncapi`、`json-schema` 之类），
 和描述调用接口的 `api-contract` 放在一起。读的人一眼就分得清两类，`BRICKKIT.md` 的契约索引也好写明发出哪些事件、接收哪些事件。
-对平台来说，`event-contract` 照样只是一个字符串。
+对平台来说，`event-contract` 照样只是一个字符串。事件的**名字**另有地方写：`component.yaml` 的
+[`events`](02-component-yaml-reference.md#events我发布订阅哪些事件)，`graph`、`deps` 与 `lint` 靠它看见谁发布、谁订阅。
 
 使用方 `add` 你的组件时，这些文件落到他项目的 `.brickkit/artifacts/<版本化服务名>/<type>/` 下。项目的 `AGENTS.md`
 不逐个列路径：末尾由 CLI 维护的那一段把规则写了一次——

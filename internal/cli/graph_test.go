@@ -43,6 +43,8 @@ var mermaidStatement = regexp.MustCompile(`^(?:` +
 	`subgraph [a-z0-9_]+\["[^"]*"\]|end|` + // 子图
 	`[a-z0-9_]+\["[^"]*"\]|` + // 节点
 	`[a-z0-9_]+ (?:-->|-\.->) [a-z0-9_]+|` + // 边
+	`[a-z0-9_]+ -\. \$endpoint \.-> [a-z0-9_]+|` + // 配置用 $endpoint: 引用的地址
+	`[a-z0-9_]+ -\.->\|"[^"|]+"\| [a-z0-9_]+|` + // 事件：发布方 → 订阅方
 	`classDef [a-z]+ \S.*;|` + // 样式定义
 	`class [a-z0-9_,]+ [a-z]+` + // 样式套用
 	`)| {8}[a-z0-9_]+\["[^"]*"\]` + // 子图里只有节点
@@ -508,4 +510,78 @@ func TestGraphHelpDoesNotMentionUnreachableLocalDebugStyle(t *testing.T) {
 	assert.Contains(t, r.stdout, "managed locally", "该讲 graph 实际会画的 mode: local 样式")
 	assert.Contains(t, r.stdout, "deploy.local.yaml", "该说清 graph 不读本地模式，所以 mode: debug 不会出现在图上")
 	assert.NotContains(t, r.stdout, "override.yaml", "override.yaml 已经不存在")
+}
+
+// 事件边：发布方指向订阅方的虚线，标订阅方声明的订阅项——完全相等的事件名，或以 * 结尾的前缀（一整类事件只占一行）。
+// 事件不是依赖：两个组件之间没有任何同步依赖时也画得出来，而且不让谁"跟着谁跑"。
+func TestGraphDrawsEventEdgesFromPublisherToSubscriber(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: crm/opportunity
+    version: 1.0.0
+  - id: erp/finance
+    version: 1.0.0
+  - id: infra/audit
+    version: 1.0.0
+resources: []
+`,
+		comp{ID: "crm/opportunity", Version: "1.0.0",
+			Publishes: []string{"crm.opportunity.won.v1", "crm.opportunity.lost.v1"}},
+		comp{ID: "erp/finance", Version: "1.0.0",
+			Publishes:  []string{"erp.finance.invoice.issued.v1"},
+			Subscribes: []string{"crm.opportunity.won.v1", "erp.finance.invoice.issued.v1", "mdm.customer.*"}},
+		comp{ID: "infra/audit", Version: "1.0.0", Subscribes: []string{"crm.*", "erp.finance.*"}},
+	)
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+	assert.Equal(t, `graph TD
+    crm_opportunity_1_0_0["crm/opportunity@1.0.0"]
+    erp_finance_1_0_0["erp/finance@1.0.0"]
+    infra_audit_1_0_0["infra/audit@1.0.0"]
+    crm_opportunity_1_0_0 -.->|"crm.opportunity.won.v1"| erp_finance_1_0_0
+    crm_opportunity_1_0_0 -.->|"crm.*"| infra_audit_1_0_0
+    erp_finance_1_0_0 -.->|"erp.finance.*"| infra_audit_1_0_0
+`, r.stdout, "订阅自己发布的事件不是边；没人发布的 mdm.customer.* 画不出边")
+}
+
+// 订阅方逐个列了很多事件名时，边上只列前三个，其余写个数——完整清单在 deps 里。
+func TestGraphEventEdgeLabelIsCapped(t *testing.T) {
+	names := []string{"a.one.v1", "a.two.v1", "a.three.v1", "a.four.v1", "a.five.v1"}
+	f := graphProject(t, `components:
+  - id: demo/pub
+    version: 1.0.0
+  - id: demo/sub
+    version: 1.0.0
+resources: []
+`,
+		comp{ID: "demo/pub", Version: "1.0.0", Publishes: names},
+		comp{ID: "demo/sub", Version: "1.0.0", Subscribes: names},
+	)
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+	assert.Contains(t, r.stdout,
+		`    demo_pub_1_0_0 -.->|"a.one.v1<br/>a.two.v1<br/>a.three.v1<br/>… +2"| demo_sub_1_0_0`+"\n")
+}
+
+// 配置用 $endpoint: 引用的地址：带 $endpoint 标签的虚线，从引用方指向被引用方。
+func TestGraphDrawsEndpointReferences(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: infra/iam
+    version: 1.0.0
+  - id: erp/sales
+    version: 1.0.0
+resources: []
+`,
+		comp{ID: "infra/iam", Version: "1.0.0"},
+		comp{ID: "erp/sales", Version: "1.0.0", ConfigSchema: []string{"IAM_URL:"}},
+	)
+	writeTree(t, f.Dir, map[string]string{"config/erp-sales.yaml": "IAM_URL: $endpoint:infra/iam\n"})
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+	assert.Contains(t, r.stdout, "    erp_sales_1_0_0 -. $endpoint .-> infra_iam_1_0_0\n")
 }

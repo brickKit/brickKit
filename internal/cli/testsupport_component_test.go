@@ -53,6 +53,9 @@ type comp struct {
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
 	Port int
+	// Publishes / Subscribes 是 events.publishes / events.subscribes。
+	Publishes  []string
+	Subscribes []string
 	// NoDocs：不写文档（BRICKKIT.md、AGENTS.md、CLAUDE.md、README.md）。默认写一套能过 lint 文档检查的：
 	// 测试关心的是别的东西，不该被"缺 README"之类的警告搅乱"0 warnings"。
 	NoDocs bool
@@ -99,6 +102,15 @@ func (c comp) yamlText() string {
 	}
 	if len(c.Migration) > 0 {
 		fmt.Fprintf(&b, "migration:\n  command: [%s]\n", quotedList(c.Migration))
+	}
+	if len(c.Publishes) > 0 || len(c.Subscribes) > 0 {
+		b.WriteString("events:\n")
+		if len(c.Publishes) > 0 {
+			fmt.Fprintf(&b, "  publishes: [%s]\n", quotedList(c.Publishes))
+		}
+		if len(c.Subscribes) > 0 {
+			fmt.Fprintf(&b, "  subscribes: [%s]\n", quotedList(c.Subscribes))
+		}
 	}
 	if len(c.ConfigSchema) > 0 {
 		b.WriteString("configSchema:\n  type: object\n  properties:\n")

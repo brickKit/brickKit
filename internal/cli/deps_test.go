@@ -139,3 +139,55 @@ func TestDepsNotesUseTheLanguagesPunctuation(t *testing.T) {
 	r := g.mustRun(dir, "deps")
 	assert.Contains(t, r.stdout, "└── infra/mq@1.0.0（弱依赖，未安装）\n")
 }
+
+// eventsProject：crm/opportunity 发布两个事件；erp/finance 订阅其中一个、自己也发布一个；
+// infra/audit 用前缀订阅一整类；erp/finance 还订阅了一个项目里没人发布的。
+func eventsProject(t *testing.T) (*gitOrgProject, string) {
+	t.Helper()
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "crm/opportunity", Version: "1.0.0",
+		Publishes: []string{"crm.opportunity.won.v1", "crm.opportunity.lost.v1"}})
+	g.release(comp{ID: "erp/finance", Version: "1.0.0",
+		Publishes:  []string{"erp.finance.invoice.issued.v1"},
+		Subscribes: []string{"crm.opportunity.won.v1", "mdm.customer.*"}})
+	g.release(comp{ID: "infra/audit", Version: "1.0.0", Subscribes: []string{"crm.*"}})
+	dir := g.project()
+	for _, id := range []string{"crm/opportunity", "erp/finance", "infra/audit"} {
+		g.mustRun(dir, "add", id+"@1.0.0")
+	}
+	return g, dir
+}
+
+// deps <id>：它发布的每个事件被谁订阅、订阅的每一项由谁发布，按 component.yaml 里声明的顺序。
+func TestDepsListsAComponentsEvents(t *testing.T) {
+	g, dir := eventsProject(t)
+
+	r := g.mustRun(dir, "deps", "crm/opportunity")
+	assert.Equal(t, "crm/opportunity@1.0.0\n\nRequired by: nothing (top-level)\n"+
+		"\nPublishes:\n"+
+		"  crm.opportunity.won.v1 → erp/finance@1.0.0, infra/audit@1.0.0\n"+
+		"  crm.opportunity.lost.v1 → infra/audit@1.0.0\n", r.stdout)
+
+	r = g.mustRun(dir, "deps", "erp/finance")
+	assert.Equal(t, "erp/finance@1.0.0\n\nRequired by: nothing (top-level)\n"+
+		"\nPublishes:\n"+
+		"  erp.finance.invoice.issued.v1 → (no subscriber in this project)\n"+
+		"\nSubscribes to:\n"+
+		"  crm.opportunity.won.v1 ← crm/opportunity@1.0.0\n"+
+		"  mdm.customer.* ← (no publisher in this project)\n", r.stdout)
+}
+
+// deps：树之后列出项目里的全部事件，按名字排序；没人发布的订阅项也在里面。没有组件声明事件时不多出这一段。
+func TestDepsProjectListsEveryEvent(t *testing.T) {
+	g, dir := eventsProject(t)
+	r := g.mustRun(dir, "deps")
+	assert.Equal(t, "crm/opportunity@1.0.0\n\nerp/finance@1.0.0\n\ninfra/audit@1.0.0\n"+
+		"\nEvents (publisher → subscriber):\n"+
+		"  crm.opportunity.lost.v1: crm/opportunity@1.0.0 → infra/audit@1.0.0\n"+
+		"  crm.opportunity.won.v1: crm/opportunity@1.0.0 → erp/finance@1.0.0, infra/audit@1.0.0\n"+
+		"  erp.finance.invoice.issued.v1: erp/finance@1.0.0 → (no subscriber in this project)\n"+
+		"  mdm.customer.*: (no publisher in this project) → erp/finance@1.0.0\n", r.stdout)
+
+	g, dir = depsProject(t)
+	assert.NotContains(t, g.mustRun(dir, "deps").stdout, "Events")
+}

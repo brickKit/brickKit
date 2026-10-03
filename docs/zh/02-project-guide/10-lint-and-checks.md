@@ -127,15 +127,17 @@ brickkit lint
 每一条要你做什么，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。文档本身怎么写，见
 [组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)、[项目的其他文档](01-init-and-project-creation.md#项目的其他文档)。
 
-## 两条提示
+## 提示
 
-除了错误和警告，`lint` 还会对 `brickkit.yaml` 说两件事。它们都符合规则，`up` 也照常跑，所以只是提示（`ℹ️`），`--strict` 不因为它们失败；
-但多半不是你想要的，而且别处不会有任何东西说出来——`brickkit.yaml` 只在你显式 `add` / `upgrade` / `remove` 时才变。
+除了错误和警告，`lint` 还会说三件事：两件关于 `brickkit.yaml`，一件关于事件。它们都符合规则，`up` 也照常跑，所以只是提示（`ℹ️`），
+`--strict` 不因为它们失败；但多半不是你想要的，而且别处不会有任何东西说出来——`brickkit.yaml` 只在你显式 `add` / `upgrade` / `remove`
+时才变，事件平台从不核对。
 
 | 提示 | 什么时候出现 | 怎么办 |
 | --- | --- | --- |
 | 源码是另一个版本 | 组件的本地源目录里 `metadata.version` 已经升了，项目钉的还是原来那个——以容器方式跑的仍是钉着的版本 | 要跑新版本：`brickkit upgrade <id>@<源码的版本>` |
 | 兼容版本没人要了 | 带 `requiredBy` 的那一行列出的组件，按它们现在的 `component.yaml` 已经没有谁依赖这个版本（见[多版本共存](../03-component-guide/09-multi-version-coexistence.md)） | `brickkit remove <id>@<版本>` |
+| 订阅的事件没人发布 | 组件的 [`events.subscribes`](../03-component-guide/02-component-yaml-reference.md#events我发布订阅哪些事件) 里有一项，项目里没有任何组件发布收得到的事件。项目里有组件的 `component.yaml` 还不在盘上时不提（发布方可能正是它） | 事件来自项目之外就不用管；否则对一下发布方 `events.publishes` 里的名字，或者把发布方加进项目 |
 
 ## `--strict`
 

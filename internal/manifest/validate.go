@@ -83,6 +83,7 @@ func (m *Manifest) Validate() error {
 	m.validateHealthCheck(p)
 	m.validateReadinessCheck(p)
 	m.validateLocal(p)
+	m.validateEvents(p)
 	m.validateShell(p)
 
 	return p.Err()
@@ -514,6 +515,40 @@ var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // IsEnvName 报告 name 是否是合法的环境变量名（供两边的一致性测试使用）。
 func IsEnvName(name string) bool { return envNameRe.MatchString(name) }
+
+// 事件名规则：字母或数字开头，其后是字母、数字与 . _ / : -。平台不解释它的结构，只挡掉空白、引号
+// 和各家消息系统的通配符（> # + 与写在中间的 *）——后者要由作者换成平台的写法，而不是原样抄进来。
+var (
+	eventNameRe    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/:-]*$`)
+	eventPatternRe = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9._/:-]*[*]?|[*])$`)
+)
+
+// IsEventName 报告 name 能不能写进 events.publishes（供 schema 的一致性测试使用）。
+func IsEventName(name string) bool { return eventNameRe.MatchString(name) }
+
+// IsEventSubscription 报告 s 能不能写进 events.subscribes。
+func IsEventSubscription(s string) bool { return eventPatternRe.MatchString(s) }
+
+func (m *Manifest) validateEvents(p *clierr.ProblemSet) {
+	if m.Events == nil {
+		return
+	}
+	check := func(list string, entries []string, valid func(string) bool, problem msgid.ID) {
+		seen := map[string]bool{}
+		for i, entry := range entries {
+			field := fmt.Sprintf("events.%s[%d]", list, i)
+			switch {
+			case !valid(entry):
+				p.Add(field, i18n.T(problem, entry))
+			case seen[entry]:
+				p.Add(field, i18n.T(msgid.ManifestEventDuplicate, entry))
+			}
+			seen[entry] = true
+		}
+	}
+	check("publishes", m.Events.Publishes, IsEventName, msgid.ManifestEventNameInvalid)
+	check("subscribes", m.Events.Subscribes, IsEventSubscription, msgid.ManifestEventSubscriptionInvalid)
+}
 
 func (m *Manifest) validateShell(p *clierr.ProblemSet) {
 	if m.Shell == nil {

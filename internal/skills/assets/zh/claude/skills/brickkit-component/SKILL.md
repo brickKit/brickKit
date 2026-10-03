@@ -38,6 +38,9 @@ description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写
 （监控抓取）用 `deployment.labels`；要随组件带文件（契约、SDK）用 `artifacts`——`add` / `fetch`
 会下载到 `.brickkit/artifacts/<版本化服务名>/<type>/`，CLI 只下载不解析。
 
+组件经消息系统发布或订阅事件？把事件名写进 `events: {publishes: [...], subscribes: [...]}`：`graph` / `deps` / `lint`
+靠它看见谁发布、谁订阅，不影响部署。事件名照原样写；订阅一整类写成以 `*` 结尾的前缀（`orders.*`），别抄消息系统自己的通配符（`>` `#` `+`）。
+
 **2. `configSchema` 的键就是环境变量名。**
 
 写 `DB_HOST`，组件拿到的就是 `DB_HOST`——没有驼峰转大写下划线那一步，使用者在

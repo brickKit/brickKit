@@ -576,3 +576,38 @@ func TestLintNotesCompatibilityVersionNobodyNeeds(t *testing.T) {
 	assert.NotContains(t, runIn(t, project("erp/api@2.0.0"), "lint").stdout, "is in the project only for", "还依赖着")
 	assert.NotContains(t, runIn(t, project(""), "lint").stdout, "is in the project only for", "依赖方的 Manifest 不在盘上：说不准就不说")
 }
+
+// 订阅了项目里没有任何组件发布的事件：lint 提一句（ℹ️，不算警告）。有人发布（前缀匹配也算、自己发布也算）时不提；
+// 项目里有组件的 Manifest 不在盘上时说不准——发布方可能正是它——就一条都不提。
+func TestLintNotesSubscriptionNobodyPublishes(t *testing.T) {
+	project := func(withPublisher bool) string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+				"components:\n  - id: crm/opportunity\n    version: 1.0.0\n  - id: erp/finance\n    version: 1.0.0\n",
+			"deploy.yaml": "target: docker\ncomponents:\n  - id: crm/opportunity\n  - id: erp/finance\n",
+			"components/erp/finance/component.yaml": comp{ID: "erp/finance", Version: "1.0.0", Port: 8081,
+				Publishes:  []string{"erp.finance.invoice.issued.v1"},
+				Subscribes: []string{"crm.opportunity.*", "erp.finance.invoice.issued.v1", "crm.opportunity.wonn.v1"}}.yamlText(),
+		})
+		if withPublisher {
+			writeTree(t, dir, map[string]string{
+				"components/crm/opportunity/component.yaml": comp{ID: "crm/opportunity", Version: "1.0.0",
+					Publishes: []string{"crm.opportunity.won.v1"}}.yamlText(),
+			})
+		}
+		return dir
+	}
+	const note = "ℹ️ erp/finance@1.0.0 subscribes to crm.opportunity.wonn.v1, which no component in this project publishes"
+
+	dir := project(true)
+	r := runIn(t, dir, "lint", "--strict")
+	assert.Contains(t, r.stdout, note)
+	assert.Equal(t, 1, strings.Count(r.stdout, "which no component in this project publishes"),
+		"前缀收得到的、自己发布的都不提")
+	assert.NotContains(t, runIn(t, filepath.Join(dir, "components", "crm", "opportunity"), "lint").stdout,
+		"which no component in this project publishes", "只查一个组件时只说它自己的")
+
+	assert.NotContains(t, runIn(t, project(false), "lint").stdout, "which no component in this project publishes",
+		"crm/opportunity 的 Manifest 不在盘上：说不准就不说")
+}

@@ -127,6 +127,16 @@ K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`no
 
 写了 `shell`，这个组件就是外壳；项目的 `brickkit.yaml` 里它的条目必须带 `kind: shell`。见 [外壳声明](../04-shell/03-shell-declaration.md)。
 
+## events
+
+| 字段 | 类型 | 必填 | 规则 |
+| --- | --- | --- | --- |
+| `events.publishes` | 字符串列表 | | 组件发布的事件名。每项字母或数字开头，其后是字母、数字与 `.` `_` `/` `:` `-`；不带通配符；不能重复 |
+| `events.subscribes` | 字符串列表 | | 组件订阅的事件：事件名（同上），或以 `*` 结尾的前缀（`orders.*`；单独一个 `*` 是全部事件）；不能重复。`>` `#` `+` 和写在中间的 `*` 不接受 |
+
+只用于 `graph`、`deps` 与 `lint` 的展示和提示，不影响部署：订阅项与某个事件名完全相等，或以 `*` 结尾且事件名以它前面那一段开头，就算收得到。
+见 [events：我发布、订阅哪些事件](../03-component-guide/02-component-yaml-reference.md#events我发布订阅哪些事件)。
+
 ## local
 
 组件以 `mode: local` 运行时，BrickKit 怎么启动它。多数情况下不用写：从源码目录里的标记文件自动认出。

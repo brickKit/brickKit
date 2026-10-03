@@ -54,6 +54,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 | The environment variables a component gets (connection details, secrets, switches) | `config/<component ID with / replaced by ->.yaml`; a versioned `config/<…>@<version>.yaml` wins for that version |
 | Shared variables | `config/vars.yaml` (a deploy file's `vars:` overrides entries of the same name) |
 | A component's dependencies, capabilities and `configSchema` | `.brickkit/manifests/<scope>/<name>/<version>/component.yaml`; for a component from a local source, the `component.yaml` in its source directory |
+| Who publishes or subscribes to an event (events sent through a messaging system are not dependencies) | `brickkit deps` — the list at the end, from `events` in each `component.yaml`; `brickkit graph` draws the same as labelled dashed edges |
 | How to use a dependency, what it owns and doesn't, what its config items mean | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` (translations `BRICKKIT.<lang>.md`); for a local source at that version, the one in its source directory |
 | Which components the project has and what each does | The component table at the end of the project's `AGENTS.md` (maintained by `add` / `remove` / `upgrade`) |
 | How to change a component: its code map, build and test, pitfalls | The component's own `AGENTS.md` |

@@ -140,16 +140,18 @@ documents themselves are written: [A component's documentation](../03-component-
 [The project's `AGENTS.md`](01-init-and-project-creation.md#the-projects-agentsmd) and
 [The project's other documents](01-init-and-project-creation.md#the-projects-other-documents).
 
-## Two notes
+## Notes
 
-Besides errors and warnings, `lint` says two things about `brickkit.yaml`. Both are within the rules and `up` runs as
-usual, so they are notes (`ℹ️`) and `--strict` doesn't fail on them; but they are rarely what you meant, and nothing else
-will ever mention them — `brickkit.yaml` changes only on an explicit `add` / `upgrade` / `remove`.
+Besides errors and warnings, `lint` says three more things: two about `brickkit.yaml`, one about events. All are within
+the rules and `up` runs as usual, so they are notes (`ℹ️`) and `--strict` doesn't fail on them; but they are rarely what
+you meant, and nothing else will ever mention them — `brickkit.yaml` changes only on an explicit `add` / `upgrade` /
+`remove`, and the platform never checks events.
 
 | Note | When | What to do |
 | --- | --- | --- |
 | The source is another version | A component's local source directory has moved its `metadata.version` on, and the project still pins the earlier one — what runs in a container is the pinned version | To run the new one: `brickkit upgrade <id>@<the source's version>` |
 | A compatibility version nobody needs | The components named in a line's `requiredBy` no longer depend on that version, by their current `component.yaml` (see [Several versions side by side](../03-component-guide/09-multi-version-coexistence.md)) | `brickkit remove <id>@<version>` |
+| A subscription nobody publishes | An entry in a component's [`events.subscribes`](../03-component-guide/02-component-yaml-reference.md#events-what-i-publish-and-subscribe-to) matches no event any component in the project publishes. Not said while some component's `component.yaml` isn't on disk yet (it may be the publisher) | Nothing, when the event comes from outside the project; otherwise compare the name with the publisher's `events.publishes`, or add the publisher to the project |
 
 ## `--strict`
 

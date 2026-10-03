@@ -36,6 +36,11 @@ rejected on the spot. For metadata the engine should see (gateway routing, scrap
 `deployment.labels`; to ship a file for tooling (a contract, an SDK) use `artifacts` — the CLI
 downloads it to `.brickkit/artifacts/<versioned-service-name>/<type>/` and never parses it.
 
+Does the component publish or subscribe to events through a messaging system? List the event names under
+`events: {publishes: [...], subscribes: [...]}`: `graph` / `deps` / `lint` use it to show who publishes and who
+subscribes, and the deployment doesn't change. Write names as they are; to subscribe to a whole class, write a prefix
+ending in `*` (`orders.*`) — not the messaging system's own wildcards (`>`, `#`, `+`).
+
 **2. `configSchema` keys ARE the environment variable names.**
 
 Write `DB_HOST`, `LOG_LEVEL` — exactly what your code reads. There is no camelCase conversion, so a key

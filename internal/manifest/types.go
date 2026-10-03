@@ -6,6 +6,7 @@ package manifest
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -47,6 +48,8 @@ type Manifest struct {
 	// ReadinessCheck 是"能接流量了吗"那道检查，可选；不写时就是 healthCheck（见 ReadyCheck）。
 	ReadinessCheck *ReadinessCheck `yaml:"readinessCheck,omitempty"`
 	Local        *Local        `yaml:"local,omitempty"`
+	// Events 是这个组件发布、订阅的事件，可选；只用于 graph / deps / lint 的展示与提示（见 Events）。
+	Events *Events `yaml:"events,omitempty"`
 	// Shell 出现即表示这个组件是外壳，Members 是构建时编进外壳的成员及其
 	// 精确版本；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
 	Shell *Shell `yaml:"shell,omitempty"`
@@ -212,6 +215,38 @@ type Build struct {
 	Context string `yaml:"context,omitempty"`
 	// Dockerfile 相对组件仓库根；不写为 "Dockerfile"。
 	Dockerfile string `yaml:"dockerfile,omitempty"`
+}
+
+// Events 是组件经消息系统发布、订阅的事件：项目里那些看不见的异步边。
+//
+// 它只是一张说明书，平台拿它画图、列清单、给提示，别的什么都不做：不进启动顺序、不决定谁运行、
+// 不注入环境变量、不连消息系统，也不核对代码是不是真的发了这个事件（与 configSchema 同一个定位）。
+//
+// # 为什么不用任何一家消息系统的写法
+//
+// 通配符各家不同（NATS 的 * 与 >、RabbitMQ 的 * 与 #、MQTT 的 + 与 #、Kafka 的正则），平台挑一家就是替使用者
+// 选了消息系统。所以这里只有平台自己的两条规则：事件名是不透明的字符串，平台不拆段、不认分隔符；
+// 订阅项以 * 结尾表示"以此开头的所有事件"，否则必须完全相等。前缀是各家通配符都能表达的最小公共部分；
+// 写在中间的通配符由作者声明成更短的前缀，范围偏大——只用于展示，偏大没有害处。
+//
+// Publishes 与 Subscribes 的 jsonschema pattern 与 eventNameRe / eventPatternRe 是同一份规则
+// （tag 里的关键字用 "," 分隔，所以字符类里不用逗号），schemas_test.go 会核对。
+type Events struct {
+	// Publishes 是这个组件发布的事件名，每项是完整的名字，不带通配。
+	Publishes []string `yaml:"publishes,omitempty" jsonschema:"pattern=^[A-Za-z0-9][A-Za-z0-9._/:-]*$"`
+	// Subscribes 是这个组件订阅的事件：完整的名字，或以 * 结尾的前缀（单独一个 * 是全部）。
+	Subscribes []string `yaml:"subscribes,omitempty" jsonschema:"pattern=^([A-Za-z0-9][A-Za-z0-9._/:-]*[*]?|[*])$"`
+}
+
+// EventPatternSuffix 是订阅项表示"前缀匹配"的结尾。
+const EventPatternSuffix = "*"
+
+// EventMatches 报告订阅项 subscription 是否收得到名为 name 的事件：以 * 结尾按前缀，否则完全相等。
+func EventMatches(subscription, name string) bool {
+	if prefix, ok := strings.CutSuffix(subscription, EventPatternSuffix); ok {
+		return strings.HasPrefix(name, prefix)
+	}
+	return subscription == name
 }
 
 // Shell 是外壳的声明：构建时编进外壳的成员及其精确版本。

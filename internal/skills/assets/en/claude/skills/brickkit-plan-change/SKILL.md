@@ -29,6 +29,7 @@ description: Use when the user brings a new requirement, a feature or a change i
 | Recorded decisions | Where the project's `AGENTS.md` says decisions are kept (its `Where to look` table; `docs/decisions/` when it doesn't say), the component's `Design decisions` and `docs/` | It reverses a decision: quote it, the person decides |
 | Dependency direction | `brickkit deps <id>` / `brickkit graph` | A new dependency would make a cycle, or point against the direction the design allows |
 | Contract compatibility | The contract files under `artifacts` | Adding is a minor version; removing or changing meaning is a major version, and every consumer has to move |
+| Who an event reaches | The list of events at the end of `brickkit deps` (from `events` in each `component.yaml`) | Changing or removing an event moves every component subscribed to it — they are not in the dependency tree, only in this list |
 
 ## 3. Decide the outcome
 

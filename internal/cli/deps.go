@@ -89,8 +89,9 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 	}
 
 	t := &depsTree{graph: graph, printed: map[resolver.Ref]bool{}}
+	events := graph.EventIndex()
 	if id == "" {
-		opts.Printf("%s", t.project(proj))
+		opts.Printf("%s%s", t.project(proj), projectEvents(events))
 		return nil
 	}
 
@@ -106,7 +107,7 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 	var blocks []string
 	for _, ref := range refs {
 		t.printed = map[resolver.Ref]bool{}
-		blocks = append(blocks, t.render(ref)+"\n"+requiredByLine(graph.Node(ref))+"\n")
+		blocks = append(blocks, t.render(ref)+"\n"+requiredByLine(graph.Node(ref))+"\n"+componentEvents(events, ref))
 	}
 	opts.Printf("%s", strings.Join(blocks, "\n"))
 	return nil
@@ -130,6 +131,65 @@ func requiredByLine(node *resolver.Node) string {
 		line += "\n" + i18n.T(msgid.CliDepsReferencedBy, sortedRefs(node.ReferencedBy))
 	}
 	return line
+}
+
+// componentEvents 列出 ref 发布的每个事件被谁订阅、订阅的每一项由谁发布；没声明事件时是空串。
+// 事件按声明的顺序列——那是作者排的顺序，和 component.yaml 对得上。
+func componentEvents(x resolver.EventIndex, ref resolver.Ref) string {
+	events := x.Events(ref)
+	var b strings.Builder
+	if len(events.Publishes) > 0 {
+		b.WriteString("\n" + i18n.T(msgid.CliDepsEventsPublishes) + "\n")
+		for _, name := range events.Publishes {
+			b.WriteString(i18n.T(msgid.CliDepsEventPublishedLine, name,
+				refsOr(x.Subscribers(name), msgid.CliDepsEventNoSubscriber)) + "\n")
+		}
+	}
+	if len(events.Subscribes) > 0 {
+		b.WriteString("\n" + i18n.T(msgid.CliDepsEventsSubscribes) + "\n")
+		for _, s := range events.Subscribes {
+			b.WriteString(i18n.T(msgid.CliDepsEventSubscribedLine, s,
+				refsOr(x.Publishers(s), msgid.CliDepsEventNoPublisher)) + "\n")
+		}
+	}
+	return b.String()
+}
+
+// projectEvents 是全项目的事件清单：每个被发布的事件一行（谁发布 → 谁订阅），再加上没人发布的订阅项，
+// 按名字排序。项目里没有组件声明事件时是空串。
+func projectEvents(x resolver.EventIndex) string {
+	type row struct{ name, publishers, subscribers string }
+	var rows []row
+	for _, name := range x.Published() {
+		rows = append(rows, row{name, sortedRefs(x.PublishersOf(name)),
+			refsOr(x.Subscribers(name), msgid.CliDepsEventNoSubscriber)})
+	}
+	// 没人发布的订阅项：同一项被几个组件订阅时合成一行
+	unpublished := map[string][]resolver.Ref{}
+	for _, u := range x.Unpublished() {
+		unpublished[u.Subscription] = append(unpublished[u.Subscription], u.Ref)
+	}
+	for s, refs := range unpublished {
+		rows = append(rows, row{s, i18n.T(msgid.CliDepsEventNoPublisher), sortedRefs(refs)})
+	}
+	if len(rows) == 0 {
+		return ""
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].name < rows[j].name })
+	var b strings.Builder
+	b.WriteString("\n" + i18n.T(msgid.CliDepsEventsHeader) + "\n")
+	for _, r := range rows {
+		b.WriteString(i18n.T(msgid.CliDepsEventLine, r.name, r.publishers, r.subscribers) + "\n")
+	}
+	return b.String()
+}
+
+// refsOr 把组件版本排成一行；一个都没有时是 none 那句话。
+func refsOr(refs []resolver.Ref, none msgid.ID) string {
+	if len(refs) == 0 {
+		return i18n.T(none)
+	}
+	return sortedRefs(refs)
 }
 
 func sortedRefs(refs []resolver.Ref) string {

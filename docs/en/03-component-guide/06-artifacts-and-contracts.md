@@ -37,7 +37,9 @@ to users as they are. So you can hand over a contract in any format.
 A convention, not a rule: for the format of the events a component publishes or consumes, use `type: event-contract`
 (with a `format` such as `asyncapi` or `json-schema`), next to the `api-contract` for its calls. A reader then tells the
 two apart at a glance, and the Contracts section of `BRICKKIT.md` can say which events go out and which come in. The
-platform still treats `event-contract` as just another string.
+platform still treats `event-contract` as just another string. The **names** of the events go somewhere else:
+[`events`](02-component-yaml-reference.md#events-what-i-publish-and-subscribe-to) in `component.yaml`, which is how
+`graph`, `deps` and `lint` see who publishes and who subscribes.
 
 When a user `add`s your component, these files land in their project under `.brickkit/artifacts/<versioned-service-name>/<type>/`.
 The project's `AGENTS.md` doesn't list a path per component: the block the CLI maintains at its end states the rule

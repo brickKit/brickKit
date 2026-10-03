@@ -16,8 +16,8 @@ Read in this order, and stop as soon as you know enough:
    component's source directory when a local source holds that version.
 3. **To change a component, its own `AGENTS.md`**: the code map says which file to start in; its pitfalls and
    "Before changing code" say what not to break.
-4. **The structure**: `brickkit deps <id>` and `brickkit graph` for who depends on whom; the contract files under
-   `.brickkit/artifacts/`.
+4. **The structure**: `brickkit deps <id>` and `brickkit graph` for who depends on whom and who publishes or subscribes
+   to which events; the contract files under `.brickkit/artifacts/`.
 
 Never load every component's documentation: only the ones the task touches. What each file holds is in
 [A component's documentation](../03-component-guide/08-component-doc-spec.md).
@@ -37,6 +37,7 @@ does instead. Follow that pointer; it is there exactly so nobody has to guess.
 | Recorded decisions | Where the project's `AGENTS.md` says decisions are kept (its Where to look table; `docs/decisions/` when it doesn't say); the component's `Design decisions` and `docs/` | The requirement reverses one |
 | Dependency direction | `brickkit deps`, `brickkit graph` | A new dependency would make a cycle, or point against the direction the design allows |
 | Contract compatibility | The contract files listed under `artifacts` | It removes or changes the meaning of something callers use — a major version, and every caller moves |
+| Who an event reaches | The list of events at the end of `brickkit deps` (from `events` in each `component.yaml`) | Changing or removing an event moves every component subscribed to it — they are not in the dependency tree, only in this list |
 
 A failed check is not a reason to say no. It is a decision that belongs to a person: changing a boundary, a convention
 or a recorded decision is a choice about the system, not a coding detail.

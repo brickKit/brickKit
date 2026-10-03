@@ -87,6 +87,32 @@ demo/hello@1.1.0
 
 `brickkit deps demo/hello@1.0.0` 只看那一个版本。
 
+**事件。** 经消息系统传的事件不是依赖，树里没有它们。组件在 `component.yaml` 的
+[`events`](../03-component-guide/02-component-yaml-reference.md#events我发布订阅哪些事件) 里写了发布、订阅哪些事件时，
+`deps <id>` 在后面列出对面是谁：
+
+```text
+erp/finance@1.0.0
+
+被依赖：无（顶层组件）
+
+发布的事件：
+  erp.finance.invoice.issued.v1 → （项目里没有组件订阅）
+
+订阅的事件：
+  crm.opportunity.won.v1 ← crm/opportunity@1.0.0
+  mdm.customer.* ← （项目里没有组件发布）
+```
+
+不带参数的 `deps` 在所有的树之后列出项目里的全部事件，按名字排序——要改一个事件之前，在这里看谁会受影响：
+
+```text
+事件（发布方 → 订阅方）：
+  crm.opportunity.won.v1：crm/opportunity@1.0.0 → erp/finance@1.0.0, infra/audit@1.0.0
+  erp.finance.invoice.issued.v1：erp/finance@1.0.0 → （项目里没有组件订阅）
+  mdm.customer.*：（项目里没有组件发布） → erp/finance@1.0.0
+```
+
 ## `brickkit graph`
 
 同一张依赖图，画成 Mermaid：
@@ -126,6 +152,7 @@ graph TD
 | 实线 | 强依赖 |
 | 虚线 | 弱依赖；项目里没有的弱依赖画成"未安装"节点 |
 | 带 `$endpoint` 标签的虚线 | 配置用 `$endpoint:` 引用了它的地址（项目填的，不是组件声明的依赖；不进启动顺序） |
+| 标着事件名的虚线 | 从发布方指向订阅方：订阅方收它发布的事件（`component.yaml` 的 `events`）。标的是订阅项，最多三个，再多的写个数；它不是依赖，方向跟着事件走 |
 | 置灰 | 这次不会启动（这里 `demo/bus` 被 `mode: disable` 关掉了） |
 | 分组框 | 被外壳承载的成员画在外壳的框里；`--ignore-shells` 看每个组件独立时的样子 |
 | 特殊标注 | `mode: local` 的组件标"托管本地" |

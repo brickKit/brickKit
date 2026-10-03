@@ -17,8 +17,9 @@
 //   - 反射还决定"能不能写成 null"：不必填的字段（同上：omitempty、bool、指针、optional）允许，
 //     必填的不允许。理由与写法见 makeNullable。
 //   - `jsonschema` struct tag：封闭取值的约束——enum、pattern（用在字符串数组上时约束每一项）、minimum、maximum。
-//     关键字之间用 `,` 分隔，enum 的取值之间用 `|` 分隔；取值与 pattern 里不能出现
-//     `,` 与 `|`（也就不必在 struct tag 里转义反斜杠，正则写成 [.] 而不是 \.）。
+//     关键字之间用 `,` 分隔，enum 的取值之间用 `|` 分隔；取值与 pattern 里不能出现 `,`，
+//     enum 的取值里不能出现 `|`（pattern 里的 `|` 就是正则的"或"，原样保留）。
+//     正则写成 [.] 而不是 \.，就不必在 struct tag 里转义反斜杠。
 //     不认识的关键字、重复的关键字、空的 enum 取值都直接报错，写错了不会悄悄不生效。
 //   - 覆盖表：yaml.v3 不按字段反射来解码的类型（目前表里只有 manifest.ComponentDep）。
 //     有三种：有 UnmarshalYAML 方法的（新旧两种签名、指针或值接收者都算）、实现了

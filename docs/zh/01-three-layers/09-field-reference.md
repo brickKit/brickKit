@@ -31,6 +31,7 @@
 | `target` | ✅ | `docker` / `podman` / `k8s` |
 | `focus` | | 只能写在 `deploy.local.yaml` 里：只运行这个组件（从源码跑）和它需要的组件——见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
 | `vars` | | 覆盖 `config/vars.yaml` 的同名公共变量 |
+| `network` | | 只对 Docker / Podman：项目自己提供的网络的名字，生成的 compose 只加入它、不创建也不删除 |
 | `k8s.context` / `k8s.namespace` / `k8s.createNamespace` | | 部署到哪个集群、哪个命名空间 |
 | `k8s.podSecurity` | | `restricted`：按 Pod Security 的 restricted 级别生成 |
 | `k8s.imagePullSecrets` | | 拉镜像用的 Secret 名 |
@@ -44,6 +45,7 @@
 | `components[].hostname` / `tlsSecret` | | K8s Ingress 的域名与证书 |
 | `components[].replicas` | | K8s 副本数 |
 | `components[].resources` | | `requests` / `limits` 的 `cpu`、`memory` |
+| `components[].stopGracePeriodSeconds` | | 覆盖组件建议的停机宽限期（秒） |
 | `components[].serviceAccountName` | | K8s 下用已有的 ServiceAccount |
 | `components[].labels` | | 原样透传的标签 |
 | `components[].skipWaitFor` | | 启动时不等的强依赖 |
@@ -71,11 +73,14 @@
 | `deployment.port` | ✅ | 主端口 |
 | `deployment.extraPorts[]` | | 额外端口：`name`、`port`。每个额外端口给调用方一个 `<ID>_<端口名>_ENDPOINT`，端口名转大写、`-` 换成 `_`（`people/basic` 的端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`） |
 | `deployment.resources` | | 建议的配额 |
+| `deployment.stopGracePeriodSeconds` | | 收到停止信号后收尾需要的秒数（1–3600）；部署条目可以覆盖 |
 | `deployment.labels` | | 透传的标签 |
 | `migration.command` | | 数据库迁移命令（数组） |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
 | `healthCheck.path` | `http` 时必填 | HTTP 路径，以 `/` 开头 |
 | `healthCheck.startPeriodSeconds` | | 启动宽限秒数（缺省 60） |
+| `readinessCheck.type` / `path` | | 就绪检查（`http` / `tcp`）：活着但还不能接流量时用；不写就看 `healthCheck` |
+| `events.publishes` / `events.subscribes` | | 发布、订阅的事件名（订阅项可以是以 `*` 结尾的前缀）；只用于 `graph` / `deps` / `lint` 的展示与提示 |
 | `shell.members` | | 外壳编进的成员，精确版本 `id@版本` |
 | `local.language` / `local.runCommand` | | `mode: local` 时指定语言或直接给出启动命令 |
 

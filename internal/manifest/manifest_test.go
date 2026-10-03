@@ -382,6 +382,22 @@ dependencies:
 		{"readinessCheck 写成 none",
 			mutate(t, "  path: /healthz", "  path: /healthz\nreadinessCheck:\n  type: none"),
 			[]string{"readinessCheck.type", "leave readinessCheck out"}},
+		// 事件名是不透明的字符串，但各家消息系统的通配符不能原样抄进来：只有结尾的 * 是平台的写法
+		{"events.publishes 里写了通配符",
+			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  publishes: [\"orders.*\"]"),
+			[]string{"events.publishes[0]", "publishes takes no wildcard"}},
+		{"events.subscribes 里是 NATS 的 >",
+			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  subscribes: [\"orders.>\"]"),
+			[]string{"events.subscribes[0]", "a prefix ending in *"}},
+		{"events.subscribes 的 * 写在中间",
+			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  subscribes: [\"erp.*.created.v1\"]"),
+			[]string{"events.subscribes[0]", "write the prefix they share"}},
+		{"events.subscribes 有空项",
+			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  subscribes: [\"\"]"),
+			[]string{"events.subscribes[0]"}},
+		{"events.publishes 同一个事件写了两遍",
+			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  publishes: [a.b.v1, a.b.v1]"),
+			[]string{"events.publishes[1]", "a.b.v1 is listed twice"}},
 		// 停机宽限期与启动宽限期同一个单位坑：25000 看着像 25 秒，实际是七个小时
 		{"stopGracePeriodSeconds 超上限",
 			mutate(t, "  port: 8080", "  port: 8080\n  stopGracePeriodSeconds: 25000"),
@@ -656,4 +672,34 @@ func TestValidateShellMembersNeedExactVersions(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+"shell:\n  members: [erp/api@1.2.0, erp/worker@1.0.0]\n"), "component.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"erp/api@1.2.0", "erp/worker@1.0.0"}, m.Shell.Members)
+}
+
+// 事件名不拆段、不认分隔符：点分、斜杠分、带冒号的都收；订阅项多一种写法——以 * 结尾的前缀，单独一个 * 是全部。
+func TestEventsAcceptsNamesOfAnyMessagingSystem(t *testing.T) {
+	m, err := Parse([]byte(mutate(t, "  path: /healthz", `  path: /healthz
+events:
+  publishes: [erp.inventory.adjusted.v1, shop/orders/created, "urn:shop:order-paid", OrderPaid_v2]
+  subscribes: [erp.inventory.adjusted.v1, "crm.*", "shop/orders/*", "*"]`)), "")
+	require.NoError(t, err)
+	assert.Len(t, m.Events.Publishes, 4)
+	assert.Len(t, m.Events.Subscribes, 4)
+}
+
+// 匹配只有两种：完全相等，或订阅项以 * 结尾时按前缀。平台不认分隔符，所以前缀不必停在段的边界上。
+func TestEventMatches(t *testing.T) {
+	for _, c := range []struct {
+		subscription, name string
+		want               bool
+	}{
+		{"erp.inventory.adjusted.v1", "erp.inventory.adjusted.v1", true},
+		{"erp.inventory.adjusted.v1", "erp.inventory.adjusted.v2", false},
+		{"erp.inventory.adjusted", "erp.inventory.adjusted.v1", false},
+		{"erp.inventory.*", "erp.inventory.adjusted.v1", true},
+		{"erp.inventory.*", "erp.inventory.", true},
+		{"erp.inventory.*", "erp.inventor", false},
+		{"erp.inv*", "erp.inventory.adjusted.v1", true},
+		{"*", "anything/at:all", true},
+	} {
+		assert.Equal(t, c.want, EventMatches(c.subscription, c.name), "%s ~ %s", c.subscription, c.name)
+	}
 }
