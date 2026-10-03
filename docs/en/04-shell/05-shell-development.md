@@ -159,6 +159,7 @@ rules:
 | Thing | Belongs to | What goes wrong otherwise |
 | --- | --- | --- |
 | Configuration | Each member: its own item's `config` | `os.Getenv` doesn't find a member's config; whoever writes config back into the process environment (`setenv`) makes members overwrite each other |
+| Secrets delivered as files (a member declares `mount: file`) | Each member's own directory: that item in `config` is the path of a file (`/run/brickkit/secrets/<the member's service name>/<key>`), and the platform has mounted the file into the shell's container. The shell does nothing but hand `config` to the member as it is | The shell reads the file and puts the content back into the member's config: the member no longer gets a path, and never learns the file was replaced |
 | The tracing / metrics provider and `service.name` | One per member, `service.name` set to the member's component ID | Set as the global default, the last to initialise wins, and every member's traces land under one name |
 | The metrics registry | One per member (or one shared, with the member as a label on every metric) | All registering into the default registry, the second module to register a metric of the same name fails at once |
 | Database pool, database role | Each member's own pool | With one shared pool, one member's slow queries take every connection and the others time out with it |

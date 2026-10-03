@@ -62,6 +62,12 @@ type Var struct {
 	Source string
 	// Secret 来自 configSchema 的 secret: true：平台从不按名字猜哪一条是密码。
 	Secret bool
+	// Mount 来自 configSchema 的 mount（manifest.MountFile 或空）：以文件交付的项，组件拿到的是文件路径。
+	// 值仍在 Value 里；把它写成文件、把变量换成路径是渲染器的事（见 MountsFile）。
+	Mount string
+	// FileOf 非空表示这条变量已经被渲染器换成了文件路径（AsFilePath）：值是 Owner 的 FileOf 这个键的文件在哪。
+	// 同一个文件在容器里和在宿主机上路径不同，之后还要改写路径的地方靠它认出这条变量。
+	FileOf string
 	// Key 是原始 configSchema 键。配置键就是环境变量名，所以它与 Name 相同；保留给外壳 JSON 使用。
 	Key string
 	// Owner 是配置类变量所属组件的版本化服务名（K8s 据此给生成的 Secret 命名）。
@@ -72,6 +78,16 @@ type Var struct {
 	Target resolver.Ref
 	Port   string
 	Path   string
+}
+
+// MountsFile 表示这条变量以文件交付：渲染器要把 Value 求出来写成文件，变量本身换成那个文件的路径。
+func (v Var) MountsFile() bool { return v.Mount == manifest.MountFile }
+
+// AsFilePath 返回这条变量换成路径之后的样子：一条普通的明文变量，值是 path。
+// 路径不是密钥，所以不再带 Secret 与 Mount——之后的放置逻辑把它当普通变量处理；FileOf 记着它是哪个键的文件。
+func (v Var) AsFilePath(path string) Var {
+	v.Value, v.Secret, v.Mount, v.FileOf = Literal(path), false, "", v.Key
+	return v
 }
 
 // IsSecretRef 表示值是对外部已有 K8s Secret 的引用（{ existingSecret, key }）。
@@ -236,7 +252,7 @@ func buildComponent(
 		}
 		v := Var{
 			Name: r.Key, Value: r.Value, Source: SourceConfig,
-			Secret: r.Secret, Key: r.Key, Owner: service,
+			Secret: r.Secret, Mount: r.Mount, Key: r.Key, Owner: service,
 		}
 		if r.Value.Kind == configdir.KindEndpointRef {
 			resolvedRef, present, err := resolveEndpointRef(p, graph, states, node.Ref, r)

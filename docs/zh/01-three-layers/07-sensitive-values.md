@@ -54,6 +54,7 @@ TLS_KEY: file://.secrets/tls.key
 | 普通值里的 `${VAR}` | 原样写进 `compose.yaml`，`docker compose` 启动时从进程环境或 `.env` 展开 |
 | `secret: true` 的值、`file://` 的内容 | 写进 `.brickkit/generated/env/<服务名>.env`，文件权限 0600，由 `env_file` 引用；`${VAR}` 在这里同样留给 compose 启动时展开，`file://` 的内容由 CLI 读出后写入 |
 | `existingSecret` | Docker 没有这个概念：这一项不注入，并提醒你 |
+| 声明了 `mount: file` 的密钥 | 写成一个文件挂进容器，环境变量里是路径，见[以文件交付](#以文件交付mount-file) |
 
 `${VAR}` 虽然留给 compose 去展开，CLI 生成时仍会用同样的顺序（进程环境，其次 `.env`）核对它**有没有定义**。
 没有的话直接报错，而不是交给 compose：compose 会把它换成空字符串、只在自己的输出里警告一句，组件就带着一个残缺的值跑起来。
@@ -114,6 +115,7 @@ TLS_KEY="-----BEGIN PRIVATE KEY-----\nMIIBVQ...\n-----END PRIVATE KEY-----\n"
 | 普通值（含展开后的 `${VAR}`） | Deployment 的 `env.value` |
 | `secret: true` 的值、`file://` 的内容 | 平台生成的 Secret（`.brickkit/generated/k8s/secrets/`，文件权限 0600），Deployment 用 `secretKeyRef` 引用 |
 | `existingSecret` | 直接 `secretKeyRef` 到那个已有的 Secret；平台不读、不写它的值 |
+| 声明了 `mount: file` 的密钥 | Secret 的那个键挂成文件，环境变量里是路径，见[以文件交付](#以文件交付mount-file) |
 
 ```yaml
             - name: API_TOKEN
@@ -125,12 +127,63 @@ TLS_KEY="-----BEGIN PRIVATE KEY-----\nMIIBVQ...\n-----END PRIVATE KEY-----\n"
 
 `existingSecret` 只能用在声明了 `secret: true` 的项上；写在普通项上会被警告并忽略——它的值本来就会被当成明文处理。
 
+## 以文件交付：`mount: file`
+
+环境变量有两个毛病：进程 dump、调试输出、崩溃报告会把它原样带出去，`docker inspect` 和 Pod 的 env 里也看得到；
+而且进程启动时就定死了，证书和私钥要更换只能重启。组件作者可以让一项密钥改以**文件**交付：
+
+```yaml
+# component.yaml
+configSchema:
+  type: object
+  properties:
+    JWT_PRIVATE_KEY_FILE:
+      type: string
+      secret: true
+      mount: file
+```
+
+项目这边什么都不用改：值照旧填在 `config/` 里，三种引用方式都能用。
+
+```yaml
+# config/erp-sales.yaml
+JWT_PRIVATE_KEY_FILE: file://.secrets/jwt.pem
+```
+
+组件拿到的环境变量 `JWT_PRIVATE_KEY_FILE` 里是**文件的路径**，文件里才是值——逐字节，不加引号、不转义，二进制也行：
+
+```text
+JWT_PRIVATE_KEY_FILE=/run/brickkit/secrets/erp-sales-1-0-0/JWT_PRIVATE_KEY_FILE
+```
+
+键名就是环境变量名这条规则不变，平台不替你加 `_FILE` 后缀：作者把键起成什么名，组件读的就是什么名。
+路径是 `/run/brickkit/secrets/<版本化服务名>/<键>`，两种部署目标一样。
+
+| 目标 | 文件从哪来 |
+| --- | --- |
+| Docker / Podman | 值写进 `.brickkit/generated/secrets/<服务名>/<键>`，这个目录只读挂进容器。`${VAR}` 在生成时就展开（没有人替文件做变量替换） |
+| Kubernetes | 值进平台生成的 Secret，那个键挂成文件（projected 卷）；`existingSecret` 指向的外部 Secret 同样挂成文件，和平台生成的落在同一个目录 |
+| 本机进程（`mode: local` / `debug`） | 环境变量里是这个文件在你机器上的绝对路径 |
+
+迁移容器挂的和主容器一样。`existingSecret` 在 Docker / Podman 下照旧没有对应物，这一项不注入。
+
+**值变了，组件不会被重启。** 改了 `config/` 再 `up`，文件换成新内容，容器（Pod）还是原来那个：会重新读文件的组件立刻用上新值，
+只在启动时读一次的组件要你自己重启它才生效——这正是它和环境变量的区别，也是选它的理由。Kubernetes 上，别的工具
+（cert-manager 之类）轮换了 `existingSecret` 指向的 Secret，文件也会跟着变，不需要 `up`；kubelet 同步有延迟，通常在一分钟之内。
+`up --dry-run` 不写这些文件：它们挂在正在运行的容器里，写进去就等于部署了。
+
+宿主机上，`.brickkit/generated/secrets/` 是 0700，别的用户进不来；它下面的目录和文件是"其他人可读"的——容器里的进程
+常常既不是 root，也不是你这个用户，要读得到只能这样。
+
 ## 与外壳的交互
 
 外壳把成员的配置打包成一个 JSON 注入（`BRICKKIT_SERVED_MEMBERS_CONFIG`）。这份 JSON 由 CLI 提前求好值，
 所以成员的 `${VAR}`、`file://` 在生成时就被展开并 JSON 编码——多行的 PEM 在 JSON 里是一个带 `\n` 的字符串，
 能原样解析回来；不是合法 UTF-8 的值（二进制）大声失败。这份 JSON 同样走密钥通道（Docker 的 0600 env 文件、K8s 的 Secret），
 见 [特殊字符处理](../04-shell/06-special-characters.md)。
+
+成员里以文件交付的项不进这份 JSON：JSON 里是文件的路径，文件挂进外壳的容器，路径和成员自己跑时一模一样。
+所以成员的代码不用管自己是不是在外壳里；二进制内容、K8s 上的 `existingSecret` 在成员身上也都能用。
 
 ## 离线检查
 

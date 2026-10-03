@@ -38,6 +38,7 @@ configSchema:
 | `default` | 没写值时用它；标量按写的原样注入成字符串（`default: 1.10` 注入的是 `1.10`，不是 `1.1`），`array` / `object` 注入成一行 JSON |
 | `description` | 出现在使用方配置骨架的行尾 |
 | `secret: true` | 这一项是密钥：部署时走密钥通道，从不明文写进部署文件 |
+| `mount: file` | 这一项以文件交付：环境变量里是文件的路径（`/run/brickkit/secrets/<服务名>/<键>`），值在文件里。只能和 `secret: true`、`type: string` 一起写 |
 | `required` | 必填项；每一项必须在 `properties` 里声明过 |
 | `enum`、`minimum`、`maximum`、`pattern`、`items` | 允许的取值——**只是说明** |
 

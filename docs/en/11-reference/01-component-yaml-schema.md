@@ -68,6 +68,7 @@ variable's name carries no version, so two versions would collide on the same va
 | `configSchema.properties.<key>.default` | any | | The default; a scalar is injected exactly as written (`1.10` stays `1.10`), lists and maps are encoded as one line of JSON |
 | `configSchema.properties.<key>.description` | string | | Appears at the end of the line in the project's config skeleton |
 | `configSchema.properties.<key>.secret` | boolean | | `true` treats the item as a secret (a 0600 env file on Docker, a Secret on K8s) |
+| `configSchema.properties.<key>.mount` | string | | `file` is the only value: the value is written as a file mounted into the container, and this key's environment variable holds the file's path. Needs `secret: true` and `type: string` on the same item. See [Delivered as a file](../01-three-layers/07-sensitive-values.md#delivered-as-a-file-mount-file) |
 | `configSchema.properties.<key>.enum` | list | | Allowed values — **documentation only; the platform doesn't check values** |
 | `configSchema.properties.<key>.minimum` | number | | As above |
 | `configSchema.properties.<key>.maximum` | number | | As above |

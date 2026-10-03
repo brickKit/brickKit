@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -187,6 +188,12 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliUpViewItCat, opts.display(path)))
 		logging.Info(i18n.T(msgid.LogDeployFilesGenerated), "path", path)
 		return nil
+	}
+
+	// 以文件交付的配置项在 --dry-run 的分岔**之后**才写：这个目录挂在正在运行的容器里，一写进去
+	// 组件读到的就是新值——那已经是部署了，而 dry-run 承诺什么都不部署。
+	if err := writeSecretFiles(plan.proj.Layout, plan.generated.SecretFiles); err != nil {
+		return err
 	}
 
 	if len(plan.services) == 0 && len(plan.runAfter()) == 0 {
@@ -1071,6 +1078,9 @@ func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
 	if err := os.RemoveAll(filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))); err != nil {
 		return err
 	}
+	if err := os.RemoveAll(compose.SecretFilesPath(layout)); err != nil {
+		return err
+	}
 	if err := os.Remove(filepath.Join(layout.GeneratedDir(), composeFileName)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -1132,6 +1142,98 @@ func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".env") && !keep[e.Name()] {
 			_ = os.Remove(filepath.Join(dir, e.Name()))
 		}
+	}
+	return nil
+}
+
+// writeSecretFiles 写出以文件交付的配置项（configSchema 的 mount: file），并删掉这次没再生成的。
+//
+// 这个目录是挂在容器里的（compose.SecretFileDir 那段注释讲了为什么是目录、权限为什么是这样），所以写法有讲究：
+//
+//   - 组件的目录一旦建了就不删了重建：容器挂的是那个 inode，重建之后容器里看到的是一个再也不会变的旧目录。
+//   - 文件写临时文件再改名：容器里的进程要么读到旧的整份，要么读到新的整份，读不到写了一半的。
+//   - 内容没变就不动：盯着修改时间做热加载的组件不该被每一次 up 惊动。
+//   - 权限每次都设一遍：创建时的权限受 umask 影响，已存在的文件也不会被 WriteFile 改权限。
+func writeSecretFiles(layout project.Layout, files []compose.SecretFile) error {
+	root := compose.SecretFilesPath(layout)
+	if len(files) == 0 {
+		// 一项都没有了：不留一个装过密钥的空壳，也不平白建目录
+		return os.RemoveAll(root)
+	}
+	failed := func(path string, err error) error {
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpSecretFileWriteFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
+	}
+	if err := ensureDir(root, 0o700); err != nil {
+		return failed(root, err)
+	}
+
+	keep := map[string]map[string]bool{}
+	for _, file := range files {
+		dir := filepath.Join(root, file.Service)
+		if keep[file.Service] == nil {
+			keep[file.Service] = map[string]bool{}
+			if err := ensureDir(dir, 0o755); err != nil {
+				return failed(dir, err)
+			}
+		}
+		keep[file.Service][file.Key] = true
+		path := filepath.Join(dir, file.Key)
+		if err := replaceFile(path, file.Content, 0o644); err != nil {
+			return failed(path, err)
+		}
+	}
+
+	services, err := os.ReadDir(root)
+	if err != nil {
+		return failed(root, err)
+	}
+	for _, service := range services {
+		dir := filepath.Join(root, service.Name())
+		if keep[service.Name()] == nil {
+			_ = os.RemoveAll(dir)
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return failed(dir, err)
+		}
+		for _, e := range entries {
+			if !keep[service.Name()][e.Name()] {
+				_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	return nil
+}
+
+// ensureDir 建目录（已存在就留着）并把权限设成 mode。
+func ensureDir(dir string, mode os.FileMode) error {
+	if err := os.MkdirAll(dir, mode); err != nil {
+		return err
+	}
+	return os.Chmod(dir, mode)
+}
+
+// replaceFile 把 path 的内容换成 content：内容与权限都没变时不动它，否则写临时文件再改名。
+func replaceFile(path string, content []byte, mode os.FileMode) error {
+	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() && info.Mode().Perm() == mode {
+		if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, content) {
+			return nil
+		}
+	}
+	// 临时文件以 . 开头：不会与键名相撞（键是环境变量名，不以 . 开头）
+	tmp := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".tmp")
+	if err := os.WriteFile(tmp, content, mode); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp, mode); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
 	}
 	return nil
 }

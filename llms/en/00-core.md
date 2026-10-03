@@ -1243,7 +1243,7 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `tags` | | Tags for search |
 | `artifacts[]` | | Contracts: `type`, `format`, `description`, `files` |
 | `dependencies.components[]` | | Dependencies: `id@version`; an optional one says `optional: true` |
-| `configSchema` | | The config spec sheet: `type`, `default`, `description`, `secret`, `enum`, `minimum`, `maximum`, `pattern`, `items` under `properties.<key>`; `required` |
+| `configSchema` | | The config spec sheet: `type`, `default`, `description`, `secret`, `mount`, `enum`, `minimum`, `maximum`, `pattern`, `items` under `properties.<key>`; `required` |
 | `deployment.type` | ✅ | Always `container` |
 | `deployment.image` / `deployment.build` | one or both | The image to pull, or the `context` and `dockerfile` to build locally |
 | `deployment.port` | ✅ | The main port |

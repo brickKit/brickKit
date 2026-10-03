@@ -48,7 +48,12 @@ must be a valid environment variable name (letters, digits, `_`, not starting wi
 project fills values in `config/<scope>-<name>.yaml` under the same keys. Put keys the project must
 supply (a database password, another project's address) in `required` **without** a `default`: `up`
 refuses until they're filled. Everything else gets a `default`. Mark credentials `secret: true` —
-on K8s they go through a generated Secret, never plaintext env. `type` / `enum` / `minimum` /
+on K8s they go through a generated Secret, never plaintext env. For a private key or certificate
+that must be replaceable without a restart, or must not sit in an environment variable, add
+`mount: file`: the key's environment variable then holds a **file path**
+(`/run/brickkit/secrets/<service-name>/<key>`) and the value is in the file — so name the key
+`…_FILE`, read the file in code and re-read it when needed; the platform does not restart the
+component when the value changes. `type` / `enum` / `minimum` /
 `maximum` / `pattern` / `items` are documentation only; values are never validated. A `default` is
 injected exactly as written: `default: 1.10` arrives as `1.10`, not `1.1`.
 

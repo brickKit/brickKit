@@ -53,7 +53,9 @@ description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写
 
 `required: [...]` 里没有 `default` 的键，使用者不填 `up` 就拒绝——只给平台真的猜不出来的值
 （别的项目的地址、账号密码）用这个。密码、Token 写 `secret: true`，K8s 下它的值走生成的
-Secret；平台从不按名字猜哪个是密钥。`type` / `enum` / `minimum` / `maximum` / `pattern` / `items`
+Secret；平台从不按名字猜哪个是密钥。私钥、证书这类要能不重启就更换、或不想出现在环境变量里的密钥，
+再加 `mount: file`：这个键的环境变量里是**文件路径**（`/run/brickkit/secrets/<服务名>/<键>`），值在文件里，
+所以把键起名成 `…_FILE`，代码读文件并在需要时重新读；值变了平台不会重启组件。`type` / `enum` / `minimum` / `maximum` / `pattern` / `items`
 只是说明书，**从不校验值**。`default` 按你写下的原文注入：`default: 1.10` 拿到的是 `1.10`，不是 `1.1`。
 
 **3. 保留名不许碰。**

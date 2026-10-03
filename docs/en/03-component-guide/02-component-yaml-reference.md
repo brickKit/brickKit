@@ -109,7 +109,9 @@ configSchema:
 
 **The key is the environment variable name**, injected as-is, so write it in upper case with underscores, like `DB_HOST`.
 Each item can have `type`, `default` and `description`; a secret gets `secret: true`, and required items go into
-`required`. `enum`, `minimum`, `maximum`, `pattern` and `items` can be written too, but they're documentation — the
+`required`. For a secret delivered as a file (the component reads a path, the value is in the file, and replacing it
+needs no restart) add `mount: file` — see
+[Delivered as a file](../01-three-layers/07-sensitive-values.md#delivered-as-a-file-mount-file). `enum`, `minimum`, `maximum`, `pattern` and `items` can be written too, but they're documentation — the
 platform doesn't check values against them.
 
 How to design config well — how finely to split it, how to name it, what should be required — is in

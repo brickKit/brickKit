@@ -105,6 +105,10 @@ Item by item:
   isn't in it — it may not start at all, and listing it would hold up the whole project.
 - **Environment variables**: platform variables, dependency addresses, config values (`DATABASE_PORT` is the
   `configSchema` default, and so is `GREETING`). Secrets aren't here; they are in the 0600 file `env_file` references.
+  A secret declared `mount: file` isn't in the env file either: it is a file under
+  `.brickkit/generated/secrets/<service name>/`, a directory mounted read-only through `volumes` at
+  `/run/brickkit/secrets/<service name>/` in the container, and the environment variable holds only the path (see
+  [Delivered as a file](../01-three-layers/07-sensitive-values.md#delivered-as-a-file-mount-file)).
 - **The migration container**: the same image, the same environment, `restart: "no"`, with the entry point replaced by
   the migration command.
 - **The health check**: its rhythm is fixed by the platform (every 10 seconds, a 3-second timeout, 3 failures in a row);

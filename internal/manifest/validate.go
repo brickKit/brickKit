@@ -308,6 +308,16 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 		case !configSchemaTypes[prop.Type]:
 			p.Add(field+".type", i18n.T(msgid.ManifestConfigTypeInvalid))
 		}
+		switch {
+		case prop.Mount == "":
+		case prop.Mount != MountFile:
+			p.Add(field+".mount", i18n.T(msgid.ManifestConfigMountInvalid, MountFile, prop.Mount))
+		case !prop.Secret:
+			p.Add(field+".mount", i18n.T(msgid.ManifestConfigMountNeedsSecret))
+		case prop.Type != "" && prop.Type != "string":
+			// 文件里装的是一段文本（或字节），不是数字或列表
+			p.Add(field+".mount", i18n.T(msgid.ManifestConfigMountNeedsString, prop.Type))
+		}
 	}
 
 	for _, name := range m.ConfigSchema.Required {

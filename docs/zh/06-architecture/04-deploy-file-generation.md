@@ -99,6 +99,8 @@ components:
 - **`depends_on`**：强依赖等它**健康**（`service_healthy`），自己的迁移等它**成功结束**（`service_completed_successfully`）。弱依赖 `demo/bus` 不在里面——
   它可能根本不启动，写进去会把整个项目卡住。
 - **环境变量**：平台变量、依赖地址、配置值（`DATABASE_PORT` 是 `configSchema` 的默认值，`GREETING` 同理）。密钥不在这里，在 `env_file` 引用的 0600 文件里。
+  声明了 `mount: file` 的密钥连 env 文件也不进：它是 `.brickkit/generated/secrets/<服务名>/` 下的一个文件，这个目录经 `volumes`
+  只读挂到容器的 `/run/brickkit/secrets/<服务名>/`，环境变量里只有路径（见[以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file)）。
 - **迁移容器**：同一个镜像、同一份环境、`restart: "no"`，入口换成迁移命令。
 - **健康检查**：节奏由平台固定（10 秒一次、3 秒超时、连续 3 次失败），`start_period` 来自 `startPeriodSeconds`（缺省 60）。
   `wget` 与 `curl` 都试，所以镜像里有其中一个就行。

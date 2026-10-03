@@ -110,6 +110,10 @@ func describe(prop manifest.ConfigProperty) string {
 	if prop.Secret {
 		desc += " | secret"
 	}
+	if prop.Mount == manifest.MountFile {
+		// 值照常填在这里；组件拿到的是装着它的文件的路径
+		desc += " | " + i18n.T(msgid.ConfigdirSkeletonAsFile)
+	}
 	if text := strings.Join(strings.Fields(prop.Description), " "); text != "" {
 		desc += " | " + text
 	}

@@ -1186,7 +1186,7 @@ graph TD
 | `tags` | | 检索用的标签 |
 | `artifacts[]` | | 契约：`type`、`format`、`description`、`files` |
 | `dependencies.components[]` | | 依赖：`id@版本`；弱依赖写 `optional: true` |
-| `configSchema` | | 配置说明书：`properties.<键>` 的 `type`、`default`、`description`、`secret`、`enum`、`minimum`、`maximum`、`pattern`、`items`；`required` |
+| `configSchema` | | 配置说明书：`properties.<键>` 的 `type`、`default`、`description`、`secret`、`mount`、`enum`、`minimum`、`maximum`、`pattern`、`items`；`required` |
 | `deployment.type` | ✅ | 固定 `container` |
 | `deployment.image` / `deployment.build` | 二选一或都写 | 拉取的镜像，或本机构建的 `context` 与 `dockerfile` |
 | `deployment.port` | ✅ | 主端口 |

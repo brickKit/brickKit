@@ -170,6 +170,35 @@ type ConfigProperty struct {
 	// 是不是凭据只有组件作者最清楚，所以由 Manifest 声明，平台不按名字去猜
 	// （名字启发式只配拿来发警告，见 internal/cli/up_secrets.go）。
 	Secret bool `yaml:"secret,omitempty"`
+	// Mount 声明这一项怎么交到组件手里。唯一的取值是 MountFile：值写成一个文件挂进容器，
+	// 这个键名的环境变量里放的是**文件的路径**，不是值本身。不写就是老样子——值在环境变量里。
+	//
+	// # 为什么需要
+	//
+	// 环境变量会被进程 dump、调试输出、崩溃报告原样带出去，`docker inspect` 和 Pod 的 env 里也看得到；
+	// 证书和私钥还要能不重启就更换，而环境变量在进程启动时就定死了。文件两样都能解决。
+	//
+	// # 为什么是组件作者声明
+	//
+	// 读一个路径还是读一个值，是组件代码的事。键名就是环境变量名这条规则不变，平台不替它加后缀：
+	// 作者把键起名叫 JWT_PRIVATE_KEY_FILE，组件读到的就是路径。项目照旧在 config/ 里给这个键填值
+	// （字面量、${VAR}、file://、K8s 上的 existingSecret），平台负责把值变成文件。
+	//
+	// 只能和 secret: true 一起写（校验器把关）：要解决的是密钥的交付，普通配置项没有这个问题。
+	// 取值与 jsonschema enum 是同一份，schemas_test.go 会核对。
+	Mount string `yaml:"mount,omitempty" jsonschema:"enum=file"`
+}
+
+// MountFile 是 ConfigProperty.Mount 的唯一取值：值以文件交付。
+const MountFile = "file"
+
+// SecretFilesRoot 是以文件交付的配置项在容器里的根目录：每个组件一个子目录（版本化服务名），每个键一个文件。
+// 两种部署目标用同一个路径，被外壳承载的成员也挂在它自己的子目录下——组件读到的路径与它跑在哪里无关。
+const SecretFilesRoot = "/run/brickkit/secrets"
+
+// SecretFilePath 是 service 的 key 这一项在容器里的文件路径。
+func SecretFilePath(service, key string) string {
+	return SecretFilesRoot + "/" + service + "/" + key
 }
 
 // ItemDef 描述数组类型配置项的元素类型。

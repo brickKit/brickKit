@@ -186,6 +186,10 @@ func referenceWarnings(proj *project.Project, ref resolver.Ref, resolved *config
 func memberValueErrors(proj *project.Project, ref resolver.Ref, resolved *configdir.Result, strict bool, lookup func(string) (string, bool)) []*clierr.Error {
 	var out []*clierr.Error
 	for _, r := range resolved.Values {
+		// 以文件交付的项不进 JSON（JSON 里只有文件的路径），内容是二进制也没关系
+		if r.Mount == manifest.MountFile {
+			continue
+		}
 		switch r.Value.Kind {
 		case configdir.KindLiteral, configdir.KindFileRef:
 		case configdir.KindEnvTemplate:

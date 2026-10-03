@@ -39,6 +39,7 @@ configSchema:
 | `default` | Used when no value is written; scalars are injected as strings, exactly as written (`default: 1.10` is injected as `1.10`, not `1.1`), `array` / `object` as one line of JSON |
 | `description` | Appears at the end of the line in the project's config skeleton |
 | `secret: true` | The item is a secret: at deployment it takes the secret channel, never written into deployment files in plain text |
+| `mount: file` | The item is delivered as a file: the environment variable holds the file's path (`/run/brickkit/secrets/<service name>/<key>`) and the file holds the value. Only with `secret: true` and `type: string` |
 | `required` | The required items; each must be declared under `properties` |
 | `enum`, `minimum`, `maximum`, `pattern`, `items` | Allowed values — **documentation only** |
 

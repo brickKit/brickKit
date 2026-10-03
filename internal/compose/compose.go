@@ -78,6 +78,9 @@ type Result struct {
 	YAML []byte
 	// EnvFiles 是要以 0600 写盘的 env 文件，按服务名排序。
 	EnvFiles []EnvFile
+	// SecretFiles 是以文件交付的配置项（configSchema 的 mount: file），按服务名、键名排序。
+	// 怎么写盘见 SecretFileDir 那段注释：目录与文件的权限、原地替换都有讲究。
+	SecretFiles []SecretFile
 	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件。
 	LocalEnvFiles []LocalEnvFile
 	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
@@ -131,6 +134,7 @@ func Generate(
 	return &Result{
 		YAML:          append(header(proj, plan, now), body...),
 		EnvFiles:      plan.envFileList(),
+		SecretFiles:   plan.secretFileList(),
 		LocalEnvFiles: locals,
 		RunAfter:      plan.runAfter(),
 		Warnings:      plan.warnings,
@@ -189,6 +193,8 @@ type plan struct {
 	// inline 进 compose.yaml 的 environment，envFile 进 0600 的 env 文件。
 	inline  map[string][]string
 	envFile map[string][]byte
+	// secretFiles 是以文件交付的配置项（secretfiles.go）：所属组件的服务名 → 键 → 文件内容。
+	secretFiles map[string]map[string][]byte
 
 	// components 是本次要渲染的组件（已排除 mode: debug），按服务名排序。
 	components []componentPlan
@@ -253,6 +259,13 @@ func newPlan(
 		shellAliases:   map[string][]string{},
 
 		shellMemberHostPorts: map[string][]hostPortMapping{},
+		secretFiles:          map[string]map[string][]byte{},
+	}
+
+	// 以文件交付的配置项先换成路径（secretfiles.go）：之后的每一步看到的都是普通变量
+	env, err := p.mountSecretFiles(env)
+	if err != nil {
+		return nil, err
 	}
 
 	envByRef := map[resolver.Ref]inject.Component{}
@@ -317,6 +330,7 @@ func newPlan(
 		return nil, err
 	}
 	p.rewriteEndpointsForLocalDependencies()
+	p.hostPathsForBareShellMembers()
 
 	// 成员交给外壳的环境用计划里改写过的那一份（本地调试地址、裸进程外壳的 localhost 地址）
 	groups, err := shell.Resolve(proj, graph, states, p.envForShells(env), opts.Lookup)
@@ -479,6 +493,8 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	}
 
 	p.applyEnvironment(svc, c.Service)
+	// 以文件交付的配置项：自己的目录，外壳还要挂上它承载的成员的
+	p.applySecretVolumes(svc, p.secretOwnersOf(c)...)
 	if ports := p.hostPortsOf(c); len(ports) > 0 {
 		svc["ports"] = ports
 	}
@@ -589,8 +605,9 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	if len(command) > 1 {
 		svc["command"] = command[1:]
 	}
-	// 环境变量与主容器完全一致（同一份 inline 与同一个 env 文件）
+	// 环境变量与主容器完全一致（同一份 inline 与同一个 env 文件），以文件交付的那几项也一样挂进来
 	p.applyEnvironment(svc, c.Service)
+	p.applySecretVolumes(svc, c.Service)
 	// 环境变量一致，寻址方式也得一致：拿到一个指向宿主机的地址
 	// 却没有 extra_hosts，这个主机名在迁移容器里根本解析不了
 	if hosts := p.extraHostsOf(c); len(hosts) > 0 {

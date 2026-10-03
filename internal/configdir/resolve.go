@@ -29,6 +29,8 @@ type Resolved struct {
 	Origin  Origin
 	VarName string
 	Secret  bool
+	// Mount 是 configSchema 里这一项的 mount（manifest.MountFile 或空）。
+	Mount string
 }
 
 // Input 是解析一个组件配置所需的全部输入。
@@ -98,7 +100,7 @@ func Resolve(in Input) (*Result, error) {
 	var undefined []string
 	for _, key := range sortedProperties(in.Schema.Properties) {
 		prop := in.Schema.Properties[key]
-		r := Resolved{Key: key, Secret: prop.Secret}
+		r := Resolved{Key: key, Secret: prop.Secret, Mount: prop.Mount}
 		v, isWritten := written[key]
 
 		// 先看使用者给没给值：null 等于没给；必填键上的空串是骨架留的空位，也等于没给；

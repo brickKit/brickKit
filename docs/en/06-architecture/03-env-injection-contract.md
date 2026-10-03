@@ -74,6 +74,11 @@ chain (details in [Resolution order](../01-three-layers/08-resolution-priority.m
 3. Not written: the `default` from `configSchema`;
 4. None of these: an optional item isn't injected; a required item makes `up` refuse to start.
 
+A secret declared `mount: file` is the exception: what is injected is the **path of a file**
+(`/run/brickkit/secrets/<versioned service name>/<key>`; a process on your machine gets the absolute path on the host),
+and the value is in that file, byte for byte. See
+[Delivered as a file](../01-three-layers/07-sensitive-values.md#delivered-as-a-file-mount-file).
+
 Value types: a scalar is injected as the text you wrote (`1.10` is injected as `1.10`, never as `1.1`), whether it's a
 value in `config/` or a `default` in `configSchema`; lists and maps are encoded as one line of JSON.
 

@@ -65,6 +65,7 @@ dependencies:
 | `configSchema.properties.<key>.default` | 任意 | | 缺省值；标量按写的原样注入（`1.10` 还是 `1.10`），列表与映射注入时编码成一行 JSON |
 | `configSchema.properties.<key>.description` | 字符串 | | 出现在使用方配置骨架的行尾 |
 | `configSchema.properties.<key>.secret` | 布尔 | | `true` 时这一项按密钥处理（Docker 进 0600 的 env 文件，K8s 进 Secret） |
+| `configSchema.properties.<key>.mount` | 字符串 | | 只有 `file` 一个取值：值写成文件挂进容器，这个键的环境变量里是文件路径。要求同一项 `secret: true` 且 `type: string`。见 [以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file) |
 | `configSchema.properties.<key>.enum` | 列表 | | 允许的取值——**只是说明，平台不检查值** |
 | `configSchema.properties.<key>.minimum` | 数字 | | 同上 |
 | `configSchema.properties.<key>.maximum` | 数字 | | 同上 |

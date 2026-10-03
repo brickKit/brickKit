@@ -80,6 +80,10 @@ configSchema:
     tags:
       type: array
       items: {}
+    signingKeyFile:
+      type: string
+      secret: true
+      mount: file
 deployment:
   type: container
   image: registry.example.com/demo/hello:1.0.0
@@ -833,6 +837,16 @@ func constraintCases() []constraintCase {
 			invalid: []any{"demo/member@^1.0.0", "demo/member@latest", "demo/member@1.0", "demo/member@", "demo/member", ""},
 		},
 		{
+			// 只有一个取值；不写就是把值放在环境变量里
+			name: "configSchema.properties.SIGNING_KEY_FILE.mount", doc: "component",
+			schemaPath:    "configSchema/properties{}/mount",
+			dataPath:      []any{"configSchema", "properties", "signingKeyFile", "mount"},
+			errField:      "configSchema.properties.signingKeyFile.mount",
+			valid:         []any{manifest.MountFile, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"volume", "File", "env"},
+		},
+		{
 			name: "deployment.protocol", doc: "component", schemaPath: "deployment/protocol",
 			dataPath: []any{"deployment", "protocol"}, errField: "deployment.protocol",
 			valid:         []any{manifest.ProtocolHTTP, manifest.ProtocolGRPC, manifest.ProtocolTCP, nil},
@@ -1242,14 +1256,15 @@ func optionalPropertyPaths(node map[string]any, data any, path []any, visit func
 // conditionallyRequired：yaml tag 写了 omitempty，可是校验器在基准的取值下要求它——写成 null 等于没写，
 // 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
 var conditionallyRequired = map[string]string{
-	"component:healthCheck.path":        "healthCheck.type 是 http 时必填（validateHealthCheck）",
-	"component:readinessCheck.path":     "readinessCheck.type 是 http 时必填（validateReadinessCheck）",
-	"component:deployment.image":        "deployment.image 与 deployment.build 至少写一个，基准里只写了 image",
-	"project:sources[0].path":           "sources[].type 是 local 时必填",
-	"project:sources[1].baseUrl":        "sources[].type 是 git 时必填",
-	"project:sources[2].url":            "sources[].type 是 market 时必填",
-	"project:components[1].source.path": "components[].source.type 是 local 时必填",
-	"deploy:components[0].hostname":     "expose: true 且 target 是 k8s 时必填",
+	"component:healthCheck.path":                              "healthCheck.type 是 http 时必填（validateHealthCheck）",
+	"component:readinessCheck.path":                           "readinessCheck.type 是 http 时必填（validateReadinessCheck）",
+	"component:configSchema.properties.signingKeyFile.secret": "同一项写了 mount: file 时必须是 true（validateConfigSchema）",
+	"component:deployment.image":                              "deployment.image 与 deployment.build 至少写一个，基准里只写了 image",
+	"project:sources[0].path":                                 "sources[].type 是 local 时必填",
+	"project:sources[1].baseUrl":                              "sources[].type 是 git 时必填",
+	"project:sources[2].url":                                  "sources[].type 是 market 时必填",
+	"project:components[1].source.path":                       "components[].source.type 是 local 时必填",
+	"deploy:components[0].hostname":                           "expose: true 且 target 是 k8s 时必填",
 	"deploy:k8s.networkPolicy.egress.allowTo[0].namespace": "allowTo 的 namespace 与 cidr 必须写一个，" +
 		"基准里写的是 namespace",
 }

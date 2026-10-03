@@ -20,6 +20,7 @@ func TestSkeleton(t *testing.T) {
 			"DB_PORT":     {Type: "integer", Default: 5432},
 			"TAGS":        {Type: "array", Default: []any{"a"}},
 			"OPTIONAL_X":  {Type: "string"},
+			"KEY_FILE":    {Type: "string", Secret: true, Mount: manifest.MountFile},
 		},
 		Required: []string{"DB_HOST", "DB_PASSWORD", "DB_PORT"},
 	}
@@ -32,6 +33,8 @@ func TestSkeleton(t *testing.T) {
 	assert.Contains(t, out, "# DB_PORT: 5432  # integer ("+def+")\n", "required-with-default goes to the optional section, commented")
 	assert.Contains(t, out, "# TAGS: [\"a\"]  # array ("+def+")\n")
 	assert.Contains(t, out, "# OPTIONAL_X:  # string\n")
+	assert.Contains(t, out, "# KEY_FILE:  # string | secret | "+i18n.T(msgid.ConfigdirSkeletonAsFile)+"\n",
+		"值照常填在这里；说明里点明组件拿到的是文件")
 
 	// 生成的骨架必须能直接被解析与解析出正确结果：只有真正必填的缺失。
 	f, err := configdir.ParseComponentFile([]byte(out), "config/erp-backend.yaml")

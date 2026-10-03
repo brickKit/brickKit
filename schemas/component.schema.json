@@ -93,6 +93,16 @@
                   "null"
                 ]
               },
+              "mount": {
+                "enum": [
+                  "file",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "pattern": {
                 "type": [
                   "string",

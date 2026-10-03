@@ -101,7 +101,8 @@ configSchema:
 ```
 
 **键名就是环境变量名**，原样注入，所以写成 `DB_HOST` 这样的大写下划线形式。每一项可以写 `type`、`default`、`description`，
-密钥写 `secret: true`，必填写进 `required`。`enum`、`minimum`、`maximum`、`pattern`、`items` 也能写，但它们只是说明，平台不按它们检查值。
+密钥写 `secret: true`，必填写进 `required`。密钥要以文件交付（组件读到的是文件路径，值在文件里，换了不用重启）再加 `mount: file`，
+见 [以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file)。`enum`、`minimum`、`maximum`、`pattern`、`items` 也能写，但它们只是说明，平台不按它们检查值。
 
 怎么把配置设计好——拆多细、怎么命名、哪些该必填——见 [configSchema 设计准则](03-config-schema-design.md)。
 

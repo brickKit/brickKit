@@ -15,13 +15,13 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 
 <!-- llms:bundles:begin -->
 - [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
-- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/01-init-and-project-creation.md
-- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/02-add-and-component-install.md … docs/zh/03-component-guide/README.md
-- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/01-component-anatomy.md … docs/zh/04-shell/03-shell-declaration.md
-- [llms/zh/04.md](llms/zh/04.md): docs/zh/04-shell/04-members-management.md … docs/zh/06-architecture/04-deploy-file-generation.md
-- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
-- [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/01-ai-routing-table.md
-- [llms/zh/07.md](llms/zh/07.md): docs/zh/08-ai-guide/02-ai-dev-workflow.md … docs/zh/10-troubleshooting/README.md
+- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/README.md
+- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/01-init-and-project-creation.md … docs/zh/02-project-guide/09-status-and-graph.md
+- [llms/zh/03.md](llms/zh/03.md): docs/zh/02-project-guide/10-lint-and-checks.md … docs/zh/03-component-guide/07-release-workflow.md
+- [llms/zh/04.md](llms/zh/04.md): docs/zh/03-component-guide/08-component-doc-spec.md … docs/zh/06-architecture/02-dependency-resolution.md
+- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/03-env-injection-contract.md … docs/zh/06-architecture/07-cache-design.md
+- [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/08-security-and-signing.md … docs/zh/08-ai-guide/README.md
+- [llms/zh/07.md](llms/zh/07.md): docs/zh/08-ai-guide/01-ai-routing-table.md … docs/zh/10-troubleshooting/README.md
 - [llms/zh/08.md](llms/zh/08.md): docs/zh/10-troubleshooting/01-up-down-issues.md … docs/zh/11-reference/04-config-schema-spec.md
 - [llms/zh/09.md](llms/zh/09.md): docs/zh/11-reference/05-json-schemas.md … docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->

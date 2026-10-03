@@ -48,6 +48,8 @@ type comp struct {
 	Memory string
 	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
 	SecretConfig []string
+	// FileConfig 是 ConfigSchema 里声明了 mount: file 的键名（它们也得在 SecretConfig 里）。
+	FileConfig []string
 	// ShellMembers 是 shell.members：编进这个外壳的成员，每项写 <组件ID>@<精确版本>。
 	ShellMembers []string
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
@@ -120,6 +122,9 @@ func (c comp) yamlText() string {
 			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", legacyEnvKey(name), def)
 			if slices.Contains(c.SecretConfig, name) {
 				b.WriteString("      secret: true\n")
+			}
+			if slices.Contains(c.FileConfig, name) {
+				b.WriteString("      mount: file\n")
 			}
 		}
 	}

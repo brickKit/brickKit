@@ -329,6 +329,10 @@ type plan struct {
 	memberMigrations []componentPlan
 	// secrets 按 Secret 名排序。
 	secrets []secretPlan
+	// secretFiles 是以文件交付的配置项（secretfiles.go）：所属组件的服务名 → 要挂进 Pod 的文件。
+	// fileData 是其中由平台生成的值：Secret 名 → 键 → 明文，collectSecrets 把它并进生成的 Secret。
+	secretFiles map[string][]secretFile
+	fileData    map[string]map[string]string
 
 	expand   *expander
 	warnings []*clierr.Error
@@ -345,6 +349,14 @@ func newPlan(
 		states:    states,
 		namespace: NamespaceOf(proj),
 		expand:    newExpander(opts.Lookup),
+
+		secretFiles: map[string][]secretFile{},
+		fileData:    map[string]map[string]string{},
+	}
+	// 以文件交付的配置项先换成路径（secretfiles.go）：之后的每一步看到的都是普通变量
+	env, err := p.mountSecretFiles(env)
+	if err != nil {
+		return nil, err
 	}
 	envByRef := map[resolver.Ref]inject.Component{}
 	for _, c := range env.Components {

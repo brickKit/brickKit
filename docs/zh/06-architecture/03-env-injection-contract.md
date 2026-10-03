@@ -64,6 +64,9 @@ if bus is None:
 3. 没写，用 `configSchema` 的 `default`；
 4. 都没有：可选项不注入；必填项让 `up` 拒绝启动。
 
+声明了 `mount: file` 的密钥是例外：注入的是**文件的路径**（`/run/brickkit/secrets/<版本化服务名>/<键>`；本机进程拿到的是
+宿主机上的绝对路径），值在那个文件里，逐字节。见 [以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file)。
+
 值的类型：标量按你写的原文注入（`1.10` 注入的就是 `1.10`，不会变成 `1.1`），不管它写在 `config/` 里还是 `configSchema` 的 `default` 里；列表和映射编码成一行 JSON。
 
 ### 不做隐式覆盖

@@ -707,3 +707,30 @@ func TestEventMatches(t *testing.T) {
 		assert.Equal(t, c.want, EventMatches(c.subscription, c.name), "%s ~ %s", c.subscription, c.name)
 	}
 }
+
+// mount: file：值以文件交付，环境变量里是路径。只有一个取值；只给密钥用；文件里装的是一段文本，所以只配 string。
+func TestConfigPropertyMount(t *testing.T) {
+	schema := func(body string) string {
+		return minimalYAML + "\nconfigSchema:\n  type: object\n  properties:\n    JWT_PRIVATE_KEY_FILE:\n" + body
+	}
+	m, err := Parse([]byte(schema("      type: string\n      secret: true\n      mount: file\n")), "component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, MountFile, m.ConfigSchema.Properties["JWT_PRIVATE_KEY_FILE"].Mount)
+	assert.Equal(t, "/run/brickkit/secrets/erp-sales-1-0-0/JWT_PRIVATE_KEY_FILE",
+		SecretFilePath("erp-sales-1-0-0", "JWT_PRIVATE_KEY_FILE"))
+
+	for name, c := range map[string]struct {
+		body string
+		want []string
+	}{
+		"不认识的取值":    {"      type: string\n      secret: true\n      mount: volume\n", []string{"JWT_PRIVATE_KEY_FILE.mount", "must be file"}},
+		"没写 secret": {"      type: string\n      mount: file\n", []string{"JWT_PRIVATE_KEY_FILE.mount", "secret: true"}},
+		"不是 string": {"      type: integer\n      secret: true\n      mount: file\n", []string{"JWT_PRIVATE_KEY_FILE.mount", "type: string"}},
+	} {
+		_, err := Parse([]byte(schema(c.body)), "component.yaml")
+		require.Error(t, err, name)
+		for _, want := range c.want {
+			assert.Contains(t, err.Error(), want, name)
+		}
+	}
+}

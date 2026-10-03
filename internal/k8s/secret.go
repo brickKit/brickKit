@@ -7,8 +7,10 @@ package k8s
 // Secret 单独一份文件，可以单独设权限、单独排除出版本库。
 
 import (
+	"encoding/base64"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -67,6 +69,16 @@ func (p *plan) collectSecrets() error {
 		}
 	}
 
+	// 以文件交付的那几项也在平台生成的 Secret 里，只是不经 secretKeyRef，而是挂成文件（secretfiles.go）
+	for name, data := range p.fileData {
+		if byName[name] == nil {
+			byName[name] = map[string]string{}
+		}
+		for key, value := range data {
+			byName[name][key] = value
+		}
+	}
+
 	for name, data := range byName {
 		p.secrets = append(p.secrets, secretPlan{Name: name, Data: data})
 	}
@@ -94,12 +106,18 @@ func (p *plan) secretDocs() []map[string]any {
 		}
 		sort.Strings(keys)
 
-		data := map[string]any{}
+		// 文本进 stringData，不是合法 UTF-8 的（以文件交付的二进制内容：密钥库、DER 证书）进 data。
+		// stringData 只能装文本——YAML 写不下任意字节；环境变量也装不了，所以走到 data 的只会是挂成文件的项
+		text, binary := map[string]any{}, map[string]any{}
 		for _, key := range keys {
-			data[key] = s.Data[key]
+			if utf8.ValidString(s.Data[key]) {
+				text[key] = s.Data[key]
+			} else {
+				binary[key] = base64.StdEncoding.EncodeToString([]byte(s.Data[key]))
+			}
 		}
 
-		out = append(out, map[string]any{
+		doc := map[string]any{
 			"apiVersion": "v1",
 			"kind":       "Secret",
 			"metadata": map[string]any{
@@ -107,12 +125,18 @@ func (p *plan) secretDocs() []map[string]any {
 				"namespace": p.namespace,
 				"labels":    map[string]any{labelProject: p.proj.Decl.Project},
 			},
-			// stringData 而不是 data：写进去的是明文，由 API Server 自己 base64。
-			// 手工 base64 只是把密码变得不可读，并不会更安全，却让排障时
-			// 看不出这份文件里到底是什么
-			"type":       "Opaque",
-			"stringData": data,
-		})
+			"type": "Opaque",
+		}
+		// stringData 而不是 data：写进去的是明文，由 API Server 自己 base64。
+		// 手工 base64 只是把密码变得不可读，并不会更安全，却让排障时
+		// 看不出这份文件里到底是什么
+		if len(text) > 0 || len(binary) == 0 {
+			doc["stringData"] = text
+		}
+		if len(binary) > 0 {
+			doc["data"] = binary
+		}
+		out = append(out, doc)
 	}
 	return out
 }
