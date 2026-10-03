@@ -87,6 +87,7 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `events.publishes` / `events.subscribes` | | Names of the events published and subscribed to (a subscription may be a prefix ending in `*`); only shown and hinted at by `graph` / `deps` / `lint` |
 | `shell.members` | | The members a shell compiles in, as exact `id@version` |
 | `local.language` / `local.runCommand` | | For `mode: local`, the language, or the start command given outright |
+| `release.checks` | | Commands (each an array) that `release` / `publish` run in the component directory before releasing; the first failure stops the release |
 
 How to write it and design choices: the [component.yaml field guide](../03-component-guide/02-component-yaml-reference.md).
 

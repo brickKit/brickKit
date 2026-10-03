@@ -104,6 +104,9 @@ readinessCheck:
 events:
   publishes: [demo.hello.greeted.v1]
   subscribes: [demo.other.changed.v1]
+release:
+  checks:
+    - [make, test]
 `
 
 const baselineProject = `project: demo
@@ -490,6 +493,7 @@ var requiredGolden = []requiredCase{
 	{"component", "readinessCheck", []string{"type"}, []any{"readinessCheck"}},
 	{"component", "migration", []string{"command"}, []any{"migration"}},
 	{"component", "shell", []string{"members"}, []any{"shell"}},
+	{"component", "release", []string{"checks"}, []any{"release"}},
 
 	{"project", schemaRoot, []string{"project"}, nil},
 	{"project", "sources[]", []string{"name", "type"}, []any{"sources", 0}},

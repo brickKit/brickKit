@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -973,4 +974,37 @@ func TestPublishWarnsWhenTheMarketDropsTranslations(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "zh")
 	assert.Contains(t, r.stdout, "translations")
+}
+
+// 发布前检查没过：一个请求都不发到市场（版本号一旦建出来就收不回）。
+func TestPublishRunsTheComponentsChecksFirst(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	m := newFakeMarket(t)
+	m.artifacts = []map[string]any{artifactEntry("art-0", "api-docs", "openapi", "openapi.json")}
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, publishable())
+	appendToFile(t, filepath.Join(root, "component.yaml"), "release:\n  checks:\n    - [./check.sh]\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "check.sh"), []byte("#!/bin/sh\necho suite failed\nexit 1\n"), 0o755))
+	before := len(m.requests())
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "suite failed")
+	assert.Contains(t, r.stderr, "a release check of people/basic@1.2.0 failed: ./check.sh exited with code 1")
+	assert.Len(t, m.requests(), before, "检查没过，市场一个请求都没收到")
+
+	r = runIn(t, f.Dir, "publish", "--path", root, "--skip-checks")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "--skip-checks")
+	assert.NotContains(t, r.stdout, "suite failed")
+}
+
+func appendToFile(t *testing.T, path, text string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(data, text...), 0o644))
 }

@@ -26,9 +26,10 @@ What it did:
 4. **Check the branch.** The current branch must have an upstream and no unpushed commits: the commit the tag points at must
    already be in the remote's history.
 5. **Check the tag.** It must not exist yet, locally or on the remote.
-6. **Tag and push** — an annotated tag carrying the [release notes](#release-notes) when you give them.
+6. **Run your own checks**, when `component.yaml` declares them ([below](#your-own-checks-releasechecks)).
+7. **Tag and push** — an annotated tag carrying the [release notes](#release-notes) when you give them.
 
-The first five steps are read-only checks; nothing is written until all of them pass.
+Nothing is written until every step before the last has passed.
 
 ## What gets stopped
 
@@ -59,6 +60,52 @@ the tag they get would point at something they can't fetch.
 
 A released version never changes: someone may already have installed 0.1.0, and with one version number pointing at two
 different pieces of code, nobody can tell which one anyone runs. Changed something? Raise the version.
+
+## Your own checks: `release.checks`
+
+What a version has to pass before it goes out — the tests, a conformance suite run against the running service, a
+check your project insists on — differs per component, and only you know it. Write it in `component.yaml`, and every
+release runs it, whoever runs `brickkit release` and on whichever machine:
+
+```yaml
+release:
+  checks:
+    - [go, test, ./...]
+    - [./scripts/conformance.sh]
+```
+
+Each check is one command written as an array: the program, then its arguments, one per item. It runs in the component
+directory, without a shell (no pipes, no `&&`; put those in a script), with the environment of your terminal; a program
+whose name contains a `/` is relative to the component directory. They run in order after the platform's own checks,
+their output shown as it comes, and the first one that exits non-zero stops the release before anything is tagged:
+
+```text
+🧪 Release check of demo/quote@0.1.0: go test ./...
+ok  	example.com/quote	0.004s
+🧪 Release check of demo/quote@0.1.0: ./scripts/conformance.sh
+conformance: 12 cases, 1 failed (GET /quotes/42 returned 500)
+❌ Error: a release check of demo/quote@0.1.0 failed: ./scripts/conformance.sh exited with code 1
+   Directory: .
+   Suggestions:
+   1. Its output is above. Nothing was tagged or uploaded; fix what it reports, commit, and release again
+   2. To release without running the checks: --skip-checks (the output says they were skipped)
+```
+
+`--skip-checks` releases without running them, and says so:
+
+```text
+⚠️  Release checks of demo/quote@0.1.0 skipped (--skip-checks)
+✅ Released demo/quote@0.1.0: tag 0.1.0 pushed
+```
+
+`brickkit publish` runs the same checks before anything reaches the market, and takes the same `--skip-checks`.
+
+**Why in `component.yaml`, and why the platform doesn't decide.** A tag, once pushed, and a version, once on a market,
+can't be taken back, and `release` / `publish` are the only steps every way of releasing goes through. A Git hook or a
+`make` target guards one machine or one habit; a check written in `component.yaml` travels with the component. What to
+check stays your decision: the platform runs the commands and reads their exit codes, nothing more. The checks run only
+when you release from the component's own directory — `add` and `fetch` read the same `component.yaml` in a project and
+never run anything from it.
 
 ## All of it, or no trace
 
@@ -158,7 +205,8 @@ repository):
 brickkit release --local
 ```
 
-It checks every one of them first, and only when all pass does it tag and push them one by one; ones already released
+It checks every one of them first — the platform's checks for all of them, then each one's own `release.checks` — and
+only when all pass does it tag and push them one by one; ones already released
 (the tag is on the current commit) are skipped; the first failed push stops it — those released before it stay, the rest
 aren't attempted.
 

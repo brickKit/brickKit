@@ -54,6 +54,8 @@ type Manifest struct {
 	// Shell 出现即表示这个组件是外壳，Members 是构建时编进外壳的成员及其
 	// 精确版本；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
 	Shell *Shell `yaml:"shell,omitempty"`
+	// Release 是发布之前要跑的检查，可选；brickkit release 与 publish 用它（见 Release）。
+	Release *Release `yaml:"release,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
 	Source string `yaml:"-"`
@@ -350,6 +352,25 @@ type Local struct {
 	Language string `yaml:"language,omitempty"`
 	// RunCommand 是探测失败时的手动覆盖：Argv[0] 含路径分隔符时相对组件目录。
 	RunCommand []string `yaml:"runCommand,omitempty"`
+}
+
+// Release 是组件作者给发布加的关卡：brickkit release 打 tag 之前、publish 上传之前，
+// 在组件目录下按顺序跑 Checks 里的每一条命令，任何一条非零退出就不发布。
+//
+// 平台不知道该查什么（测试、一致性套件、项目自己的门禁都是组件的事），只机械地跑命令、看退出码：
+// tag 推出去、版本传上市场就收不回来，这是唯一一个所有发布路径都绕不开的地方。
+// 只有作者在自己的组件目录里发布时才跑；add / fetch 读到的 component.yaml 从不执行它。
+type Release struct {
+	// Checks 是一条条命令，每条都是 argv（不经 shell）；Argv[0] 含路径分隔符时相对组件目录。
+	Checks [][]string `yaml:"checks"`
+}
+
+// ReleaseChecks 返回发布前要跑的命令；没有声明时为空。
+func (m *Manifest) ReleaseChecks() [][]string {
+	if m.Release == nil {
+		return nil
+	}
+	return m.Release.Checks
 }
 
 // DefaultStartPeriodSeconds 是启动宽限期的默认值。

@@ -110,6 +110,9 @@ const (
 	// CodeReleasePushFailed 是"tag 推不上去"：本地 tag 已回滚，远端的原因（网络、权限、
 	// 服务端钩子）解决后可以原样重试。
 	CodeReleasePushFailed Code = "RELEASE_PUSH_FAILED"
+	// CodeReleaseCheckFailed 是"组件自己声明的发布前检查（component.yaml 的 release.checks）没过"：
+	// release 没打 tag、publish 没上传，修好再发；--skip-checks 显式跳过。
+	CodeReleaseCheckFailed Code = "RELEASE_CHECK_FAILED"
 
 	// 结构检查（brickkit lint）。
 	//

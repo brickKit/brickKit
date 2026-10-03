@@ -85,6 +85,7 @@ func (m *Manifest) Validate() error {
 	m.validateLocal(p)
 	m.validateEvents(p)
 	m.validateShell(p)
+	m.validateRelease(p)
 
 	return p.Err()
 }
@@ -454,6 +455,27 @@ func (m *Manifest) validateLocal(p *clierr.ProblemSet) {
 	for i, arg := range m.Local.RunCommand {
 		if strings.TrimSpace(arg) == "" {
 			p.Missing(fmt.Sprintf("local.runCommand[%d]", i))
+		}
+	}
+}
+
+func (m *Manifest) validateRelease(p *clierr.ProblemSet) {
+	if m.Release == nil {
+		return
+	}
+	if len(m.Release.Checks) == 0 {
+		p.Add("release.checks", i18n.T(msgid.ManifestReleaseChecksMissing))
+		return
+	}
+	for i, argv := range m.Release.Checks {
+		if len(argv) == 0 {
+			p.Add(fmt.Sprintf("release.checks[%d]", i), i18n.T(msgid.ManifestReleaseCheckEmpty))
+			continue
+		}
+		for j, arg := range argv {
+			if strings.TrimSpace(arg) == "" {
+				p.Missing(fmt.Sprintf("release.checks[%d][%d]", i, j))
+			}
 		}
 	}
 }

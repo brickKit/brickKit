@@ -120,8 +120,8 @@ Don't load every component's documentation at once: read only the components the
 | `restore` | Put `mode` and the source layout back to the last commit |
 | `deps` | Dependency tree |
 | `build` | Build the images that are built locally, explicitly (`--force`) |
-| `release` | Check → Git tag → push; a failed push deletes the tag. `--notes` / `--notes-file`: optional release notes in an annotated tag. `--local` releases every component in local sources |
-| `publish` | Publish to a component market (optional infrastructure); `--notes` / `--notes-file` as for `release` |
+| `release` | Check → the component's own `release.checks` → Git tag → push; a failed push deletes the tag. `--skip-checks` skips the component's checks, out loud. `--notes` / `--notes-file`: optional release notes in an annotated tag. `--local` releases every component in local sources |
+| `publish` | Publish to a component market (optional infrastructure); runs `release.checks` first; `--notes` / `--notes-file` and `--skip-checks` as for `release` |
 | `login` | Log in to a component market |
 | `logout` | Log out of a component market (revokes the token, deletes local credentials) |
 
@@ -181,6 +181,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](docs
 - A manifest is read from, in order: the project's permanent cache `.brickkit/manifests/` → the local bare repository → an incremental fetch → a first clone.
 - The CLI does no authentication of its own; `git`'s errors are passed through verbatim.
 - `brickkit release`: check → tag → push, deleting the tag if the push fails; `--local` releases the components in local sources, stopping at the first failure.
+- A component may declare `release.checks` in `component.yaml`: commands (argv, no shell) that `release` and `publish` run in its directory before tagging or uploading; the first non-zero exit stops the release (`RELEASE_CHECK_FAILED`), `--skip-checks` skips them and says so. `add` / `fetch` never run them.
 - Release notes are optional Markdown, kept verbatim: `release --notes` / `--notes-file` writes them into an annotated tag (the market keeps `publish --notes` as the version's changelog), and `upgrade`, `--dry-run` too, prints those of every version it crosses before changing anything. A local source has none.
 - A component market (`publish` / `login` / `logout`, `sources[].type: market`) is optional infrastructure that works alongside Git sources.
 
@@ -245,7 +246,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/source/gittest/` | Test helper: real Git "remotes" — local bare repositories tagged per version, reached over `file://` |
 | `internal/gitrepo/` | Read-only git queries (status, submodules) |
 | `internal/workspace/` | Component source under `components/`: archive, activate, deletion risk |
-| `internal/release/` | `brickkit release`: checks, tag, push, rollback |
+| `internal/release/` | `brickkit release`: checks, the component's `release.checks` (`checks.go`, shared with `publish`), tag, push, rollback |
 | `internal/market/` | Market client: login and publish |
 | `internal/security/` | Component signatures: signing and verification |
 | `internal/skills/` | AI-assistant skills installed into user projects (`assets/`) |

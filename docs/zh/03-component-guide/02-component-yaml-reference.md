@@ -266,3 +266,17 @@ local:
 ```
 
 `mode: local` 下平台还会注入 `PORT`（它为这个进程选定的本机端口，优先用 `deployment.port`）：代码读 `PORT`、读不到再用自己的缺省端口，就不会和别的进程抢端口。
+
+## release：一个版本发出去之前要过哪些关
+
+`brickkit release` 打 tag 之前、`brickkit publish` 上传之前要跑的命令；第一条非零退出就停止发布：
+
+```yaml
+release:
+  checks:
+    - [go, test, ./...]
+    - [./scripts/conformance.sh]
+```
+
+每条检查是一个数组：程序，然后是参数。在组件目录下执行，不经过 shell。这里写的是这个组件每次发布都必须通过的东西，不管是谁来发；
+怎么跑、怎么跳过，见[发布](07-release-workflow.md#你自己的检查releasechecks)。

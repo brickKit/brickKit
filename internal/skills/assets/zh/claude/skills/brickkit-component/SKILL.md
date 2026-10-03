@@ -180,6 +180,12 @@ monorepo 子目录里的组件是 `<scope>-<name>/1.2.0`。组件仓库里自己
 把工作台（`brickkit.yaml`、`deploy.yaml`、`config/`、`.gitignore`）提交进去，否则 `release` 会拒绝。
 只在本地、从没推送过的 tag 不算发布：推上去或者删掉。发到市场是另一条命令 `brickkit publish`。
 
+这个组件每次发布都必须通过的东西（测试、一致性套件）写进 `component.yaml`，别靠习惯：
+`release: {checks: [[go, test, ./...], [./scripts/conformance.sh]]}`。每条检查是 argv（不经 shell——
+管道、`&&` 写进脚本），在上面那些检查之后、在组件目录下执行；第一条非零退出就停止发布
+（`RELEASE_CHECK_FAILED`），什么都没打。`publish` 上传之前跑同样的检查。`--skip-checks` 跳过它们，
+输出里会写明——别拿它绕过一条没过的检查，按它说的改好。
+
 发版说明可写可不写，但使用方升级前读的就是它：`brickkit release --notes-file <文件>`（或
 `--notes "<文字>"`）把 Markdown 原样写进带注释的 tag，`brickkit upgrade` 动手之前列出跨过的每个
 版本的说明。先写使用方必须做的——哪个键的含义或单位变了、哪个接口删了——再写新增了什么。

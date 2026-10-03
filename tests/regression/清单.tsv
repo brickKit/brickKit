@@ -53,3 +53,5 @@ R37	brickkit logout 作废市场 Token 并删本地凭据	.	./internal/cli	TestL
 R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce
 R40	publish 中途失败后能续传，不烧掉版本号	.	./internal/cli	TestPublishResumesUnfinishedDraft
 R41	文档里的 yaml 片段不会教出 CLI 拒绝的字段	.	./tests/docfields	TestDocSkeletonsUseOnlyKnownFields
+R42	组件声明的发布前检查没过，release 不打 tag	.	./internal/cli	TestReleaseRunsTheComponentsChecksBeforeTagging
+R43	组件声明的发布前检查没过，publish 一个请求都不发到市场	.	./internal/cli	TestPublishRunsTheComponentsChecksFirst

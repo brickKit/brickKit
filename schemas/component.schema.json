@@ -544,6 +544,27 @@
         "null"
       ]
     },
+    "release": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "checks"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "shell": {
       "additionalProperties": false,
       "properties": {

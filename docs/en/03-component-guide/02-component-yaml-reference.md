@@ -304,3 +304,19 @@ local:
 
 Under `mode: local` the platform also injects `PORT` (the port on the machine it chose for this process, preferring
 `deployment.port`): code that reads `PORT`, falling back to its own default, never fights another process for a port.
+
+## release: what a version has to pass before it goes out
+
+Commands `brickkit release` runs before it tags a version, and `brickkit publish` before it uploads one; the first that
+exits non-zero stops the release:
+
+```yaml
+release:
+  checks:
+    - [go, test, ./...]
+    - [./scripts/conformance.sh]
+```
+
+Each check is an array: the program, then its arguments. It runs in the component directory, without a shell. Write here
+what every release of this component must pass, whoever releases it; how to run the checks, and skip them, is in
+[Releasing](07-release-workflow.md#your-own-checks-releasechecks).

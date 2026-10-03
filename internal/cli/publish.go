@@ -42,6 +42,8 @@ type publishFlags struct {
 	signedBy     string
 	// noPinDigest 跳过把镜像 tag 钉成 digest。
 	noPinDigest bool
+	// skipChecks 不跑 component.yaml 里的 release.checks（与 release 同一个参数）。
+	skipChecks bool
 }
 
 // newPublishCommand 实现 brickkit publish。
@@ -80,6 +82,7 @@ func newPublishCommand(opts *Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.signedBy, "signed-by", "", i18n.T(msgid.CliPublishSignerIdentifierForExampleRelease))
 	cmd.Flags().BoolVar(&f.noPinDigest, "no-pin-digest", false,
 		i18n.T(msgid.CliPublishDonTPinTheImage))
+	cmd.Flags().BoolVar(&f.skipChecks, "skip-checks", false, i18n.T(msgid.CliReleaseFlagSkipChecks))
 	return cmd
 }
 
@@ -116,6 +119,11 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	}
 	if len(pkg.docTranslations) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliPublishDocTranslationsIncluded, strings.Join(pkg.translationLangs(), i18n.T(msgid.ListSeparator))))
+	}
+	// 组件自己的发布前检查，同样在联网之前：版本号建出来就收不回，不能先建再发现套件没过
+	m := pkg.manifest
+	if err := runReleaseChecks(opts, pkg.root, m.Metadata.ID+"@"+m.Metadata.Version, m, f.skipChecks); err != nil {
+		return err
 	}
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，

@@ -161,3 +161,15 @@ marker files in the source directory.
 | --- | --- | --- | --- |
 | `local.language` | string | | `go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby`; names the language when one directory holds marker files for several |
 | `local.runCommand` | list of strings | | Gives the start command directly; when the first item contains a path separator, it's relative to the component directory |
+
+## release
+
+What `brickkit release` and `brickkit publish` run before releasing a version.
+
+| Field | Type | Required | Rules |
+| --- | --- | --- | --- |
+| `release.checks` | list of lists of strings | ✅ (when `release` is written) | The commands to run, in order; each is an array — the program, then its arguments — with no empty item; when the first item contains a path separator, it's relative to the component directory |
+
+Each runs in the component directory, without a shell, with the terminal's environment; the first that exits non-zero
+stops the release (`RELEASE_CHECK_FAILED`), and `--skip-checks` doesn't run them. Never run by `add`, `fetch` or `up`. See
+[Releasing](../03-component-guide/07-release-workflow.md#your-own-checks-releasechecks).

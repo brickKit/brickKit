@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -216,4 +218,78 @@ func TestReleaseNotes(t *testing.T) {
 	r = runIn(t, repo, "release", "--notes-file", notes)
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, "## Added\n\n- export", relGit(t, origin, "for-each-ref", "refs/tags/1.1.0", "--format=%(contents)"))
+}
+
+// withChecks：组件声明一条发布前检查 sh ./check.sh --strict，脚本以 code 退出，跑过就留下 ran 文件。
+func withChecks(id, version string, code int) map[string]string {
+	return map[string]string{
+		"component.yaml": compYAML(id, version) + "release:\n  checks:\n    - [sh, ./check.sh, --strict]\n",
+		"check.sh":       "#!/bin/sh\necho \"checking $1\"\ntouch ran\nexit " + strconv.Itoa(code) + "\n",
+	}
+}
+
+// 检查没过：不打 tag；检查自己的输出照样在终端里，错误说清楚是哪条命令。
+func TestReleaseRunsTheComponentsChecksBeforeTagging(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, withChecks("erp/api", "1.0.0", 2))
+
+	r := runIn(t, repo, "release")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "sh ./check.sh --strict", "开跑之前说一声在跑什么")
+	assert.Contains(t, r.stdout, "checking --strict", "检查自己的输出原样接上")
+	assert.Contains(t, r.stderr, "a release check of erp/api@1.0.0 failed: sh ./check.sh --strict exited with code 2")
+	assert.Empty(t, relGit(t, origin, "tag", "--list"), "检查没过就不打 tag")
+	assert.Empty(t, relGit(t, repo, "tag", "--list"))
+}
+
+func TestReleaseTagsAfterTheChecksPass(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, withChecks("erp/api", "1.0.0", 0))
+	writeTree(t, repo, map[string]string{".gitignore": "ran\n"})
+	relGit(t, repo, "add", "-A")
+	relGit(t, repo, "commit", "-q", "-m", "ignore")
+	relGit(t, repo, "push", "-q")
+
+	r := runIn(t, repo, "release")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Release checks passed")
+	assert.Equal(t, "1.0.0", relGit(t, origin, "tag", "--list"))
+}
+
+// --skip-checks：显式跳过，输出里写明跳过了；检查一条都不跑。
+func TestReleaseSkipChecksSaysSo(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, withChecks("erp/api", "1.0.0", 1))
+
+	r := runIn(t, repo, "release", "--skip-checks")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "--skip-checks")
+	assert.NoFileExists(t, filepath.Join(repo, "ran"))
+	assert.Equal(t, "1.0.0", relGit(t, origin, "tag", "--list"))
+}
+
+// --local：先把所有组件的检查跑完，再打第一个 tag——有一个没过，一个都不发布。
+func TestReleaseLocalRunsEveryCheckBeforeTagging(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	dir, origins := localReleaseProject(t)
+	c := filepath.Join(dir, "components", "erp", "c")
+	writeTree(t, c, withChecks("erp/c", "1.0.0", 1))
+	relGit(t, c, "add", "-A")
+	relGit(t, c, "commit", "-q", "-m", "checks")
+	relGit(t, c, "push", "-q")
+
+	r := runIn(t, dir, "release", "--local")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "erp/c@1.0.0")
+	for id, origin := range origins {
+		assert.Empty(t, relGit(t, origin, "tag", "--list"), "%s 不该被发布", id)
+	}
 }

@@ -120,10 +120,12 @@ docker / podman 用就留着，否则删掉。
 `mode: local` / `mode: debug` 要在你的机器上起进程，集群里的 Pod 到不了那里。用 docker / podman，比如在
 `deploy.local.yaml` 里把 `target:` 换掉。
 
-**16. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED`。**
+**16. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED` / `RELEASE_CHECK_FAILED`。**
 
 被拒是发布前检查没过，什么都没写：组件目录有未提交的改动、当前分支没有上游或有未推送的提交、tag 已存在
-（该升 `metadata.version` 了）。推送失败时本地 tag 已经删掉，解决远端原因后原样重试。
+（该升 `metadata.version` 了）。推送失败时本地 tag 已经删掉，解决远端原因后原样重试。`RELEASE_CHECK_FAILED`
+是组件自己 `release.checks` 里的某条命令非零退出或没能运行：读错误上方它自己的输出、改好；"没能运行"是 argv 写错了
+（每项一个参数、不经 shell）或者脚本没有执行权限。
 
 **17. 提交被拦下：「组件源码提交在归档目录里，但 … 说它该启动」（`CONFIG_CONFLICT`）。**
 

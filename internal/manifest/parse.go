@@ -211,6 +211,7 @@ var sequenceFields = [][]string{
 	{"deployment", "extraPorts"},
 	{"migration", "command"},
 	{"configSchema", "required"},
+	{"release", "checks"},
 }
 
 // checkShapes 在结构体解码前检查节点形状，
@@ -242,6 +243,16 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			files := lookup(item, "files")
 			if files != nil && !isNull(files) && files.Kind != yaml.SequenceNode {
 				p.Add(fmt.Sprintf("artifacts[%d].files", i), i18n.T(msgid.ProblemMustBeArray, yamlcheck.KindName(files)))
+			}
+		}
+	}
+
+	// release.checks 的每一项本身也是数组：一条命令写成一个字符串（"make test"）或只写了一层（[make, test]），
+	// 在这里报到那一项上，而不是让解码器说一句 cannot unmarshal
+	if checks := lookup(doc, "release", "checks"); checks != nil && checks.Kind == yaml.SequenceNode {
+		for i, item := range checks.Content {
+			if item.Kind != yaml.SequenceNode {
+				p.Add(fmt.Sprintf("release.checks[%d]", i), i18n.T(msgid.ManifestReleaseCheckMustBeArgv, yamlcheck.KindName(item)))
 			}
 		}
 	}

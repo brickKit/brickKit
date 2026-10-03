@@ -116,8 +116,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `restore` | 把 `mode` 与源码结构还原到最后一次提交 |
 | `deps` | 依赖树 |
 | `build` | 显式构建需要在本机构建的镜像（`--force`） |
-| `release` | 校验 → 打 Git tag → 推送，推送失败就删掉 tag；`--notes` / `--notes-file`：可选的发版说明，写进带注释的 tag；`--local` 批量发布 |
-| `publish` | 发布到组件市场（可选的基础设施）；`--notes` / `--notes-file` 同 `release` |
+| `release` | 校验 → 组件自己的 `release.checks` → 打 Git tag → 推送，推送失败就删掉 tag；`--skip-checks` 跳过组件的检查（会说出来）；`--notes` / `--notes-file`：可选的发版说明，写进带注释的 tag；`--local` 批量发布 |
+| `publish` | 发布到组件市场（可选的基础设施）；先跑 `release.checks`；`--notes` / `--notes-file`、`--skip-checks` 同 `release` |
 | `login` | 登录组件市场 |
 | `logout` | 退出组件市场（吊销令牌、删本地凭据） |
 
@@ -177,6 +177,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
 - CLI 不处理鉴权，`git` 的报错原样透传。
 - `brickkit release`：校验 → 打 tag → 推送，推送失败删掉 tag；`--local` 批量发布本地源里的组件，遇到第一个失败就停。
+- 组件可以在 `component.yaml` 里声明 `release.checks`：`release` 与 `publish` 打 tag、上传之前在组件目录下跑的命令（argv，不经 shell）；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），`--skip-checks` 跳过并说出来。`add` / `fetch` 从不执行它。
 - 发版说明可写可不写，是原样保留的 Markdown：`release --notes` / `--notes-file` 写进带注释的 tag（`publish --notes` 由市场存成版本的 changelog）；`upgrade`（`--dry-run` 也一样）动手之前先列出跨过的每个版本的说明。本地源没有说明。
 - 组件市场（`publish` / `login` / `logout`，`sources[].type: market`）是可选的基础设施，与 Git 源并存。
 
@@ -240,7 +241,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/source/gittest/` | 测试辅助：真实的 git "远端"——本地 bare 仓库，按版本打 tag，经 `file://` 访问 |
 | `internal/gitrepo/` | 对 git 仓库的只读查询（状态、submodule） |
 | `internal/workspace/` | `components/` 下的组件源码：归档、激活、删除风险 |
-| `internal/release/` | `brickkit release`：检查、打 tag、推送、回滚 |
+| `internal/release/` | `brickkit release`：检查、组件自己的 `release.checks`（`checks.go`，与 `publish` 共用）、打 tag、推送、回滚 |
 | `internal/market/` | 市场客户端：登录与发布 |
 | `internal/security/` | 组件签名：签与验 |
 | `internal/skills/` | 装进用户项目的 AI 助手技能（`assets/`） |

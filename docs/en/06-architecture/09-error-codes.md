@@ -404,6 +404,19 @@ The checks `brickkit release` runs before tagging didn't pass. Nothing was writt
 | --- | --- | --- |
 | `Error: pushing the tag <…> of <…> to <…> failed` | The tag was created, and pushing it failed (network, permission) | The local tag was already deleted, leaving nothing behind; fix the network or permission, then `release` again |
 
+### RELEASE_CHECK_FAILED
+
+A command the component declares under `release.checks` in `component.yaml` didn't pass, so `release` tagged nothing, or
+`publish` sent nothing to the market.
+
+| Title | Situation | What to do |
+| --- | --- | --- |
+| `Error: a release check of <…> failed: <…> exited with code <…>` | The command ran and exited non-zero | Its own output is right above; fix what it reports, commit, and release again |
+| `Error: a release check of <…> could not be run: <…>` | The program isn't there or can't be executed (not on `PATH`, a script without the execute bit) | Check the command: each item is one argument, it runs in the component directory, and there is no shell — put pipes and `&&` in a script |
+
+`--skip-checks` releases without running them; the output says they were skipped. See
+[Releasing](../03-component-guide/07-release-workflow.md#your-own-checks-releasechecks).
+
 ### LINT_FAILED
 
 | Title | Situation | What to do |

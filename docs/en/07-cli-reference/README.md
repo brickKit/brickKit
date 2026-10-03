@@ -912,7 +912,11 @@ Before anything is written, all of these must pass:
 - `component.yaml` parses and validates;
 - the component directory has no uncommitted changes (for a component in a monorepo subdirectory, only its own directory counts);
 - the current branch has an upstream and no unpushed commits: the commit being tagged must already be in the remote's history;
-- the tag doesn't exist yet (checked locally and on the remote).
+- the tag doesn't exist yet (checked locally and on the remote);
+- the component's own checks pass: each command under `release.checks` in `component.yaml` runs in the component
+  directory, without a shell, its output shown as it runs; the first that exits non-zero stops the release
+  (`--skip-checks` doesn't run them, and says so — see
+  [Releasing](../03-component-guide/07-release-workflow.md#your-own-checks-releasechecks)).
 
 Then the tag is created and pushed. If the push fails, the local tag is deleted — a release either completes or leaves
 no trace. When the component directory is the repository root the tag is `<version>`; in a subdirectory it's
@@ -930,9 +934,10 @@ brickkit release [flags]
 | Flag | Meaning |
 | --- | --- |
 | `--path <dir>` | The component directory (where `component.yaml` is), default the current directory |
-| `--local` | Release every component in the project's local install sources: check them all first, then tag and push one by one; already-released ones (the tag is on the current commit) are skipped; the first failed push stops it |
+| `--local` | Release every component in the project's local install sources: check them all first (their `release.checks` included), then tag and push one by one; already-released ones (the tag is on the current commit) are skipped; the first failed push stops it |
 | `--notes <text>` | Release notes for this version (Markdown, kept as written), written into an annotated tag; projects see them on `upgrade`. Optional; not with `--local` |
 | `--notes-file <file>` | Read the release notes from this file instead (relative to the current directory); not together with `--notes` |
+| `--skip-checks` | Don't run the component's `release.checks`; the output says they were skipped |
 
 ```bash
 brickkit release                                  # the component in the current directory
@@ -957,8 +962,9 @@ market operated by BrickKit today; the market address points at an instance you 
 1. Check you're logged in (`.brickkit/credentials` or the install source's `authToken`); if not, it's an error;
 2. read and validate the `component.yaml` in the component directory;
 3. check the image reference is valid, and that every file `artifacts` declares is there;
-4. create a draft version → upload the artifacts → move it to stable;
-5. set the visibility.
+4. run the component's `release.checks`, as `release` does: the first failure stops before anything reaches the market;
+5. create a draft version → upload the artifacts → move it to stable;
+6. set the visibility.
 
 The three steps are on purpose: when a version moves to stable, the market checks that "the files match what
 `artifacts` declares", and creating a draft first guarantees there's never a half-finished "stable but files missing"
@@ -988,6 +994,7 @@ brickkit publish [flags]
 | `--public-key-ref <ref>` | The public key ref written into the signature, derived from `--key` (`.key` → `.pub`) by default |
 | `--signed-by <identifier>` | Signer identifier, such as `release-bot@example.com` |
 | `--no-pin-digest` | Don't pin the image tag to a digest (pinned by default; when skipped, the signature stays valid if the same tag is replaced on the registry) |
+| `--skip-checks` | Don't run the component's `release.checks`; the output says they were skipped |
 
 ```bash
 brickkit publish --path ./components/people/basic

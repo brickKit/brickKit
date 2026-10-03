@@ -734,3 +734,31 @@ func TestConfigPropertyMount(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseChecksAreArgvLists(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+"release:\n  checks:\n    - [make, test]\n    - [./scripts/conformance.sh, --strict]\n"), "component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"make", "test"}, {"./scripts/conformance.sh", "--strict"}}, m.ReleaseChecks())
+
+	m, err = Parse([]byte(minimalYAML), "component.yaml")
+	require.NoError(t, err)
+	assert.Empty(t, m.ReleaseChecks(), "不写 release 就没有检查")
+}
+
+// 最容易写错的是把一条命令写成一个字符串，或者只写了一层数组：报在那一项上，说清楚要两层。
+func TestReleaseChecksShapeMistakesAreNamed(t *testing.T) {
+	for name, tc := range map[string]struct{ yaml, field string }{
+		"一条命令写成字符串": {"release:\n  checks: [\"make test\"]\n", "release.checks[0]"},
+		"只有一层数组":    {"release:\n  checks: [make, test]\n", "release.checks[0]"},
+		"checks 不是数组": {"release:\n  checks: make test\n", "release.checks"},
+		"空命令":       {"release:\n  checks: [[]]\n", "release.checks[0]"},
+		"空参数":       {"release:\n  checks: [[make, \"\"]]\n", "release.checks[0][1]"},
+		"没写 checks":  {"release: {}\n", "release.checks"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Parse([]byte(minimalYAML+tc.yaml), "component.yaml")
+			require.Error(t, err)
+			assert.Contains(t, clierr.As(err).Format(), tc.field)
+		})
+	}
+}

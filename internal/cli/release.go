@@ -24,7 +24,7 @@ import (
 
 func newReleaseCommand(opts *Options) *cobra.Command {
 	var path string
-	var local bool
+	var local, skipChecks bool
 	var notes notesFlags
 	cmd := &cobra.Command{
 		Use:     "release",
@@ -44,22 +44,23 @@ func newReleaseCommand(opts *Options) *cobra.Command {
 					return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliReleaseNotesWithLocal)).
 						WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliReleaseHintNotesWithLocal))
 				}
-				return runReleaseLocal(opts)
+				return runReleaseLocal(opts, skipChecks)
 			}
 			text, err := notes.read(cmd, opts)
 			if err != nil {
 				return err
 			}
-			return runRelease(opts, path, text)
+			return runRelease(opts, path, text, skipChecks)
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", ".", i18n.T(msgid.CliReleaseFlagPath))
 	cmd.Flags().BoolVar(&local, "local", false, i18n.T(msgid.CliReleaseFlagLocal))
+	cmd.Flags().BoolVar(&skipChecks, "skip-checks", false, i18n.T(msgid.CliReleaseFlagSkipChecks))
 	notes.register(cmd)
 	return cmd
 }
 
-func runRelease(opts *Options, path, notes string) error {
+func runRelease(opts *Options, path, notes string, skipChecks bool) error {
 	dir := path
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkDir, dir)
@@ -76,6 +77,9 @@ func runRelease(opts *Options, path, notes string) error {
 		return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleased, target.Ref(), target.Tag)).
 			WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
 	}
+	if err := runReleaseChecks(opts, target.Dir, target.Ref(), target.Manifest, skipChecks); err != nil {
+		return err
+	}
 	target.Notes = notes
 	if err := target.Publish(); err != nil {
 		return err
@@ -87,10 +91,11 @@ func runRelease(opts *Options, path, notes string) error {
 	return nil
 }
 
-// runReleaseLocal 发布项目本地源里的每一个组件。先把所有组件都检查一遍，
-// 全部通过才打第一个 tag——检查阶段发现的问题不留任何痕迹；打 tag 阶段遇到推送失败立即停：
-// 之前发布的保留，这一个回滚，之后的没动过。已经发布过（tag 就在当前提交上）的跳过。
-func runReleaseLocal(opts *Options) error {
+// runReleaseLocal 发布项目本地源里的每一个组件。先把所有组件都检查一遍（平台的检查，再是
+// 每个组件自己的 release.checks），全部通过才打第一个 tag——检查阶段发现的问题不留任何痕迹；
+// 打 tag 阶段遇到推送失败立即停：之前发布的保留，这一个回滚，之后的没动过。
+// 已经发布过（tag 就在当前提交上）的跳过，它的检查也不跑。
+func runReleaseLocal(opts *Options, skipChecks bool) error {
 	layout := project.NewLayout(opts.WorkDir)
 	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
@@ -138,6 +143,12 @@ func runReleaseLocal(opts *Options) error {
 		}
 		pending = append(pending, target)
 	}
+	// 平台的检查都过了才跑组件自己的：它们可能要跑好几分钟，不该为一个没提交的改动白跑
+	for _, target := range pending {
+		if err := runReleaseChecks(opts, target.Dir, target.Ref(), target.Manifest, skipChecks); err != nil {
+			return err
+		}
+	}
 
 	for i, target := range pending {
 		if err := target.Publish(); err != nil {
@@ -157,5 +168,26 @@ func runReleaseLocal(opts *Options) error {
 		return nil
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliReleaseLocalSummary, i18n.Count(msgid.CountComponents, len(pending))))
+	return nil
+}
+
+// runReleaseChecks 跑一个组件在 component.yaml 里声明的发布前检查（release.checks），release 与 publish 共用；
+// 没声明就什么都不说。--skip-checks 时一条都不跑，但要说一声：跳过是使用者的决定，不能悄悄发生。
+func runReleaseChecks(opts *Options, dir, ref string, m *manifest.Manifest, skip bool) error {
+	checks := m.ReleaseChecks()
+	if len(checks) == 0 {
+		return nil
+	}
+	if skip {
+		opts.Printf("%s\n", i18n.T(msgid.CliReleaseChecksSkipped, ref))
+		return nil
+	}
+	err := release.RunChecks(dir, opts.display(dir), ref, checks, func(argv []string) {
+		opts.Printf("%s\n", i18n.T(msgid.CliReleaseCheckRunning, ref, strings.Join(argv, " ")))
+	}, opts.Stdout, opts.Stderr)
+	if err != nil {
+		return err
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliReleaseChecksPassed, ref))
 	return nil
 }
