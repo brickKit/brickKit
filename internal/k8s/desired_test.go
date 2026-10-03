@@ -48,7 +48,7 @@ func TestDesiredCoversEveryConditionalKind(t *testing.T) {
 		"deployment/portal-web-1-0-0",
 		"service/portal-web-1-0-0",
 		"poddisruptionbudget/portal-web-1-0-0",
-		"ingress/portal-web-1-0-0",
+		"ingress/portal-web",
 		"job/portal-web-1-0-0-migration",
 	}, result.Desired)
 }

@@ -64,11 +64,11 @@ func TestIngressGenerated(t *testing.T) {
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
 		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
-	doc := b.doc("ingress/portal-user-frontend-1-0-0.yaml")
+	doc := b.doc("ingress/portal-user-frontend.yaml")
 
 	assert.Equal(t, "networking.k8s.io/v1", doc["apiVersion"], "16.5")
 	assert.Equal(t, "Ingress", doc["kind"], "16.5")
-	assert.Equal(t, "portal-user-frontend-1-0-0", dig(t, doc, "metadata", "name"))
+	assert.Equal(t, "portal-user-frontend", dig(t, doc, "metadata", "name"), "默认版本的 Ingress 名字不带版本号：升级时原地更新")
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
 
 	rules, ok := dig(t, doc, "spec", "rules").([]any)
@@ -93,7 +93,7 @@ func TestNoIngressWithoutExpose(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
-	assert.False(t, hasFile(b.generate(), "ingress/people-basic-1-0-0.yaml"), "16.6")
+	assert.False(t, hasFile(b.generate(), "ingress/people-basic.yaml"), "16.6")
 }
 
 // expose: true 但没写 hostname：K8s 下必须报错。
@@ -355,11 +355,11 @@ func TestComponentsShareAHostnameByPaths(t *testing.T) {
 
 	assert.Equal(t, []any{
 		map[string]any{"path": "/", "pathType": "Prefix", "backend": backend("portal-web-1-0-0", 80)},
-	}, pathsOf("ingress/portal-web-1-0-0.yaml"))
+	}, pathsOf("ingress/portal-web.yaml"))
 	assert.Equal(t, []any{
 		map[string]any{"path": "/api/sales", "pathType": "Prefix", "backend": backend("erp-sales-1-0-0", 8080)},
 		map[string]any{"path": "/webhooks/sales", "pathType": "Prefix", "backend": backend("erp-sales-1-0-0", 8080)},
-	}, pathsOf("ingress/erp-sales-1-0-0.yaml"))
+	}, pathsOf("ingress/erp-sales.yaml"))
 }
 
 // 同一个域名下的同一条路径被两个组件占了：报错，点名域名加路径和两个组件，并给出"各写各的 paths"这条出路。
@@ -408,4 +408,28 @@ func TestSharedHostnameNeedsOneTLSSecret(t *testing.T) {
 
 	require.NoError(t, build("app-tls", "app-tls"))
 	require.NoError(t, build("", ""))
+}
+
+// Ingress 的名字：项目里的默认版本用组件 ID、不带版本号——升级时名字不变，原地改后端；只因别的组件依赖才在
+// 项目里的兼容版本用版本化服务名，和默认版本的那份分开。后端 Service 始终是版本化服务名。
+func TestIngressNameIsStableForTheDefaultVersion(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/web", "2.0.0", 80),
+		projecttest.Entry{Expose: true, Hostname: "app.example.com"})
+	b.component(simple("portal/web", "1.0.0", 80),
+		projecttest.Entry{Expose: true, Hostname: "old.example.com"})
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "portal/web", "1.0.0"), projecttest.Entry{})
+
+	backendOf := func(file string) any {
+		doc := b.doc(file)
+		rules := dig(t, doc, "spec", "rules").([]any)
+		paths := dig(t, rules[0], "http", "paths").([]any)
+		return dig(t, paths[0], "backend", "service", "name")
+	}
+
+	assert.Equal(t, "portal-web", dig(t, b.doc("ingress/portal-web.yaml"), "metadata", "name"))
+	assert.Equal(t, "portal-web-2-0-0", backendOf("ingress/portal-web.yaml"))
+	assert.Equal(t, "portal-web-1-0-0", dig(t, b.doc("ingress/portal-web-1-0-0.yaml"), "metadata", "name"))
+	assert.Equal(t, "portal-web-1-0-0", backendOf("ingress/portal-web-1-0-0.yaml"))
+	assert.Contains(t, b.generate().Desired, "ingress/portal-web")
 }

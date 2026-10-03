@@ -114,7 +114,7 @@ func TestIngressClassName(t *testing.T) {
 		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	assert.Equal(t, "nginx",
-		dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec", "ingressClassName"))
+		dig(t, b.doc("ingress/portal-user-frontend.yaml"), "spec", "ingressClassName"))
 }
 
 // 注解是留给集群侧能力的口子：cert-manager 签证书、nginx 调 body size……
@@ -128,7 +128,7 @@ func TestIngressAnnotations(t *testing.T) {
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
 		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
-	annotations := dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "metadata", "annotations")
+	annotations := dig(t, b.doc("ingress/portal-user-frontend.yaml"), "metadata", "annotations")
 
 	assert.Equal(t, "letsencrypt-prod", dig(t, annotations, "cert-manager.io/cluster-issuer"))
 	assert.Equal(t, "50m", dig(t, annotations, "nginx.ingress.kubernetes.io/proxy-body-size"))
@@ -141,7 +141,7 @@ func TestIngressTLS(t *testing.T) {
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
 		projecttest.Entry{Expose: true, Hostname: "portal.example.com", TLSSecret: "portal-tls"})
 
-	tls := dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec", "tls")
+	tls := dig(t, b.doc("ingress/portal-user-frontend.yaml"), "spec", "tls")
 
 	assert.Equal(t, []any{map[string]any{
 		"hosts":      []any{"portal.example.com"},
@@ -154,7 +154,7 @@ func TestNoTLSByDefault(t *testing.T) {
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
 		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
-	assert.NotContains(t, dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec"), "tls")
+	assert.NotContains(t, dig(t, b.doc("ingress/portal-user-frontend.yaml"), "spec"), "tls")
 }
 
 // 这些字段都只对 Ingress 有意义，不该漏进别的清单。

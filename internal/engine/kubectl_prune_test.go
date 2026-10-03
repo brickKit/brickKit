@@ -438,3 +438,61 @@ func TestKubectlUpPrunesRemovedComponent(t *testing.T) {
 	assert.NotContains(t, command, "demo-hello-2-0-0",
 		"还在配置里的组件绝不能被一起删")
 }
+
+// ============================================================
+// Ingress：等新版本就绪再切，切之前先清掉占着路由的旧 Ingress
+// ============================================================
+
+// Ingress 在滚动更新完成之后才下发。
+//
+// 默认版本的 Ingress 名字不带版本号，升级是原地改它的后端。和别的清单一起下发的话，流量在新版本的 Pod
+// 还没就绪时就切了过去；滚动更新失败时，路由也已经指向了起不来的那一版。
+func TestKubectlUpAppliesIngressAfterRollout(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	commands := rec.commands()
+	rollout := indexOfCommand(commands, "rollout status")
+	ingress := indexOfCommand(commands, "apply -f /p/.brickkit/generated/k8s/ingress")
+	require.NotEqual(t, -1, rollout, "%v", commands)
+	require.NotEqual(t, -1, ingress, "%v", commands)
+	assert.Less(t, rollout, ingress, "新版本就绪之后才切路由")
+}
+
+// 不属于这次部署的 Ingress 要在下发新的之前删掉，而且那一趟只删 Ingress。
+//
+// nginx-ingress 的准入检查不允许同一个域名的同一条路径出现在两份 Ingress 里：旧的那份（组件不再对外、
+// 域名换了主人，或者是旧版 CLI 按版本号命名留下的）还在，新的那份就下发不了，up 失败且再跑还是失败——
+// 在 minikube 上真跑撞到的。其余类型的孤儿仍然等到最后才删：旧版本的 Deployment 要撑到路由切走。
+func TestKubectlUpRemovesStaleIngressBeforeApplyingIngress(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-1-0-0",
+		"ingress.networking.k8s.io/demo-hello-1-0-0",
+		"ingress.networking.k8s.io/demo-hello",
+	)
+
+	req := pruneRequest()
+	req.Desired = append(req.Desired, "ingress/demo-hello")
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
+
+	commands := rec.commands()
+	staleIngress := indexOfCommand(commands, "delete ingress.networking.k8s.io/demo-hello-1-0-0")
+	applyIngress := indexOfCommand(commands, "apply -f /p/.brickkit/generated/k8s/ingress")
+	oldDeployment := indexOfCommand(commands, "delete deployment.apps/demo-hello-1-0-0")
+	require.NotEqual(t, -1, staleIngress, "%v", commands)
+	require.NotEqual(t, -1, applyIngress, "%v", commands)
+	require.NotEqual(t, -1, oldDeployment, "%v", commands)
+
+	assert.Less(t, indexOfCommand(commands, "rollout status"), staleIngress, "新版本就绪之前不动路由")
+	assert.Less(t, staleIngress, applyIngress, "先删占着路由的旧 Ingress，再下发新的")
+	assert.Less(t, applyIngress, oldDeployment, "路由切走之后才删旧版本的 Deployment")
+	assert.NotContains(t, commands[staleIngress], "deployment.apps", "清 Ingress 的那一趟只删 Ingress")
+	for _, command := range commands {
+		if strings.Contains(command, "delete") {
+			assert.NotContains(t, command, "ingress.networking.k8s.io/demo-hello ", "名字没变的那份是原地更新，不是孤儿")
+			assert.False(t, strings.HasSuffix(command, "ingress.networking.k8s.io/demo-hello"), "同上")
+		}
+	}
+}

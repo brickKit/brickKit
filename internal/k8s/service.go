@@ -110,7 +110,7 @@ func (p *plan) ingressDoc(e exposedEntry) map[string]any {
 		"apiVersion": "networking.k8s.io/v1",
 		"kind":       "Ingress",
 		"metadata": map[string]any{
-			"name":      e.Service,
+			"name":      e.Name,
 			"namespace": p.namespace,
 			"labels": map[string]any{
 				labelApp:              e.Service,
@@ -136,7 +136,28 @@ func (p *plan) checkHostnames() error {
 	if err := p.checkRouteUnique(); err != nil {
 		return err
 	}
+	if err := p.checkIngressNameUnique(); err != nil {
+		return err
+	}
 	return p.checkTLSSecretPerHost()
+}
+
+// checkIngressNameUnique 拦下两个对外的组件版本算出同一个 Ingress 名字。
+//
+// 默认版本的名字是组件 ID（demo-web），兼容版本的是版本化服务名（demo-web-1-0-0）；只有 ID 本身以 -数字-数字-数字
+// 结尾（demo/web-1-0-0）才会撞上别的组件的版本化服务名。几乎不会发生，但发生时是一份 Ingress 悄悄盖掉另一份。
+func (p *plan) checkIngressNameUnique() error {
+	seen := map[string]resolver.Ref{}
+	for _, e := range p.exposed() {
+		if prev, dup := seen[e.Name]; dup {
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sIngressNameConflict, e.Name)).
+				WithDetail(i18n.T(msgid.LabelComponent), prev.String()).
+				WithDetail(i18n.T(msgid.LabelComponent), e.Ref.String()).
+				WithHint(i18n.T(msgid.K8sHintDropExpose))
+		}
+		seen[e.Name] = e.Ref
+	}
+	return nil
 }
 
 // checkHostnamePresent 拦下 expose: true 却没写 hostname 的组件。

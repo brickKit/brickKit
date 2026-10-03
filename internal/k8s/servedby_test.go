@@ -393,14 +393,14 @@ func TestShellPublishesExposedMemberThroughMemberService(t *testing.T) {
 	member.Expose, member.Hostname, member.TLSSecret = true, "m.example.com", "m-tls"
 	b.component(simple("infra/bff-mobile", "1.0.0", 8085), member)
 
-	doc := b.doc("ingress/infra-bff-mobile-1-0-0.yaml")
+	doc := b.doc("ingress/infra-bff-mobile.yaml")
 	rule := dig(t, doc, "spec", "rules").([]any)[0].(map[string]any)
 	assert.Equal(t, "m.example.com", rule["host"])
 	backend := dig(t, rule, "http", "paths").([]any)[0].(map[string]any)["backend"].(map[string]any)["service"].(map[string]any)
 	assert.Equal(t, "infra-bff-mobile-1-0-0", backend["name"], "指向成员自己的 Service，由它选中外壳的 Pod")
 	assert.Equal(t, map[string]any{"number": 8085}, backend["port"])
 	assert.Equal(t, "m-tls", dig(t, doc, "spec", "tls").([]any)[0].(map[string]any)["secretName"])
-	assert.False(t, hasFile(b.generate(), "ingress/infra-shell-go-core-1-0-0.yaml"), "外壳自己没写 expose")
+	assert.False(t, hasFile(b.generate(), "ingress/infra-shell-go-core.yaml"), "外壳自己没写 expose")
 }
 
 // 开了 NetworkPolicy 时，外壳 Pod 的策略要放 ingress controller 进成员的主端口，否则域名能解析、请求进不来。

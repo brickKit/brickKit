@@ -553,7 +553,7 @@ func TestHardenedProjectGeneratesFullSet(t *testing.T) {
 	for _, path := range []string{
 		"deployments/portal-user-frontend-1-0-0.yaml",
 		"services/portal-user-frontend-1-0-0.yaml",
-		"ingress/portal-user-frontend-1-0-0.yaml",
+		"ingress/portal-user-frontend.yaml",
 		npPath("portal-user-frontend-1-0-0"),
 		saPath("portal-user-frontend-1-0-0"),
 	} {

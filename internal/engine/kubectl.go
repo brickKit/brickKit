@@ -81,6 +81,12 @@ var applyOrder = []string{
 // migrationsDir 在 applyOrder 里要走一条特殊路径（清理 → apply → 等待）。
 const migrationsDir = "migrations"
 
+// ingressDir 也走一条特殊路径：等滚动更新完成之后才下发（见 switchIngress）。
+const (
+	ingressDir  = "ingress"
+	ingressKind = "ingress"
+)
+
 // Up 按顺序把清单交给集群。
 //
 // namespace 单独处理：它不在子目录里，且必须最先 apply——别的东西都得放进去。
@@ -96,20 +102,48 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 	}
 
 	for _, dir := range applyOrder {
-		if dir == migrationsDir {
+		switch dir {
+		case migrationsDir:
 			if err := k.runMigrations(ctx, req); err != nil {
 				return err
 			}
-			continue
-		}
-		if err := k.applyDir(ctx, req.Project, req.File, dir); err != nil {
-			return err
+		case ingressDir:
+			// 等新版本就绪之后再切（switchIngress）
+		default:
+			if err := k.applyDir(ctx, req.Project, req.File, dir); err != nil {
+				return err
+			}
 		}
 	}
 	if err := k.waitRollout(ctx, req); err != nil {
 		return err
 	}
-	return k.prune(ctx, req)
+	if err := k.switchIngress(ctx, req); err != nil {
+		return err
+	}
+	return k.prune(ctx, req, pruneKinds)
+}
+
+// switchIngress 把对外的路由切到这次部署上：先删掉不再属于这次部署的 Ingress，再下发这次的。
+//
+// # 为什么在滚动更新之后
+//
+// 默认版本的 Ingress 名字不带版本号（k8s 包的 ingressName），升级时是原地改它的后端。要是和别的清单一起下发，
+// 流量在新版本的 Pod 还没就绪时就切了过去——一段 503。等 waitRollout 返回再切：新版本已经在接流量，
+// 旧版本的 Deployment 要到后面的 prune 才删，中间没有空档。滚动更新失败时这一步根本不会执行，
+// 路由仍指着旧版本。
+//
+// # 为什么先删再下发
+//
+// 一个域名下的一条路径只能在一份 Ingress 里：nginx-ingress 的准入检查会拒绝第二份
+// （host … and path … is already defined in ingress …）。留在集群里的那份不属于这次部署的 Ingress
+// ——组件不再对外、域名给了另一个组件、或者是旧版 CLI 按版本号命名留下的——占着同一条路由时，
+// 新的那份就下发不了，`up` 失败且再跑还是失败。所以先把孤儿清掉；被原地更新的 Ingress 名字没变，不是孤儿。
+func (k *Kubectl) switchIngress(ctx context.Context, req UpRequest) error {
+	if err := k.prune(ctx, req, []string{ingressKind}); err != nil {
+		return err
+	}
+	return k.applyDir(ctx, req.Project, req.File, ingressDir)
 }
 
 // pruneKinds 是会被清理的资源类型。
@@ -140,12 +174,14 @@ var pruneKinds = []string{
 //
 // 时机在滚动更新**之后**：先让新版本就绪再删旧的，
 // 否则升级过程中会有一段谁都服务不了。
-func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
+//
+// kinds 是这一趟清理哪些类型：Ingress 单独先清一趟（switchIngress），其余在最后。
+func (k *Kubectl) prune(ctx context.Context, req UpRequest, kinds []string) error {
 	if req.PruneSelector == "" {
 		return nil
 	}
 
-	out, err := k.exec(ctx, k.args(req.Project, "get", strings.Join(pruneKinds, ","),
+	out, err := k.exec(ctx, k.args(req.Project, "get", strings.Join(kinds, ","),
 		"-l", req.PruneSelector, "-o", "name")...)
 	if err != nil {
 		// 部署已经成功了，清理只是收尾。因为查不到集群状态就把一次成功的 up
@@ -154,7 +190,7 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 		return nil
 	}
 
-	orphans := orphansIn(string(out), setOf(req.Desired))
+	orphans := orphansIn(string(out), setOf(req.Desired), setOf(kinds))
 	if len(orphans) == 0 {
 		return nil
 	}
@@ -209,7 +245,10 @@ func normalizeRef(line string) (string, bool) {
 // 而它当时确实只填了 PDB 一个。带上类型之后例外表整个消失。
 //
 // 删除时要用**整行原文**（带 API 组），归一化后的形式只用于比对。
-func orphansIn(out string, desired map[string]bool) []string {
+//
+// kinds 是这一趟问的类型：只认这些类型的行。kubectl 本来就只返回问到的类型，这里再守一道——
+// 清 Ingress 的那一趟要是把别的类型也算成孤儿，就会在新版本就绪之前删掉还在服务的 Deployment。
+func orphansIn(out string, desired, kinds map[string]bool) []string {
 	var orphans []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -218,6 +257,9 @@ func orphansIn(out string, desired map[string]bool) []string {
 		}
 		ref, ok := normalizeRef(line)
 		if !ok {
+			continue
+		}
+		if kind, _, _ := strings.Cut(ref, "/"); !kinds[kind] {
 			continue
 		}
 		if !desired[ref] {

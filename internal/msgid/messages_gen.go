@@ -541,6 +541,7 @@ const (
 	K8sHintChangeHostname                                      ID = "k8s.hint.change_hostname"
 	K8sHintSplitByPaths                                        ID = "k8s.hint.split_by_paths"
 	K8sTLSSecretConflict                                       ID = "k8s.tls_secret_conflict"
+	K8sIngressNameConflict                                     ID = "k8s.ingress_name_conflict"
 	K8sTLSSecretNone                                           ID = "k8s.tls_secret_none"
 	K8sHintSameTLSSecret                                       ID = "k8s.hint.same_tls_secret"
 	K8sHintDropExpose                                          ID = "k8s.hint.drop_expose"

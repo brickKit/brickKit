@@ -599,6 +599,7 @@ k8s.hostname_conflict_reason_detail: "每个 expose 的组件都按它的 hostna
 k8s.hint.change_hostname: "在部署文件里给其中一个组件换一个 hostname"
 k8s.hint.split_by_paths: "或者共用这个 hostname，各写各的 paths（paths: [/api/sales]）——没写 paths 的那个接其余的全部"
 k8s.tls_secret_conflict: "错误：共用域名 %[1]s 的条目写的 tlsSecret 不一样"
+k8s.ingress_name_conflict: "错误：两个对外开放的组件算出了同一个 Ingress 名字 %[1]s"
 k8s.tls_secret_none: "（没写）"
 k8s.hint.same_tls_secret: "一个域名只有一张证书：共用这个 hostname 的条目都写同一个 tlsSecret，或者都不写"
 k8s.hint.drop_expose: "或去掉其中一个组件的 expose: true（组件之间在集群内互访不需要 expose）"

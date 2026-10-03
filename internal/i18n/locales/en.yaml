@@ -600,6 +600,7 @@ k8s.hostname_conflict_reason_detail: "Every exposed component generates Ingress 
 k8s.hint.change_hostname: "In the deploy file, give one of the components a different hostname"
 k8s.hint.split_by_paths: "Or keep the hostname and give each a different paths (paths: [/api/sales]) — the one without paths takes everything else"
 k8s.tls_secret_conflict: "Error: the entries sharing domain %[1]s don't name the same tlsSecret"
+k8s.ingress_name_conflict: "Error: two exposed components would both get the Ingress named %[1]s"
 k8s.tls_secret_none: "(none)"
 k8s.hint.same_tls_secret: "A domain has one certificate: write the same tlsSecret on every entry that shares the hostname, or on none of them"
 k8s.hint.drop_expose: "Or remove expose: true from one of them (components reach each other inside the cluster without expose)"

@@ -73,7 +73,7 @@ func TestDirectoryLayout(t *testing.T) {
 	assert.Equal(t, []string{
 		"deployments/people-basic-1-0-0.yaml",
 		"deployments/portal-user-frontend-1-0-0.yaml",
-		"ingress/portal-user-frontend-1-0-0.yaml",
+		"ingress/portal-user-frontend.yaml",
 		"migrations/people-basic-1-0-0-migration.yaml",
 		"namespace.yaml",
 		"secrets/config-secrets.yaml",
@@ -126,7 +126,7 @@ func TestLabelsNotOnServiceIngressOrJob(t *testing.T) {
 
 	for _, path := range []string{
 		"services/erp-sales-1-0-0.yaml",
-		"ingress/erp-sales-1-0-0.yaml",
+		"ingress/erp-sales.yaml",
 		"migrations/erp-sales-1-0-0-migration.yaml",
 	} {
 		annotations, ok := dig(t, b.doc(path), "metadata", "annotations").(map[string]any)

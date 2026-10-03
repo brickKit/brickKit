@@ -219,7 +219,7 @@ func Generate(
 	}
 	for _, e := range p.exposed() {
 		if err := p.emit(result, proj, now,
-			dirIngress+"/"+e.Service+".yaml", p.ingressDoc(e)); err != nil {
+			dirIngress+"/"+e.Name+".yaml", p.ingressDoc(e)); err != nil {
 			return nil, err
 		}
 	}
