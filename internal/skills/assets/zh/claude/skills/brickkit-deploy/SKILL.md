@@ -84,7 +84,7 @@ docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的�
 | `DB_PASSWORD: ${DB_PASSWORD}` | 进程环境，其次项目根的 `.env`（不进 Git）；`${DB_PASSWORD:-dev}` 带默认值，`${VAR:-}` 表示可以为空 |
 | `TLS_CERT: file://.secrets/cert.pem` | 文件内容，路径相对项目根（`.secrets/` 不进 Git） |
 | `DB_PASSWORD: { existingSecret: db, key: password }` | 集群里已有的 Secret，仅 K8s、仅 `secret: true` 的键 |
-| `IAM_URL: $endpoint:infra/iam/.well-known/jwks.json` | 另一个组件的地址（可接路径）：`$endpoint:<id>[@<版本>][:<端口名>][/路径]`，与 `*_ENDPOINT` 同一条规则算（带版本号，跟着外壳与本机进程改写）。组件用地址配置项而不是依赖时（槽位家族）用它，几个组件共用就写在 `vars.yaml`。不进启动顺序，可以成环；目标跟着引用它的组件跑，没跑时可选项不注入、必填项报错 |
+| `IAM_JWKS_URL: $endpoint:infra/iam/.well-known/jwks.json` | 另一个组件的地址（可接路径）：`$endpoint:<id>[@<版本>][:<端口名>][/路径]`，与 `*_ENDPOINT` 同一条规则算（带版本号，跟着外壳与本机进程改写）。组件用地址配置项而不是依赖时（槽位家族）用它，几个组件共用就写在 `vars.yaml`。不进启动顺序，可以成环；目标跟着引用它的组件跑，没跑时可选项不注入、必填项报错 |
 
 `$var:NAME` 冒号后**没有空格**——写成 `$var: NAME` 是 YAML 映射，不是引用。
 

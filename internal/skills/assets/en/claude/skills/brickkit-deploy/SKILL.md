@@ -93,7 +93,7 @@ DB_HOST: $var:DB_HOST                  # from config/vars.yaml, overridden by th
 DB_PASSWORD: ${DB_PASSWORD}            # process environment, then .env (never committed)
 TLS_CERT: file://.secrets/cert.pem     # file contents, path relative to the project root
 API_TOKEN: { existingSecret: api, key: token }   # K8s only, secret keys only
-IAM_URL: $endpoint:infra/iam/.well-known/jwks.json   # another component's address (+ optional path)
+IAM_JWKS_URL: $endpoint:infra/iam/.well-known/jwks.json   # another component's address (+ optional path)
 ```
 
 `$endpoint:<id>[@<version>][:<port name>][/path]` is worked out like `*_ENDPOINT` (versioned service
