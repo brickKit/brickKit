@@ -185,6 +185,10 @@ What every release of this component must pass (tests, a conformance suite) goes
 not in a habit: `release: {checks: [[go, test, ./...], [./scripts/conformance.sh]]}`. Each check is
 argv (no shell — put pipes and `&&` in a script), run in the component directory after the checks
 above; the first non-zero exit stops the release with `RELEASE_CHECK_FAILED` and nothing tagged.
+A check must only report, never fix: after the checks `release` makes sure the component directory
+is still clean and the current commit is the same, and refuses (`RELEASE_BLOCKED`) otherwise — a tag
+must hold what was checked. Use `gofmt -l`, not `gofmt -w`; put what a check leaves behind (build
+output, coverage reports) in `.gitignore`.
 `publish` runs the same checks before uploading. `--skip-checks` skips them and the output says so —
 don't reach for it to get past a failing check; fix what it reports.
 

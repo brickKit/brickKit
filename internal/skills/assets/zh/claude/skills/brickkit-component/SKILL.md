@@ -183,7 +183,9 @@ monorepo 子目录里的组件是 `<scope>-<name>/1.2.0`。组件仓库里自己
 这个组件每次发布都必须通过的东西（测试、一致性套件）写进 `component.yaml`，别靠习惯：
 `release: {checks: [[go, test, ./...], [./scripts/conformance.sh]]}`。每条检查是 argv（不经 shell——
 管道、`&&` 写进脚本），在上面那些检查之后、在组件目录下执行；第一条非零退出就停止发布
-（`RELEASE_CHECK_FAILED`），什么都没打。`publish` 上传之前跑同样的检查。`--skip-checks` 跳过它们，
+（`RELEASE_CHECK_FAILED`），什么都没打。检查只能报告、不能动手改：检查跑完之后 `release` 会确认组件目录
+仍然干净、当前提交没变，否则拒绝（`RELEASE_BLOCKED`）——tag 装的必须是检查过的内容。用 `gofmt -l`，
+不用 `gofmt -w`；检查留下的产物（构建输出、覆盖率报告）写进 `.gitignore`。`publish` 上传之前跑同样的检查。`--skip-checks` 跳过它们，
 输出里会写明——别拿它绕过一条没过的检查，按它说的改好。
 
 发版说明可写可不写，但使用方升级前读的就是它：`brickkit release --notes-file <文件>`（或

@@ -158,4 +158,5 @@ K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`no
 | `release.checks` | 字符串列表的列表 | ✅（写了 `release` 时） | 要按顺序跑的命令；每条是一个数组——程序，然后是参数——不能有空项；第一项含路径分隔符时相对组件目录 |
 
 每条都在组件目录下执行，不经过 shell，环境变量用终端里的那一份；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），
-`--skip-checks` 不跑它们。`add`、`fetch`、`up` 从不执行它。见[发布](../03-component-guide/07-release-workflow.md#你自己的检查releasechecks)。
+`--skip-checks` 不跑它们。全部通过之后，`release` 还要确认它们没有改动组件目录——没有未提交的改动、当前提交没变——
+否则拒绝发布（`RELEASE_BLOCKED`）。`add`、`fetch`、`up` 从不执行它。见[发布](../03-component-guide/07-release-workflow.md#你自己的检查releasechecks)。

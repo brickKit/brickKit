@@ -123,7 +123,9 @@ docker / podman 用就留着，否则删掉。
 **16. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED` / `RELEASE_CHECK_FAILED`。**
 
 被拒是发布前检查没过，什么都没写：组件目录有未提交的改动、当前分支没有上游或有未推送的提交、tag 已存在
-（该升 `metadata.version` 了）。推送失败时本地 tag 已经删掉，解决远端原因后原样重试。`RELEASE_CHECK_FAILED`
+（该升 `metadata.version` 了）；或者"发布前检查跑完之后有未提交的改动"——`release.checks` 里的某条命令改写了
+已跟踪的文件或留下了新文件：把它改动的提交、推送后重来，或者让检查只报告不改、产物写进 `.gitignore`。
+推送失败时本地 tag 已经删掉，解决远端原因后原样重试。`RELEASE_CHECK_FAILED`
 是组件自己 `release.checks` 里的某条命令非零退出或没能运行：读错误上方它自己的输出、改好；"没能运行"是 argv 写错了
 （每项一个参数、不经 shell）或者脚本没有执行权限。
 

@@ -828,7 +828,9 @@ brickkit restore --check   # 只检查这次提交自洽不自洽
 - 当前分支有上游、没有未推送的提交：打 tag 的提交必须已经在远端历史里；
 - 这个 tag 还不存在（本地和远端都查）；
 - 组件自己的检查通过：`component.yaml` 里 `release.checks` 的每一条命令在组件目录下执行，不经过 shell，输出实时显示；
-  第一条非零退出就停止发布（`--skip-checks` 不跑它们，并且会说出来——见[发布](../03-component-guide/07-release-workflow.md#你自己的检查releasechecks)）。
+  第一条非零退出就停止发布（`--skip-checks` 不跑它们，并且会说出来——见[发布](../03-component-guide/07-release-workflow.md#你自己的检查releasechecks)）；
+- 这些检查跑完，组件目录和跑之前一样：仍然没有未提交的改动，当前提交也没变——检查要是改写了已跟踪的文件，
+  tag 装的就不是检查过的内容了。
 
 然后打 tag 并推送。推送失败时删掉本地 tag——发布要么完整做完，要么不留痕迹。组件目录是仓库根时 tag 是 `<版本>`，是子目录时是
 `<scope>-<name>/<版本>`——正是 git 安装源读取的名字。

@@ -193,7 +193,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../.
 - A manifest is read from, in order: the project's permanent cache `.brickkit/manifests/` → the local bare repository → an incremental fetch → a first clone.
 - The CLI does no authentication of its own; `git`'s errors are passed through verbatim.
 - `brickkit release`: check → tag → push, deleting the tag if the push fails; `--local` releases the components in local sources, stopping at the first failure.
-- A component may declare `release.checks` in `component.yaml`: commands (argv, no shell) that `release` and `publish` run in its directory before tagging or uploading; the first non-zero exit stops the release (`RELEASE_CHECK_FAILED`), `--skip-checks` skips them and says so. `add` / `fetch` never run them.
+- A component may declare `release.checks` in `component.yaml`: commands (argv, no shell) that `release` and `publish` run in its directory before tagging or uploading; the first non-zero exit stops the release (`RELEASE_CHECK_FAILED`), and so does a check that leaves the component directory changed or makes a commit (`RELEASE_BLOCKED`: a tag must hold what was checked); `--skip-checks` skips them and says so. `add` / `fetch` never run them.
 - Release notes are optional Markdown, kept verbatim: `release --notes` / `--notes-file` writes them into an annotated tag (the market keeps `publish --notes` as the version's changelog), and `upgrade`, `--dry-run` too, prints those of every version it crosses before changing anything. A local source has none.
 - A component market (`publish` / `login` / `logout`, `sources[].type: market`) is optional infrastructure that works alongside Git sources.
 

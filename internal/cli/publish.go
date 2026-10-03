@@ -120,9 +120,10 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	if len(pkg.docTranslations) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliPublishDocTranslationsIncluded, strings.Join(pkg.translationLangs(), i18n.T(msgid.ListSeparator))))
 	}
-	// 组件自己的发布前检查，同样在联网之前：版本号建出来就收不回，不能先建再发现套件没过
+	// 组件自己的发布前检查，同样在联网之前：版本号建出来就收不回，不能先建再发现套件没过。
+	// 检查跑完不用再核对目录（release 要核对）：上传的清单与文档在检查之前就读进了 pkg，检查改不到它们
 	m := pkg.manifest
-	if err := runReleaseChecks(opts, pkg.root, m.Metadata.ID+"@"+m.Metadata.Version, m, f.skipChecks); err != nil {
+	if _, err := runReleaseChecks(opts, pkg.root, m.Metadata.ID+"@"+m.Metadata.Version, m, f.skipChecks, nil); err != nil {
 		return err
 	}
 

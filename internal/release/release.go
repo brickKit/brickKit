@@ -44,8 +44,8 @@ type Target struct {
 	// Notes 是这个版本的发版说明（Markdown）：不是空白时写进带注释的 tag，使用者 upgrade 时看得到；
 	// 空着就打轻量 tag，跟从前一样。
 	Notes string
-	// remote 是当前分支的上游所在的远端（Check 时确定）。
-	remote string
+	// remote 是当前分支的上游所在的远端，head 是当前提交（都在 Check 时确定）。
+	remote, head string
 }
 
 // Prepare 读取并校验 dir 下的 component.yaml，定位它所在的 git 仓库。只读 component.yaml——
@@ -97,21 +97,13 @@ func (t *Target) Ref() string { return t.Manifest.Metadata.ID + "@" + t.Manifest
 //   - 当前分支有上游，且没有未推送的提交——tag 指向的提交必须已经在远端的分支历史里；
 //   - 这个 tag 不存在（本地与远端都查）。已经在当前提交上时返回 Released；在别的提交上是错误。
 func (t *Target) Check() (State, error) {
-	scope := "."
-	if t.Subpath != "" {
-		scope = t.Subpath
-	}
-	status, err := git(t.RepoRoot, "status", "--porcelain", "--", scope)
+	changed, err := t.uncommitted()
 	if err != nil {
-		return 0, t.gitFailed(err)
+		return 0, err
 	}
-	if status != "" {
-		e := clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseDirty, t.Ref())).
-			WithDetail(i18n.T(msgid.LabelDir), t.Display)
-		for _, line := range strings.Split(status, "\n") {
-			e = e.WithDetail(i18n.T(msgid.ReleaseLabelChanged), strings.TrimSpace(line))
-		}
-		return 0, e.WithHint(i18n.T(msgid.ReleaseHintCommit))
+	if len(changed) > 0 {
+		return 0, t.withChanged(clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseDirty, t.Ref())).
+			WithHint(i18n.T(msgid.ReleaseHintCommit)), changed)
 	}
 
 	branch, _ := git(t.RepoRoot, "symbolic-ref", "-q", "--short", "HEAD")
@@ -142,6 +134,7 @@ func (t *Target) Check() (State, error) {
 	if err != nil {
 		return 0, t.gitFailed(err)
 	}
+	t.head = head
 	local, remote, err := t.existingTag()
 	if err != nil {
 		return 0, err
@@ -164,6 +157,61 @@ func (t *Target) Check() (State, error) {
 		WithDetail(i18n.T(msgid.ReleaseLabelTagAt), short(at)).
 		WithDetail(i18n.T(msgid.ReleaseLabelHead), short(head)).
 		WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
+}
+
+// uncommitted 是组件目录里未提交的改动，git status --porcelain 的每一行（子目录组件只看自己的目录）。
+func (t *Target) uncommitted() ([]string, error) {
+	scope := "."
+	if t.Subpath != "" {
+		scope = t.Subpath
+	}
+	status, err := git(t.RepoRoot, "status", "--porcelain", "--", scope)
+	if err != nil {
+		return nil, t.gitFailed(err)
+	}
+	if status == "" {
+		return nil, nil
+	}
+	lines := strings.Split(status, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimSpace(line)
+	}
+	return lines, nil
+}
+
+// withChanged 在错误上写明是哪个目录、逐个列出改动。
+func (t *Target) withChanged(e *clierr.Error, changed []string) *clierr.Error {
+	e = e.WithDetail(i18n.T(msgid.LabelDir), t.Display)
+	for _, line := range changed {
+		e = e.WithDetail(i18n.T(msgid.ReleaseLabelChanged), line)
+	}
+	return e
+}
+
+// VerifyUnchanged 在组件自己的检查（release.checks）跑完之后、打 tag 之前调用：Check 看过的状态还在不在。
+// 检查命令可以做任何事——格式化器、生成器、依赖整理工具会改写已跟踪的文件，有的还会自己提交——
+// 而 tag 装的是提交：组件目录不干净，或者当前提交换了，检查时用的文件就不是要打 tag 的那些。
+// 先 Check：当前提交是它记下的。
+func (t *Target) VerifyUnchanged() error {
+	changed, err := t.uncommitted()
+	if err != nil {
+		return err
+	}
+	if len(changed) > 0 {
+		return t.withChanged(clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseDirtyAfterChecks, t.Ref())).
+			WithHint(i18n.T(msgid.ReleaseHintChecksChangedFiles)), changed)
+	}
+	head, err := git(t.RepoRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return t.gitFailed(err)
+	}
+	if head != t.head {
+		return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseHeadMovedAfterChecks, t.Ref())).
+			WithDetail(i18n.T(msgid.ReleaseLabelCheckedCommit), short(t.head)).
+			WithDetail(i18n.T(msgid.ReleaseLabelHead), short(head)).
+			WithHint(i18n.T(msgid.ReleaseHintHeadMoved))
+	}
+	return nil
 }
 
 // existingTag 返回 tag 在本地与远端各指向的提交；没有的一侧为空。远端总是要问：

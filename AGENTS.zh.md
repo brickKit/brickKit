@@ -177,7 +177,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
 - CLI 不处理鉴权，`git` 的报错原样透传。
 - `brickkit release`：校验 → 打 tag → 推送，推送失败删掉 tag；`--local` 批量发布本地源里的组件，遇到第一个失败就停。
-- 组件可以在 `component.yaml` 里声明 `release.checks`：`release` 与 `publish` 打 tag、上传之前在组件目录下跑的命令（argv，不经 shell）；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），`--skip-checks` 跳过并说出来。`add` / `fetch` 从不执行它。
+- 组件可以在 `component.yaml` 里声明 `release.checks`：`release` 与 `publish` 打 tag、上传之前在组件目录下跑的命令（argv，不经 shell）；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），检查改动了组件目录或自己做了提交也一样（`RELEASE_BLOCKED`：tag 装的必须是检查过的内容）；`--skip-checks` 跳过并说出来。`add` / `fetch` 从不执行它。
 - 发版说明可写可不写，是原样保留的 Markdown：`release --notes` / `--notes-file` 写进带注释的 tag（`publish --notes` 由市场存成版本的 changelog）；`upgrade`（`--dry-run` 也一样）动手之前先列出跨过的每个版本的说明。本地源没有说明。
 - 组件市场（`publish` / `login` / `logout`，`sources[].type: market`）是可选的基础设施，与 Git 源并存。
 

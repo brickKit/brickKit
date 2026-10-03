@@ -262,6 +262,70 @@ func TestReleaseTagsAfterTheChecksPass(t *testing.T) {
 	assert.Equal(t, "1.0.0", relGit(t, origin, "tag", "--list"))
 }
 
+// rewritingCheck 是一个通过了、但改写了已跟踪文件的检查（格式化器、生成器、go mod tidy 都会这样）。
+func rewritingCheck(id, version string) map[string]string {
+	return map[string]string{
+		"component.yaml": compYAML(id, version) + "release:\n  checks:\n    - [sh, ./check.sh]\n",
+		"check.sh":       "#!/bin/sh\necho tidied >> go.mod\n",
+		"go.mod":         "module x\n",
+	}
+}
+
+// 检查通过了，但它改写了已跟踪的文件：检查时用的文件不是要打 tag 的提交里的——不打 tag，列出被改的文件。
+func TestReleaseRefusesWhenAPassingCheckChangedFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, rewritingCheck("erp/api", "1.0.0"))
+
+	r := runIn(t, repo, "release")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "the release checks left uncommitted changes in erp/api@1.0.0")
+	assert.Contains(t, r.stderr, "M go.mod")
+	assert.NotContains(t, r.stdout, "Release checks passed", "没过的检查不能说通过了")
+	assert.Empty(t, relGit(t, origin, "tag", "--list"))
+	assert.Empty(t, relGit(t, repo, "tag", "--list"))
+}
+
+// 检查命令自己提交了：工作区干净，但当前提交已经不是检查开始时的那个，也没推送——不打 tag。
+func TestReleaseRefusesWhenACheckCommitted(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	repo := filepath.Join(t.TempDir(), "api")
+	files := rewritingCheck("erp/api", "1.0.0")
+	files["check.sh"] = "#!/bin/sh\necho tidied >> go.mod\n" +
+		"git -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -am tidy\n"
+	origin := pushedRepo(t, repo, files)
+
+	r := runIn(t, repo, "release")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "the current commit changed while the release checks of erp/api@1.0.0 ran")
+	assert.Empty(t, relGit(t, origin, "tag", "--list"))
+	assert.Empty(t, relGit(t, repo, "tag", "--list"))
+}
+
+// --local：一个组件的检查改写了文件，一个都不发布（核对在所有检查跑完之后、第一个 tag 之前）。
+func TestReleaseLocalRefusesWhenAPassingCheckChangedFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts")
+	}
+	dir, origins := localReleaseProject(t)
+	b := filepath.Join(dir, "components", "erp", "b")
+	writeTree(t, b, rewritingCheck("erp/b", "1.0.0"))
+	relGit(t, b, "add", "-A")
+	relGit(t, b, "commit", "-q", "-m", "checks")
+	relGit(t, b, "push", "-q")
+
+	r := runIn(t, dir, "release", "--local")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "the release checks left uncommitted changes in erp/b@1.0.0")
+	for id, origin := range origins {
+		assert.Empty(t, relGit(t, origin, "tag", "--list"), "%s 不该被发布", id)
+	}
+}
+
 // --skip-checks：显式跳过，输出里写明跳过了；检查一条都不跑。
 func TestReleaseSkipChecksSaysSo(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "api")
