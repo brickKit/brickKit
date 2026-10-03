@@ -73,6 +73,10 @@ type K8s struct {
 	ImagePullSecrets   []string          `yaml:"imagePullSecrets,omitempty"`
 	IngressClass       string            `yaml:"ingressClass,omitempty"`
 	IngressAnnotations map[string]string `yaml:"ingressAnnotations,omitempty"`
+	// AppProtocols 把组件声明的端口协议（manifest.PortProtocols）换成这个集群认的 appProtocol 写法，可选。
+	// 没写的协议原样写：grpc 就是 appProtocol: grpc。组件只说事实（"这个端口是 gRPC"），而同一个事实各家流量设施
+	// 认的词不一样（Istio 认 grpc，Gateway API 的实现认 kubernetes.io/h2c）——那是这个集群的事，所以写在部署文件里。
+	AppProtocols map[string]string `yaml:"appProtocols,omitempty"`
 	NetworkPolicy      *NetworkPolicy    `yaml:"networkPolicy,omitempty"`
 	ServiceAccount     *ServiceAccount   `yaml:"serviceAccount,omitempty"`
 }
@@ -246,6 +250,15 @@ func (f *File) withFocus(l Located, isDefault bool) Located {
 		l.Mode = ModeLocal
 	}
 	return l
+}
+
+// AppProtocol 是组件声明的端口协议在这个集群里写成的 appProtocol：k8s.appProtocols 里有就用它，没有就原样。
+// protocol 为空（组件没声明）时返回空，调用方不写 appProtocol。
+func (f *File) AppProtocol(protocol string) string {
+	if mapped, ok := f.Settings().AppProtocols[protocol]; ok {
+		return mapped
+	}
+	return protocol
 }
 
 // Settings 返回 K8s 设置；没写 k8s: 时是零值。

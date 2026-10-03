@@ -84,9 +84,11 @@ deployment:
   type: container
   image: registry.example.com/demo/hello:1.0.0
   port: 8080
+  protocol: http
   extraPorts:
     - name: grpc
       port: 9090
+      protocol: grpc
 migration:
   command: ["./migrate"]
 healthCheck:
@@ -136,6 +138,8 @@ k8s:
   ingressClass: nginx
   ingressAnnotations:
     cert-manager.io/cluster-issuer: letsencrypt
+  appProtocols:
+    grpc: kubernetes.io/h2c
   networkPolicy:
     enabled: true
     ingressController:
@@ -827,6 +831,20 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"shell", "members", 0}, errField: "shell.members[0]",
 			valid:   []any{"demo/member@1.0.0", "demo/member@10.2.3"},
 			invalid: []any{"demo/member@^1.0.0", "demo/member@latest", "demo/member@1.0", "demo/member@", "demo/member", ""},
+		},
+		{
+			name: "deployment.protocol", doc: "component", schemaPath: "deployment/protocol",
+			dataPath: []any{"deployment", "protocol"}, errField: "deployment.protocol",
+			valid:         []any{manifest.ProtocolHTTP, manifest.ProtocolGRPC, manifest.ProtocolTCP, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"GRPC", "h2c", "kubernetes.io/h2c", "udp"},
+		},
+		{
+			name: "deployment.extraPorts[0].protocol", doc: "component", schemaPath: "deployment/extraPorts[]/protocol",
+			dataPath: []any{"deployment", "extraPorts", 0, "protocol"}, errField: "deployment.extraPorts[0].protocol",
+			valid:         []any{manifest.ProtocolHTTP, manifest.ProtocolGRPC, manifest.ProtocolTCP, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"GRPC", "h2c", "kubernetes.io/h2c", "udp"},
 		},
 		{
 			// 事件名：不透明的字符串，平台不认分隔符；通配符一个都不收（发布的事件逐个列出）。

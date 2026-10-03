@@ -382,6 +382,10 @@ dependencies:
 		{"readinessCheck 写成 none",
 			mutate(t, "  path: /healthz", "  path: /healthz\nreadinessCheck:\n  type: none"),
 			[]string{"readinessCheck.type", "leave readinessCheck out"}},
+		// 端口协议是封闭的几个词：别家流量设施自己的写法（kubernetes.io/h2c）归部署文件，不进 component.yaml
+		{"deployment.protocol 不是已知的协议",
+			mutate(t, "  port: 8080", "  port: 8080\n  protocol: kubernetes.io/h2c"),
+			[]string{"deployment.protocol", "http / grpc / tcp"}},
 		// 事件名是不透明的字符串，但各家消息系统的通配符不能原样抄进来：只有结尾的 * 是平台的写法
 		{"events.publishes 里写了通配符",
 			mutate(t, "  path: /healthz", "  path: /healthz\nevents:\n  publishes: [\"orders.*\"]"),

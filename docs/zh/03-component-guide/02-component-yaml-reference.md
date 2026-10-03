@@ -114,6 +114,7 @@ configSchema:
 | `build` | 本机构建：`context`（构建上下文）与 `dockerfile`，都相对仓库根，缺省是 `.` 与 `Dockerfile` |
 | `port` | 主端口：健康检查打它，别人的 `*_ENDPOINT` 指向它 |
 | `extraPorts` | 额外端口（比如 gRPC）：`- name: grpc` / `port: 9090`，别人拿到 `…_GRPC_ENDPOINT` |
+| `protocol`、`extraPorts[].protocol` | 这个端口上说的协议：`http` / `grpc` / `tcp`，可选。见下面"端口协议" |
 | `resources` | 建议的 CPU / 内存配额，使用方在部署文件里可以覆盖 |
 | `stopGracePeriodSeconds` | 收到停止信号后要多久把手上的事做完（消费者确认在途消息、outbox 发完一批、HTTP 处理完在途请求）。不写用引擎的默认值：compose 10 秒、K8s 30 秒。你的代码里自己的关停超时要比它短 |
 | `labels` | 原样透传的标签（Docker 的 service labels、K8s 的 Pod annotations），平台不解释 |
@@ -123,6 +124,26 @@ configSchema:
 
 **配额只建议 `requests`。** 你知道自己稳态要多少；"最多能涨到多少"是部署方的判断，而且你写了 `limits.cpu`，使用方就去不掉它了。
 平台不给 `limits` 编默认值：编一个 512Mi，一个本来需要 600Mi 的健康组件就会被 OOM 杀掉。
+
+**端口协议。** 端口是 gRPC 的，写上 `protocol: grpc`：
+
+```yaml
+deployment:
+  port: 8080
+  extraPorts:
+    - name: grpc
+      port: 9090
+      protocol: grpc
+```
+
+它是组件的一个事实，只有 Kubernetes 上有人用：平台把它写成 Service 那个端口的 `appProtocol`。原因在 gRPC 是长连接——
+Kubernetes 的 Service 按连接分流，一条连接建立之后，上面所有请求都去同一个 Pod，多副本时负载压在一处；
+服务网格或网关读到 `appProtocol`，知道这个端口是 gRPC，才会按请求分流。集群里没有读它的东西时，它什么都不改变，
+[用 gRPC 调用](../09-patterns/04-service-calling.md#用-grpc-调用)里的做法仍然要用。Docker / Podman 下每个组件只有一个容器，没有这个问题，也不生成任何东西。
+
+同一个事实，各家认的词不一样（Istio 认 `grpc`，Gateway API 的实现认 `kubernetes.io/h2c`）。那是集群的事，不写在组件里：
+平台缺省原样写（`appProtocol: grpc`），部署方在部署文件的 [`k8s.appProtocols`](../11-reference/03-deploy-yaml-schema.md) 里换成自己集群认的写法。
+它不改变注入给调用方的地址。
 
 ## migration：数据库迁移
 

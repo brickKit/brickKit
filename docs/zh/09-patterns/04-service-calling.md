@@ -90,6 +90,8 @@ Go 的 `net/http.Client`、Python 的 `requests.Session()`、Node.js 的 `http.A
 - **一个依赖一条连接，整个进程复用。** 不要每次请求都重新拨号——那会掩盖下面这个问题，也白白付出握手的开销。
 - **K8s 多副本时，长连接会被钉在一个 Pod 上。** ClusterIP 在第四层分流，一条 HTTP/2 连接建立之后，它上面的所有请求都去同一个 Pod，
   后来扩出来的 Pod 收不到流量。服务端设 `MaxConnectionAge`（连接定期重建、重新分流），或者客户端自己做负载均衡。Docker / Podman 下每个组件只有一个容器，没有这个问题。
+  集群里有服务网格或网关时，让提供方在那个端口上声明 [`protocol: grpc`](../03-component-guide/02-component-yaml-reference.md#deployment我怎么跑)：
+  平台把它写成 Service 端口的 `appProtocol`，读它的网格或网关就会按请求分流。
 - **每次调用设截止时间（deadline），配上 keepalive**；只对幂等的方法自动重试。
 
 ## 调用外壳里的成员

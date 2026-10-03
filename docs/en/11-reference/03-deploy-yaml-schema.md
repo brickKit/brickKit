@@ -28,6 +28,7 @@ Project-level Kubernetes settings. Written when `target` isn't `k8s`, they're wa
 | `k8s.imagePullSecrets` | list of strings | | Names of Secrets for pulling images |
 | `k8s.ingressClass` | string | | The Ingress class |
 | `k8s.ingressAnnotations` | map of strings | | Written verbatim onto every Ingress |
+| `k8s.appProtocols` | map of strings | | Replaces the port protocol a component declares with the `appProtocol` this cluster reads: keys are `http` / `grpc` / `tcp`, values a name such as `grpc` or `kubernetes.io/h2c`. A protocol not listed is written as it is; a port whose component declares no protocol gets no `appProtocol` |
 | `k8s.serviceAccount.enabled` | boolean | | With `true`, one ServiceAccount per component, with no token mounted |
 | `k8s.networkPolicy.enabled` | boolean | | With `true`, a NetworkPolicy is generated per component from the dependency graph |
 | `k8s.networkPolicy.ingressController.namespace` | string | See the rules | The Ingress controller's namespace; required when network policies are on and some component has `expose: true` |

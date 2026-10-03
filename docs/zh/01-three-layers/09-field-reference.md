@@ -36,6 +36,7 @@
 | `k8s.podSecurity` | | `restricted`：按 Pod Security 的 restricted 级别生成 |
 | `k8s.imagePullSecrets` | | 拉镜像用的 Secret 名 |
 | `k8s.ingressClass` / `k8s.ingressAnnotations` | | Ingress 的 class 与注解 |
+| `k8s.appProtocols` | | 把组件声明的端口协议换成这个集群认的 `appProtocol` 写法 |
 | `k8s.networkPolicy.*` | | 按依赖图生成 NetworkPolicy：`enabled`、`ingressController`、`allowFrom[]`、`egress` |
 | `k8s.serviceAccount.enabled` | | 每个组件一个不挂令牌的 ServiceAccount |
 | `components[].id` | ✅ | 裸 ID（默认版本）或 `id@版本` |
@@ -71,7 +72,8 @@
 | `deployment.type` | ✅ | 固定 `container` |
 | `deployment.image` / `deployment.build` | 二选一或都写 | 拉取的镜像，或本机构建的 `context` 与 `dockerfile` |
 | `deployment.port` | ✅ | 主端口 |
-| `deployment.extraPorts[]` | | 额外端口：`name`、`port`。每个额外端口给调用方一个 `<ID>_<端口名>_ENDPOINT`，端口名转大写、`-` 换成 `_`（`people/basic` 的端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`） |
+| `deployment.protocol` | | 主端口上说的协议（`http` / `grpc` / `tcp`）；K8s 上写成 Service 端口的 `appProtocol` |
+| `deployment.extraPorts[]` | | 额外端口：`name`、`port`、可选的 `protocol`。每个额外端口给调用方一个 `<ID>_<端口名>_ENDPOINT`，端口名转大写、`-` 换成 `_`（`people/basic` 的端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`） |
 | `deployment.resources` | | 建议的配额 |
 | `deployment.stopGracePeriodSeconds` | | 收到停止信号后收尾需要的秒数（1–3600）；部署条目可以覆盖 |
 | `deployment.labels` | | 透传的标签 |

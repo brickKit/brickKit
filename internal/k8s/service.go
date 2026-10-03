@@ -28,7 +28,7 @@ func (p *plan) serviceDoc(c componentPlan) map[string]any {
 		},
 		"spec": map[string]any{
 			"selector": map[string]any{labelApp: c.Service},
-			"ports":    servicePorts(c.Manifest),
+			"ports":    p.servicePorts(c.Manifest),
 			// ClusterIP：默认不暴露到集群外，要对外只能显式 expose
 			"type": "ClusterIP",
 		},
@@ -39,14 +39,21 @@ func (p *plan) serviceDoc(c componentPlan) map[string]any {
 //
 // 端口一律带 name：K8s 要求"一个 Service 里的端口要么都有名字、要么只有一个端口"，
 // 加了 extraPorts 之后再补名字，会变成一次破坏性的改动。
-func servicePorts(m *manifest.Manifest) []any {
-	ports := []any{map[string]any{
-		"name": mainPortName, "port": m.Deployment.Port, "targetPort": m.Deployment.Port,
-	}}
+//
+// 组件声明了端口协议的，写成 appProtocol：ClusterIP 是四层负载均衡，一条 gRPC 长连接会钉在一个 Pod 上，
+// 网格或网关要知道"这个端口是 gRPC"才会按请求分发。写哪个词由部署文件定（File.AppProtocol）。
+// 主端口的名字仍是 http——改名是破坏性的，而认 appProtocol 的实现都让它优先于端口名。
+func (p *plan) servicePorts(m *manifest.Manifest) []any {
+	port := func(name string, number int, protocol string) map[string]any {
+		doc := map[string]any{"name": name, "port": number, "targetPort": number}
+		if app := p.proj.Deploy.AppProtocol(protocol); app != "" {
+			doc["appProtocol"] = app
+		}
+		return doc
+	}
+	ports := []any{port(mainPortName, m.Deployment.Port, m.Deployment.Protocol)}
 	for _, extra := range m.Deployment.ExtraPorts {
-		ports = append(ports, map[string]any{
-			"name": extra.Name, "port": extra.Port, "targetPort": extra.Port,
-		})
+		ports = append(ports, port(extra.Name, extra.Port, extra.Protocol))
 	}
 	return ports
 }

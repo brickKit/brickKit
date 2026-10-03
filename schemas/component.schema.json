@@ -225,6 +225,18 @@
                 "maximum": 65535,
                 "minimum": 1,
                 "type": "integer"
+              },
+              "protocol": {
+                "enum": [
+                  "http",
+                  "grpc",
+                  "tcp",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "required": [
@@ -257,6 +269,18 @@
           "maximum": 65535,
           "minimum": 1,
           "type": "integer"
+        },
+        "protocol": {
+          "enum": [
+            "http",
+            "grpc",
+            "tcp",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "resources": {
           "additionalProperties": false,

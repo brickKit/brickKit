@@ -26,6 +26,7 @@
 | `k8s.imagePullSecrets` | 字符串列表 | | 拉镜像用的 Secret 名 |
 | `k8s.ingressClass` | 字符串 | | Ingress 的 class |
 | `k8s.ingressAnnotations` | 字符串映射 | | 原样写到每个 Ingress 上 |
+| `k8s.appProtocols` | 字符串映射 | | 把组件声明的端口协议换成这个集群认的 `appProtocol` 写法：键是 `http` / `grpc` / `tcp`，值是 `grpc`、`kubernetes.io/h2c` 这样的名字。没写的协议原样写；组件没声明协议的端口不写 `appProtocol` |
 | `k8s.serviceAccount.enabled` | 布尔 | | `true` 时每个组件一个 ServiceAccount，不挂载令牌 |
 | `k8s.networkPolicy.enabled` | 布尔 | | `true` 时按依赖图为每个组件生成 NetworkPolicy |
 | `k8s.networkPolicy.ingressController.namespace` | 字符串 | 见规则 | Ingress 控制器所在的命名空间；开了网络策略、又有 `expose: true` 的组件时必填 |

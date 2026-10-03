@@ -311,6 +311,15 @@
     "k8s": {
       "additionalProperties": false,
       "properties": {
+        "appProtocols": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "context": {
           "type": [
             "string",

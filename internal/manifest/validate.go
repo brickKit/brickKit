@@ -317,6 +317,13 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 	}
 }
 
+// validatePortProtocol：端口协议可以不写；写了就得是 PortProtocols 里的一个。
+func validatePortProtocol(p *clierr.ProblemSet, field, protocol string) {
+	if protocol != "" && !IsPortProtocol(protocol) {
+		p.Add(field, i18n.T(msgid.ManifestPortProtocolInvalid, strings.Join(PortProtocols(), " / "), protocol))
+	}
+}
+
 func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	d := m.Deployment
 
@@ -347,9 +354,12 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 		p.Add("deployment.port", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, d.Port))
 	}
 
+	validatePortProtocol(p, "deployment.protocol", d.Protocol)
+
 	names := make(map[string]int)
 	for i, ep := range d.ExtraPorts {
 		prefix := fmt.Sprintf("deployment.extraPorts[%d]", i)
+		validatePortProtocol(p, prefix+".protocol", ep.Protocol)
 		switch {
 		case ep.Name == "":
 			p.Missing(prefix + ".name")

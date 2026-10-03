@@ -1,6 +1,7 @@
 package deployfile
 
 import (
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -69,7 +70,30 @@ func (f *File) validateK8s(p *clierr.ProblemSet) {
 			p.Add("k8s.namespace", i18n.T(msgid.ConfigNamespaceSameRule, reason))
 		}
 	}
+	validateAppProtocols(p, k.AppProtocols)
 	validateNetworkPolicy(p, k.NetworkPolicy)
+}
+
+// appProtocolRe 是 K8s 对 appProtocol 的要求（qualified name）：可选的 DNS 前缀加 /，后面是字母数字开头结尾、
+// 中间可以有 - _ . 的名字。在这里拦下，报错指得到是哪一行；留给 apply 时才报，整份清单都已经生成完了。
+var appProtocolRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9.-]*[a-z0-9])?/)?[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$`)
+
+// validateAppProtocols：键必须是组件能声明的端口协议（写错的键永远不会生效，而且不会有任何东西说出来），值是合法的 appProtocol。
+func validateAppProtocols(p *clierr.ProblemSet, m map[string]string) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		field := "k8s.appProtocols." + k
+		switch {
+		case !manifest.IsPortProtocol(k):
+			p.Add(field, i18n.T(msgid.DeployfileAppProtocolUnknownKey, strings.Join(manifest.PortProtocols(), " / ")))
+		case !appProtocolRe.MatchString(m[k]):
+			p.Add(field, i18n.T(msgid.DeployfileAppProtocolValueInvalid, m[k]))
+		}
+	}
 }
 
 func validateNetworkPolicy(p *clierr.ProblemSet, np *NetworkPolicy) {

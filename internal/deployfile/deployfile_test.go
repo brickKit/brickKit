@@ -254,3 +254,23 @@ func TestEntryKeySplitsLikeEveryOtherRef(t *testing.T) {
 	assert.Equal(t, "erp/api", id)
 	assert.Equal(t, "1.2.0@x", version)
 }
+
+// k8s.appProtocols：键是组件能声明的端口协议，值是这个集群认的 appProtocol。写错的键永远不会生效，所以直接拒绝；
+// 没写的协议原样写。
+func TestAppProtocols(t *testing.T) {
+	f, _, err := parse(t, "target: k8s\nk8s:\n  appProtocols:\n    grpc: kubernetes.io/h2c\ncomponents: []\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Equal(t, "kubernetes.io/h2c", f.AppProtocol("grpc"), "映射过的用映射的写法")
+	assert.Equal(t, "http", f.AppProtocol("http"), "没映射的原样")
+	assert.Equal(t, "", f.AppProtocol(""), "组件没声明协议：不写 appProtocol")
+
+	for name, c := range map[string]struct{ yaml, want string }{
+		"键不是端口协议":         {"h2c: kubernetes.io/h2c", "k8s.appProtocols.h2c"},
+		"值不是 appProtocol": {"grpc: has space", "k8s.appProtocols.grpc"},
+		"值是空的":            {"grpc: \"\"", "k8s.appProtocols.grpc"},
+	} {
+		_, _, err := parse(t, "target: k8s\nk8s:\n  appProtocols:\n    "+c.yaml+"\ncomponents: []\n", deployfile.RoleTeam)
+		require.Error(t, err, name)
+		assert.Contains(t, clierr.As(err).Error(), c.want, name)
+	}
+}

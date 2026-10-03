@@ -761,3 +761,35 @@ func TestReadinessProbeUsesReadinessCheck(t *testing.T) {
 	assert.Equal(t, "/healthz", dig(t, container, "livenessProbe", "httpGet", "path"))
 	assert.Equal(t, "/healthz", dig(t, container, "startupProbe", "httpGet", "path"))
 }
+
+// 组件声明了端口协议的，Service 的那个端口带 appProtocol；没声明的不带。主端口的名字仍是 http。
+// 写哪个词由部署文件定：没映射时原样，k8s.appProtocols 里有就用它（同一个事实，各家流量设施认的词不一样）。
+func TestServicePortsCarryAppProtocol(t *testing.T) {
+	authz := func() *manifest.Manifest {
+		m := simple("infra/authz", "1.0.0", 8080)
+		m.Deployment.ExtraPorts = []manifest.ExtraPort{
+			{Name: "grpc", Port: 9090, Protocol: manifest.ProtocolGRPC},
+			{Name: "metrics", Port: 9100},
+		}
+		return m
+	}
+
+	b := newBuilder(t)
+	b.component(authz(), projecttest.Entry{})
+	assert.Equal(t, []any{
+		map[string]any{"name": "http", "port": 8080, "targetPort": 8080},
+		map[string]any{"name": "grpc", "port": 9090, "targetPort": 9090, "appProtocol": "grpc"},
+		map[string]any{"name": "metrics", "port": 9100, "targetPort": 9100},
+	}, dig(t, b.doc("services/infra-authz-1-0-0.yaml"), "spec", "ports"))
+
+	b = newBuilder(t)
+	b.spec.K8s.AppProtocols = map[string]string{manifest.ProtocolGRPC: "kubernetes.io/h2c"}
+	m := authz()
+	m.Deployment.Protocol = manifest.ProtocolHTTP
+	b.component(m, projecttest.Entry{})
+	assert.Equal(t, []any{
+		map[string]any{"name": "http", "port": 8080, "targetPort": 8080, "appProtocol": "http"},
+		map[string]any{"name": "grpc", "port": 9090, "targetPort": 9090, "appProtocol": "kubernetes.io/h2c"},
+		map[string]any{"name": "metrics", "port": 9100, "targetPort": 9100},
+	}, dig(t, b.doc("services/infra-authz-1-0-0.yaml"), "spec", "ports"))
+}

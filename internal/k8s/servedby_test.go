@@ -435,3 +435,18 @@ func TestExposedMemberHostnameIsCheckedLikeAnyComponent(t *testing.T) {
 	assert.Contains(t, err.Error(), "shop.example.com")
 	assert.Contains(t, err.Error(), "infra/bff-mobile@1.0.0")
 }
+
+// 被外壳承载的成员没有自己的 Pod，但调用方连的仍是它自己的 Service：端口协议照样要写在那个 Service 上。
+func TestServedByServiceCarriesAppProtocol(t *testing.T) {
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090, Protocol: manifest.ProtocolGRPC}}
+
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	ports, ok := dig(t, b.doc("services/mdm-customer-1-0-7.yaml"), "spec", "ports").([]any)
+	require.True(t, ok)
+	require.Len(t, ports, 2)
+	assert.Equal(t, "grpc", ports[1].(map[string]any)["appProtocol"])
+}

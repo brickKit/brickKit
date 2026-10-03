@@ -36,6 +36,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `k8s.podSecurity` | | `restricted`: generate for the Pod Security "restricted" level |
 | `k8s.imagePullSecrets` | | Names of the Secrets used to pull images |
 | `k8s.ingressClass` / `k8s.ingressAnnotations` | | The Ingress class and annotations |
+| `k8s.appProtocols` | | Replaces the port protocol a component declares with the `appProtocol` this cluster reads |
 | `k8s.networkPolicy.*` | | NetworkPolicies generated from the dependency graph: `enabled`, `ingressController`, `allowFrom[]`, `egress` |
 | `k8s.serviceAccount.enabled` | | One ServiceAccount per component, with no token mounted |
 | `components[].id` | ✅ | The bare ID (default version) or `id@version` |
@@ -72,7 +73,8 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `deployment.type` | ✅ | Always `container` |
 | `deployment.image` / `deployment.build` | one or both | The image to pull, or the `context` and `dockerfile` to build locally |
 | `deployment.port` | ✅ | The main port |
-| `deployment.extraPorts[]` | | Extra ports: `name`, `port`. Each gives callers `<ID>_<NAME>_ENDPOINT`, the name uppercased with `-` turned into `_` (port `admin-api` of `people/basic` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`) |
+| `deployment.protocol` | | What the main port speaks (`http` / `grpc` / `tcp`); on K8s it becomes `appProtocol` on the Service port |
+| `deployment.extraPorts[]` | | Extra ports: `name`, `port`, an optional `protocol`. Each gives callers `<ID>_<NAME>_ENDPOINT`, the name uppercased with `-` turned into `_` (port `admin-api` of `people/basic` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`) |
 | `deployment.resources` | | Recommended resources |
 | `deployment.stopGracePeriodSeconds` | | Seconds the component needs to finish its work after a stop signal (1–3600); a deploy entry may override it |
 | `deployment.labels` | | Labels passed through |

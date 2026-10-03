@@ -84,8 +84,10 @@ dependencies:
 | `deployment.build.context` | 字符串 | 二选一 | 构建上下文，相对仓库根，缺省 `.` |
 | `deployment.build.dockerfile` | 字符串 | | Dockerfile 路径，相对仓库根，缺省 `Dockerfile` |
 | `deployment.port` | 整数 | ✅ | 主端口，1–65535 |
+| `deployment.protocol` | 字符串 | | 主端口上说的协议：`http` / `grpc` / `tcp`。只有 K8s 用它（写成 Service 端口的 `appProtocol`）；不改变注入的地址 |
 | `deployment.extraPorts[].name` | 字符串 | ✅ | 小写字母、数字、中划线，最长 15 个字符（K8s Service 端口名规则）；不能重复。调用方拿到的地址变量是 `<ID>_<名字>_ENDPOINT`，`-` 换成 `_`（`demo/hello` 的 `admin-api` → `DEMO_HELLO_ADMIN_API_ENDPOINT`） |
 | `deployment.extraPorts[].port` | 整数 | ✅ | 1–65535，不能与主端口相同 |
+| `deployment.extraPorts[].protocol` | 字符串 | | 这个端口上说的协议：`http` / `grpc` / `tcp`，含义同 `deployment.protocol` |
 | `deployment.resources.requests.cpu` | 字符串 | | 建议的 CPU 请求，如 `"100m"` |
 | `deployment.resources.requests.memory` | 字符串 | | 建议的内存请求，如 `"128Mi"` |
 | `deployment.resources.limits.cpu` | 字符串 | | 建议的 CPU 上限（建议不写） |

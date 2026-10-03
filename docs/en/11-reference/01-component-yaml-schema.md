@@ -89,8 +89,10 @@ platform checks key names only, not values; details in [The configSchema spec](0
 | `deployment.build.context` | string | One of the two | The build context, relative to the repository root, `.` by default |
 | `deployment.build.dockerfile` | string | | The Dockerfile path, relative to the repository root, `Dockerfile` by default |
 | `deployment.port` | integer | ✅ | The main port, 1–65535 |
+| `deployment.protocol` | string | | What the main port speaks: `http` / `grpc` / `tcp`. Only K8s uses it (as `appProtocol` on the Service port); the injected address doesn't change |
 | `deployment.extraPorts[].name` | string | ✅ | Lowercase letters, digits and hyphens, at most 15 characters (the K8s Service port-name rule); no duplicates. Callers get the port as `<ID>_<NAME>_ENDPOINT`, `-` becoming `_` (`admin-api` on `demo/hello` → `DEMO_HELLO_ADMIN_API_ENDPOINT`) |
 | `deployment.extraPorts[].port` | integer | ✅ | 1–65535, not the same as the main port |
+| `deployment.extraPorts[].protocol` | string | | What this port speaks: `http` / `grpc` / `tcp`, with the same meaning as `deployment.protocol` |
 | `deployment.resources.requests.cpu` | string | | The suggested CPU request, like `"100m"` |
 | `deployment.resources.requests.memory` | string | | The suggested memory request, like `"128Mi"` |
 | `deployment.resources.limits.cpu` | string | | The suggested CPU limit (better left out) |

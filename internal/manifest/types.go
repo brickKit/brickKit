@@ -5,6 +5,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -190,6 +191,8 @@ type Deployment struct {
 	// Build 是本地构建配置（可选）。Image 与 Build 至少要有一个。
 	Build      *Build      `yaml:"build,omitempty"`
 	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
+	// Protocol 是主端口上说的应用层协议，可选（见 PortProtocols）。
+	Protocol   string      `yaml:"protocol,omitempty" jsonschema:"enum=http|grpc|tcp"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
 	// StopGracePeriodSeconds 是这个组件收到停止信号（SIGTERM）之后，需要多久把手上的事做完再退出
@@ -262,7 +265,29 @@ type Shell struct {
 type ExtraPort struct {
 	Name string `yaml:"name"`
 	Port int    `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
+	// Protocol 是这个端口上说的应用层协议，可选（见 PortProtocols）。
+	Protocol string `yaml:"protocol,omitempty" jsonschema:"enum=http|grpc|tcp"`
 }
+
+// 端口上说的应用层协议。
+//
+// 这是组件的事实（"这个端口是 gRPC"），集群里的流量设施靠它才知道怎么对待这个端口：gRPC 是 HTTP/2 上的长连接，
+// 四层负载均衡按连接分发，一条连接钉在一个 Pod 上，多副本时负载全压在一处；网格或网关知道它是 gRPC，才会按请求分发。
+// K8s 上写成 Service 端口的 appProtocol（见 internal/k8s）；Docker / Podman 下每个组件只有一个容器，没有东西用它。
+// 不改变注入的地址：`*_ENDPOINT` 的写法是环境变量契约的一部分，与这里无关。
+//
+// 取值与 Deployment.Protocol / ExtraPort.Protocol 的 jsonschema enum 是同一份，schemas_test.go 会核对。
+const (
+	ProtocolHTTP = "http"
+	ProtocolGRPC = "grpc"
+	ProtocolTCP  = "tcp"
+)
+
+// PortProtocols 是端口协议的全部取值。
+func PortProtocols() []string { return []string{ProtocolHTTP, ProtocolGRPC, ProtocolTCP} }
+
+// IsPortProtocol 报告 s 是不是端口协议的一个取值。
+func IsPortProtocol(s string) bool { return slices.Contains(PortProtocols(), s) }
 
 // Resources 是推荐的资源配额。CLI 透传，不校验数值合理性。
 type Resources struct {

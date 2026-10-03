@@ -76,7 +76,7 @@ func (p *plan) servedServiceDoc(m servedPlan) map[string]any {
 		},
 		"spec": map[string]any{
 			"selector": map[string]any{labelApp: shellService},
-			"ports":    servicePorts(m.Manifest),
+			"ports":    p.servicePorts(m.Manifest),
 			"type":     "ClusterIP",
 		},
 	}
