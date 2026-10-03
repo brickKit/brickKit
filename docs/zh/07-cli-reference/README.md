@@ -596,7 +596,8 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）；
 4. 拓扑排序得出启动顺序；
 5. 解析配置、注入环境变量、合并资源配额，生成部署文件：`docker` / `podman` 生成 `.brickkit/generated/compose.yaml`，`k8s` 生成 Kubernetes 清单；
-6. 有 `mode: debug` 组件时生成 `local-debug.<版本化服务名>.env`，给你在 IDE 里启动它用；
+6. 在本机跑进程的组件生成 `local-debug.<版本化服务名>.env`：`mode: debug` 的，你在 IDE 里拿它启动；`mode: local` 的由 `up`
+   启动，这份文件留给你手动跑迁移或别的一次性命令；
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；
 8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
 9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。每个进程继承这个终端的环境，只有平台管的名字除外

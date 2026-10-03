@@ -318,6 +318,11 @@ func TestUpDryRunShowsTheDetectedLocalCommand(t *testing.T) {
 	// 出现会自相矛盾（用真实 Docker 手动验证时发现，见 writeLocalEnvFiles 的说明）。
 	assert.NotContains(t, r.stdout, "Local debugging")
 	assert.NotContains(t, r.stdout, "start it in your IDE")
+	// 但它的环境照样写成文件：手动跑迁移、跑一次性命令时要用同一套变量，迁移提示指的就是它
+	// （brickKit 反馈 F06-013：提示指向一个只有 mode: debug 才写的文件）
+	env := readFile(t, filepath.Join(f.Dir, ".brickkit", "generated", "local-debug.demo-hello-1-0-0.env"))
+	assert.Contains(t, env, "(mode: local)")
+	assert.NotContains(t, env, "for your IDE", "开头的说明不讲 IDE：这个进程由 brickkit 拉起")
 }
 
 // ============================================================

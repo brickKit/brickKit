@@ -355,6 +355,7 @@ const (
 	ComposeOwnerDebugAccess                                    ID = "compose.owner.debug_access"
 	ComposeOwnerDebugAccessViaShell                            ID = "compose.owner.debug_access_via_shell"
 	ComposeEnvHeader                                           ID = "compose.env_header"
+	ComposeEnvHeaderLocal                                      ID = "compose.env_header_local"
 	ComposeEnvVarsUndefined                                    ID = "compose.env_vars_undefined"
 	ComposeEnvVarsReasonDetail                                 ID = "compose.env_vars_reason_detail"
 	ComposeLocalMigrationSkipped                               ID = "compose.local_migration_skipped"

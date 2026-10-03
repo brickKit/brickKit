@@ -54,7 +54,7 @@ CLI 从不替你合并。团队加了组件后，你的本地文件就对不上�
 **迁移不会自动跑**，第一次要手动跑一遍。
 
 `mode: local` 是「不用容器，BrickKit 替我起」：从本地仓库探测启动命令、起裸进程、前台监管（`Ctrl+C`
-停掉），`localPort` 可不写（自动挑空端口）。它不是个人的，可以写在 `deploy.yaml`。进程继承你终端的环境变量，
+停掉），`localPort` 可不写（自动挑空端口）；它的变量同样写进 `local-debug.<…>.env`，供手动跑迁移（它的迁移也不会自动跑）。它不是个人的，可以写在 `deploy.yaml`。进程继承你终端的环境变量，
 平台自己的名字除外（`COMPONENT_ID`、`COMPONENT_VERSION`、`PORT`、`BRICKKIT_SERVED_MEMBERS`、
 `BRICKKIT_SERVED_MEMBERS_CONFIG`、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——这些只取 BrickKit
 给的值，终端里残留的 `export` 冒充不了它们。两者都只支持

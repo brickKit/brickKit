@@ -81,7 +81,7 @@ type Result struct {
 	// SecretFiles 是以文件交付的配置项（configSchema 的 mount: file），按服务名、键名排序。
 	// 怎么写盘见 SecretFileDir 那段注释：目录与文件的权限、原地替换都有讲究。
 	SecretFiles []SecretFile
-	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件。
+	// LocalEnvFiles 是本机进程组件（mode: debug 与 mode: local）的环境变量文件。
 	LocalEnvFiles []LocalEnvFile
 	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
 	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunAfter）。

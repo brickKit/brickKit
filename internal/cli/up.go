@@ -989,26 +989,34 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 	return path, nil
 }
 
-// writeLocalEnvFiles 写出 mode: debug 组件的调试环境变量文件。
+// writeLocalEnvFiles 写出每个本机进程组件（mode: debug 与 mode: local）的环境变量文件，
+// 只给 mode: debug 的打印"去 IDE 里启动"那一段。
 //
-// mode: local 的组件也会出现在 files 里（两者共用同一套"算出本地化环境"的
-// 生成逻辑，见 compose.LocalEnvFile.Mode 的文档），但这里要跳过：它由
-// brickkit 自己拉起（internal/cli/up_local.go 的 buildLocalEnv 直接用
-// LocalEnvFile.Vars 严格展开，不落盘），"No container is generated; start
-// it in your IDE" 这句对它是一句假话，会跟紧随其后 mode: local 自己那段
-// "会启动"的输出自相矛盾（用真实进程手动验证时发现）。
+// 文件两种都写：它就是这个进程拿到的全部变量，手动跑迁移、跑一次性命令时要用同一套
+// （迁移提示指的就是它，见 compose 的 localMigrationWarnings）。mode: local 的进程不读它
+// ——brickkit 自己拉起，internal/cli/up_local.go 的 buildLocalEnv 直接用 LocalEnvFile.Vars
+// 严格展开——所以"No container is generated; start it in your IDE"对它是一句假话，会跟紧随其后
+// mode: local 自己那段"会启动"的输出自相矛盾（用真实进程手动验证时发现），不打印。
 func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.LocalEnvFile) error {
-	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
 	keep := map[string]bool{}
 	for _, file := range files {
-		if file.Mode == deployfile.ModeDebug {
-			debugFiles = append(debugFiles, file)
-			keep[file.Name] = true
-		}
+		keep[file.Name] = true
 	}
-	// 这次不再是 mode: debug 的组件：它上一次的调试文件（可能带着密钥）不能继续躺在磁盘上
+	// 这次不再在本机运行的组件：它上一次的环境变量文件（可能带着密钥）不能继续躺在磁盘上
 	if err := removeLocalEnvFiles(layout, keep); err != nil {
 		return err
+	}
+	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
+	for _, file := range files {
+		path := filepath.Join(layout.GeneratedDir(), file.Name)
+		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpDebugEnvWriteFailed)).
+				WithDetail(i18n.T(msgid.LabelPath), path).
+				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
+		}
+		if file.Mode == deployfile.ModeDebug {
+			debugFiles = append(debugFiles, file)
+		}
 	}
 	if len(debugFiles) == 0 {
 		return nil
@@ -1016,14 +1024,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpDebugSectionTitle))
 	for _, file := range debugFiles {
-		path := filepath.Join(layout.GeneratedDir(), file.Name)
-		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
-			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpDebugEnvWriteFailed)).
-				WithDetail(i18n.T(msgid.LabelPath), path).
-				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
-		}
-
-		relative := opts.display(path)
+		relative := opts.display(filepath.Join(layout.GeneratedDir(), file.Name))
 		opts.Printf("   %s@%s\n", file.Ref.ID, file.Ref.Version)
 		opts.Printf("%s\n", i18n.T(msgid.CliUpNoContainerIsGeneratedStart, file.Port))
 		opts.Printf("%s\n", i18n.T(msgid.CliUpEnvironmentVariables, relative))
@@ -1042,14 +1043,14 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 	return nil
 }
 
-// localEnvPattern 匹配 mode: debug 组件的调试环境变量文件（compose.LocalEnvFile.Name）；
+// localEnvPattern 匹配本机进程组件的环境变量文件（compose.LocalEnvFile.Name）；
 // legacyLocalEnvFile 是按服务名分文件之前的单文件格式，同样可能带着密钥。
 const (
 	localEnvPattern    = "local-debug.*.env"
 	legacyLocalEnvFile = "local-debug.env"
 )
 
-// removeLocalEnvFiles 删掉 keep 之外的调试环境变量文件。
+// removeLocalEnvFiles 删掉 keep 之外的本机进程环境变量文件。
 func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
 	matches, err := filepath.Glob(filepath.Join(layout.GeneratedDir(), localEnvPattern))
 	if err != nil {

@@ -23,7 +23,7 @@ bare 仓库见 [Git 仓库缓存](06-bare-repo-mechanism.md)。这一篇讲项�
 │   ├── compose.yaml       Docker / Podman 的部署文件
 │   ├── env/               放密钥的 env 文件（0600）
 │   ├── k8s/               Kubernetes 清单
-│   └── local-debug.<服务名>.env   mode: debug 组件的环境变量
+│   └── local-debug.<服务名>.env   mode: debug / mode: local 进程的环境变量
 ├── last-run               上一次 up 运行的组件版本，版本变更提示以它为基线
 ├── local-mode             存在即本地模式开着
 ├── deploy.local.base.yaml deploy.local.yaml 上次复制自的那份 deploy.yaml；refresh 靠它分辨本地修改

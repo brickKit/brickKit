@@ -9,7 +9,7 @@ package compose
 //	               端口换成 localPort。依赖方代码一行不改。
 //	宿主机 → 容器：它要访问的依赖与基础资源还在容器网络里，宿主机进不去，
 //	               CLI 把这些容器的端口映射到宿主机，并把地址写进
-//	               local-debug.<版本化服务名>.env 供 IDE 加载。
+//	               local-debug.<版本化服务名>.env（mode: debug 供 IDE 加载）。
 //
 // 两个方向共用一张宿主机端口台账：localPort、exposePort、自动映射的端口
 // 抢的是同一台机器上的同一批端口号，分开算迟早撞车。
@@ -55,16 +55,14 @@ const (
 	maxPort        = 65535
 )
 
-// LocalEnvFile 是一个 local 组件的调试环境变量文件。
+// LocalEnvFile 是一个本机进程组件的环境变量文件：这个进程拿到的全部变量。
 type LocalEnvFile struct {
 	Ref resolver.Ref
 	// Mode 是这个组件写的 mode（deployfile.ModeDebug 或 deployfile.ModeLocal）。
-	// 两者共用同一套"算出本地化环境"的逻辑（mode: local 复用了
-	// mode: debug 已经算好的宿主机地址），但调用方要拿它们做完全不同的事——
-	// debug 组件由使用者自己在 IDE 里启动，这份文件与"在 IDE 里怎么用"的
-	// 提示只对它有意义；local 组件由 brickkit 自己拉起（internal/cli/up_local.go
-	// 的 buildLocalEnv 直接用 Vars 严格展开，不落盘），"去 IDE 里加载这份文件"
-	// 对它是一句误导。
+	// 两者共用同一套"算出本地化环境"的逻辑，文件也都写出来（手动跑迁移、一次性命令用），
+	// 但调用方拿它们做的事不同——debug 组件由使用者自己在 IDE 里启动，"在 IDE 里怎么用"的
+	// 提示只对它有意义；local 组件由 brickkit 自己拉起（internal/cli/up_local.go 的
+	// buildLocalEnv 直接用 Vars 严格展开，不读文件），"去 IDE 里加载这份文件"对它是一句误导。
 	Mode string
 	// Name 是文件名：local-debug.<版本化服务名>.env。
 	// 用版本化服务名，同一组件的两个版本同时调试时才不会互相覆盖。
@@ -817,8 +815,13 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 // renderEnvFile 渲染 .env 文件内容。
 // vars 已经全部求过值（localValue）。
 func renderEnvFile(l localComponent, vars []inject.Var, now time.Time) []byte {
+	// 开头的说明按 mode 分：debug 的文件是给 IDE 读的，local 的进程由 brickkit 拉起、不读它
+	header := msgid.ComposeEnvHeader
+	if l.Entry.Mode == deployfile.ModeLocal {
+		header = msgid.ComposeEnvHeaderLocal
+	}
 	var b bytes.Buffer
-	b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeader,
+	b.Write(yamlcomment.Banner(i18n.T(header,
 		l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
 
 	for _, v := range vars {

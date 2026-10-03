@@ -97,4 +97,5 @@ shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "wareho
    2. 环境变量用 local-debug.shop-stock-0-2-0.env 里的那一份
 ```
 
-这时迁移要你自己跑一次：用 `local-debug.<服务名>.env` 里的环境变量，在本机执行组件的迁移命令。
+这时迁移要你自己跑一次：用 `local-debug.<服务名>.env` 里的环境变量，在本机执行组件的迁移命令。`mode: local` 的组件也有这份文件：
+进程由 `up` 自己启动、不读它，但里面是同一套变量，正好拿来跑这类命令。
