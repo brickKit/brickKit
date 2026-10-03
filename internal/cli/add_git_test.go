@@ -164,6 +164,25 @@ func TestAddShellWithMembers(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
+// add 一个新外壳，它编进的成员已经嵌在另一个外壳下面：成员不动，输出里说一声。
+func TestAddShellSaysWhenAMemberStaysUnderAnotherShell(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "1.0.0", Port: 8082})
+	g.release(comp{ID: "erp/shell", Version: "1.0.0", Port: 8090, ShellMembers: []string{"erp/a@1.0.0"}})
+	g.release(comp{ID: "erp/shell2", Version: "1.0.0", Port: 8091, ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/shell@1.0.0")
+
+	r := g.mustRun(dir, "add", "erp/shell2@1.0.0")
+	assert.Contains(t, r.stdout, "ℹ️  erp/a@1.0.0 is nested under shell erp/shell, so shell erp/shell2 does not host it")
+	assert.NotContains(t, r.stdout, "moved into shell")
+	deploy := readFile(t, filepath.Join(dir, "deploy.yaml"))
+	assert.Contains(t, deploy, "  - id: erp/shell\n    members:\n      - id: erp/a\n")
+	assert.Contains(t, deploy, "  - id: erp/shell2\n    members:\n      - id: erp/b\n")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
 // add 写 deploy.yaml，也写 deploy.local.yaml（它存在时）；-f 用的别的部署文件不碰，说一声。
 func TestAddWritesDeployLocalToo(t *testing.T) {
 	g := newGitOrgProject(t)

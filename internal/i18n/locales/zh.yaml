@@ -1661,7 +1661,7 @@ install.add_other_version: "错误：项目里已经有 %[1]s（默认版本）�
 install.hint_upgrade_instead: "要把默认版本换成 %[1]s，用 brickkit upgrade %[1]s"
 install.hint_add_dependent: "如果是别的组件需要 %[1]s，add 那个组件：它的依赖会把这个版本以 requiredBy 带进来"
 install.note_shell_hosts_other_version: "外壳 %[1]s 编进的是 %[2]s，%[3]s 不在外壳里，独立运行"
-install.note_member_under_other_shell: "%[1]s 已经嵌在外壳 %[2]s 下面，没有挪进 %[3]s（一个版本只能在一个外壳里）"
+install.note_member_under_other_shell: "%[1]s 嵌在外壳 %[2]s 下面，外壳 %[3]s 不承载它（一个版本只能在一个外壳里）"
 install.note_optional_dependent: "%[1]s 弱依赖 %[2]s：它照样运行，只是不再拿到 %[2]s 的地址"
 install.remove_has_dependents: "错误：%[1]s 还被这些组件强依赖：%[2]s"
 install.hint_remove_dependents_first: "先移除（或升级）依赖它的组件，再移除它"

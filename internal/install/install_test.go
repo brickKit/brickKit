@@ -355,6 +355,68 @@ func TestPlanAddLeavesMembersTakenOutOfTheShell(t *testing.T) {
 	assert.Empty(t, plan.NestEntries)
 }
 
+// add 一个新外壳，它编进的成员已经嵌在项目里另一个外壳下面——成员不动（一个版本只能在一个外壳里），
+// 说一声：加外壳的人以为成员会由它承载。
+func TestPlanAddShellNotesMemberNestedUnderAnotherShell(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
+    members:
+      - id: erp/a`)
+	for _, added := range []string{"erp/shell2", "erp/ashell"} { // ID 排在旧外壳之后、之前都一样
+		cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf(added+"@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0"),
+			mf("erp/a@1.0.0"), mf("erp/b@1.0.0"))
+		plan, err := install.PlanAdd(p, graphFor(t, p, cat, added+"@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0"), ref(added+"@1.0.0"))
+		require.NoError(t, err)
+
+		assert.Empty(t, plan.NestEntries, added)
+		assert.Equal(t, []install.Entry{{ID: added}, {ID: "erp/b", Under: added}}, plan.AddEntries)
+		require.Len(t, plan.Notes, 1, added)
+		assert.Contains(t, plan.Notes[0], "erp/a@1.0.0")
+		assert.Contains(t, plan.Notes[0], "shell erp/shell,")
+		assert.Contains(t, plan.Notes[0], "shell "+added+" ")
+	}
+}
+
+// 成员被移出旧外壳、在顶层独立运行；add 一个也编进了它的新外壳——add 外壳就是决定把成员合进去，挪进新外壳。
+func TestPlanAddShellNestsTopLevelMemberAnotherShellAlsoCompiles(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
+  - id: erp/a`)
+	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf("erp/shell2@1.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"))
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/shell2@1.0.0", "erp/a@1.0.0"), ref("erp/shell2@1.0.0"))
+	require.NoError(t, err)
+	assert.Equal(t, []install.Entry{{ID: "erp/a", Under: "erp/shell2"}}, plan.NestEntries)
+	assert.Empty(t, plan.Notes)
+}
+
+// 新外壳带进来的新成员，项目里的旧外壳也编进了同一个版本——嵌在这次加的外壳下面。
+func TestPlanAddShellHostsItsNewMembersEvenIfAnOlderShellCompilesThem(t *testing.T) {
+	p := proj(t, "  - {id: erp/shell, version: 1.0.0, kind: shell}", "  - id: erp/shell")
+	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf("erp/shell2@1.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"))
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/shell2@1.0.0", "erp/a@1.0.0"), ref("erp/shell2@1.0.0"))
+	require.NoError(t, err)
+	assert.Equal(t, []install.Entry{{ID: "erp/shell2"}, {ID: "erp/a", Under: "erp/shell2"}}, plan.AddEntries)
+	assert.Empty(t, plan.Notes, "旧外壳不是这次加的，没什么要说的")
+}
+
+// 一次加进两个外壳，都编进了同一个成员版本——第一个承载它，第二个说一声。
+func TestPlanAddTwoShellsCompilingTheSameMember(t *testing.T) {
+	cat := catalog(shellMf("erp/s1@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0"), shellMf("erp/s2@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0"),
+		mf("erp/a@1.0.0"), mf("erp/b@1.0.0"))
+	p := proj(t, "  - {id: erp/b, version: 1.0.0}", "  - id: erp/b")
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/s1@1.0.0", "erp/a@1.0.0", "erp/s2@1.0.0"),
+		ref("erp/s1@1.0.0"), ref("erp/s2@1.0.0"))
+	require.NoError(t, err)
+
+	assert.Contains(t, plan.AddEntries, install.Entry{ID: "erp/a", Under: "erp/s1"}, "新成员")
+	assert.Equal(t, []install.Entry{{ID: "erp/b", Under: "erp/s1"}}, plan.NestEntries, "已在顶层的成员")
+	require.Len(t, plan.Notes, 2)
+	for _, note := range plan.Notes {
+		assert.Contains(t, note, "erp/s1")
+		assert.Contains(t, note, "erp/s2")
+	}
+}
+
 // requiredBy 点名的组件还有别的版本留着，但留下的版本并不依赖这个兼容版本——它没人要了，一并移除。
 func TestPlanRemoveCascadeLooksAtWhatRemainingVersionsNeed(t *testing.T) {
 	p := proj(t, `  - {id: erp/api, version: 2.0.0}

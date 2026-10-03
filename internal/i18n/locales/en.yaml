@@ -1672,7 +1672,7 @@ install.add_other_version: "Error: the project already has %[1]s (the default ve
 install.hint_upgrade_instead: "To make %[1]s the default version, run brickkit upgrade %[1]s"
 install.hint_add_dependent: "If another component needs %[1]s, add that component: its dependency brings this version in with requiredBy"
 install.note_shell_hosts_other_version: "Shell %[1]s contains %[2]s, so %[3]s is not in the shell and runs on its own"
-install.note_member_under_other_shell: "%[1]s is already nested under shell %[2]s and was not moved into %[3]s (a version can be in only one shell)"
+install.note_member_under_other_shell: "%[1]s is nested under shell %[2]s, so shell %[3]s does not host it (a version can be in only one shell)"
 install.note_optional_dependent: "%[1]s optionally depends on %[2]s: it keeps running, without the address of %[2]s"
 install.remove_has_dependents: "Error: %[1]s is still required by: %[2]s"
 install.hint_remove_dependents_first: "Remove (or upgrade) the components that depend on it first, then remove it"

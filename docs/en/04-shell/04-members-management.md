@@ -37,9 +37,25 @@ and the output says so:
 Adding the shell is the decision to merge its members, and the result is the same whichever came first. Only `add`ing
 the shell itself moves anything: once the shell is in the project, `add` never moves an entry under it again, so a member
 you moved out to run on its own stays out (a component added later that the shell compiles in is nested from the
-start). A member already nested under another shell stays there, with a note. `add` writes `deploy.yaml` (and
-`deploy.local.yaml`); other deploy files you pick with `-f` are listed as not changed. To keep a member running on its
-own in an environment, move its entry back to the top level in that file ([Moving out of a shell](#moving-out-of-a-shell)).
+start). `add` writes `deploy.yaml` (and `deploy.local.yaml`); other deploy files you pick with `-f` are listed as not
+changed. To keep a member running on its own in an environment, move its entry back to the top level in that file
+([Moving out of a shell](#moving-out-of-a-shell)).
+
+**When two shells compile in the same member version**, a version can be in only one shell, and these rules decide
+which one hosts it:
+
+- The member is already nested under another shell in the project: it stays there, the shell you are adding doesn't
+  host it, and the output has a note:
+
+  ```text
+  ℹ️  shop/stock@0.1.0 is nested under shell shop/shell, so shell shop/shell2 does not host it (a version can be in only one shell)
+  ```
+
+- The member is at the top level (you moved it out of the older shell), or it comes into the project with the new
+  shell: it is nested under **the shell you are adding**.
+- One `add` brings in two such shells: the first one hosts it, and the other gets the same note.
+
+To have the other shell host it instead, move the member's entry under that shell's `members` in the deploy file.
 
 ## Moving out of a shell
 
