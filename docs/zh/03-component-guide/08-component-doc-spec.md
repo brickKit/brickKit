@@ -144,7 +144,7 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 | `DOC_LINK_BROKEN` | 某条相对链接指向的东西不存在 |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接，或者文档链出了组件目录 |
 | `DOC_OUT_OF_STEP` | `component.yaml` 里的依赖、必填键、契约文件或外壳成员，文档该提的地方没提 |
-| `DOC_PLACEHOLDER` | 正文里（代码之外）还留着 `TODO`、`TBD`、`FIXME`、`待补`、`后补`、`待填` 这些占位词 |
+| `DOC_PLACEHOLDER` | 正文里（代码之外）还留着单独成词的 `TODO`、`TBD`、`FIXME`、`待补`、`待补充`、`后补`、`待填`、`待填写` 这些占位词 |
 | `DOC_TRANSLATION_DRIFT` | 译本没有原文、小节数不同、某一页在某棵 `docs/<语言>/` 树里缺了、某个语言版本没链接其余每一份，或者文件的语言后缀不是小写语言代码（`README.zh-CN.md`） |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有由 brickkit 维护的那一段 |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 没有引入 `AGENTS.md` |

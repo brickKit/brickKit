@@ -456,7 +456,9 @@ from "Shell declaration". Mention it (a dependency by ID; its version stays in `
 
 ### DOC_PLACEHOLDER
 
-`TODO`, `TBD`, `FIXME`, or one of their three Chinese counterparts, is still in a document's text (code blocks and inline code don't count).
+`TODO`, `TBD`, `FIXME`, or one of their Chinese counterparts, is still in a document's text (code blocks and inline code
+don't count). Only a word of its own counts: `TODOS` or `todo` doesn't, and a Chinese one with another Chinese character
+right next to it is part of an ordinary sentence, not a placeholder.
 The skeleton `brickkit new` writes leaves `<!-- TODO: … -->` comments exactly so this lists what's left to fill in.
 
 ### DOC_TRANSLATION_DRIFT

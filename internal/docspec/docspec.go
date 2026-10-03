@@ -150,5 +150,6 @@ func TranslationName(base, lang string) string {
 	return strings.TrimSuffix(base, ".md") + "." + lang + ".md"
 }
 
-// PlaceholderWords 是正文里不该留下的占位词（代码里的不算）。
-var PlaceholderWords = []string{"TODO", "TBD", "FIXME", "待补", "后补", "待填"}
+// PlaceholderWords 是正文里不该留下的占位词（代码里的不算）。单独成词才算：中文的前后挨着汉字
+// 就是正常的话（"事后补上"），所以"待补充""待填写"这种常见的写法要各自列出来。
+var PlaceholderWords = []string{"TODO", "TBD", "FIXME", "待补", "待补充", "后补", "待填", "待填写"}

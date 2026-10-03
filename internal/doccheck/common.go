@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/brickkit/brickkit/internal/agentsmd"
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -90,28 +92,32 @@ func placeholders(d doc) []*clierr.Error {
 	return out
 }
 
-// containsWord：英文占位词要成词（TODOS、todo 不算），中文的照字面。
+// containsWord：占位词要单独成词才算，前后挨着的不能是同一种文字——英文词前后不能是字母、数字、
+// 下划线（TODOS、todo 不算），中文词前后不能是汉字（"事后补上""期待补充"是正常的话，
+// "（待补）""待补充："才是占位）。
 func containsWord(text, w string) bool {
-	if w[0] >= 0x80 {
-		return strings.Contains(text, w)
-	}
+	han := w[0] >= utf8.RuneSelf
 	for i := 0; ; {
 		j := strings.Index(text[i:], w)
 		if j < 0 {
 			return false
 		}
 		at := i + j
-		before := at == 0 || !isWordByte(text[at-1])
-		after := at+len(w) == len(text) || !isWordByte(text[at+len(w)])
-		if before && after {
+		before, _ := utf8.DecodeLastRuneInString(text[:at])
+		after, _ := utf8.DecodeRuneInString(text[at+len(w):])
+		if !sameScript(before, han) && !sameScript(after, han) {
 			return true
 		}
 		i = at + len(w)
 	}
 }
 
-func isWordByte(b byte) bool {
-	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+// sameScript：r 挨着占位词时算不算把它连进了一个更长的词。行首行尾（RuneError）不算。
+func sameScript(r rune, han bool) bool {
+	if han {
+		return unicode.Is(unicode.Han, r)
+	}
+	return r == '_' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
 }
 
 // isRelative：不是外部地址、页内锚点、mailto 的链接目标。

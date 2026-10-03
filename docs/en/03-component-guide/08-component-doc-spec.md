@@ -177,7 +177,7 @@ comparison with the manifest (`DOC_OUT_OF_STEP`) is skipped.
 | `DOC_LINK_BROKEN` | A relative link points at nothing |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link, or a doc links out of the component |
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, contract file or shell member the doc doesn't mention where it belongs |
-| `DOC_PLACEHOLDER` | `TODO`, `TBD`, `FIXME` (or their Chinese counterparts) is still in the text, outside code |
+| `DOC_PLACEHOLDER` | `TODO`, `TBD`, `FIXME` (or their Chinese counterparts) is still in the text, outside code, as a word of its own |
 | `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, a page is missing from one of the `docs/<lang>/` trees, a language version doesn't link every other one, or a file's language suffix isn't a lowercase language code (`README.zh-CN.md`) |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no block maintained by brickkit |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` doesn't import `AGENTS.md` |

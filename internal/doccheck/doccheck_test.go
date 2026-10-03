@@ -203,6 +203,17 @@ func TestPlaceholders(t *testing.T) {
 	assert.Equal(t, []clierr.Code{clierr.CodeDocPlaceholder, clierr.CodeDocPlaceholder}, codes(Component(dir, m)))
 }
 
+func TestChinesePlaceholderMustStandAlone(t *testing.T) {
+	prose := "漏掉的列事后补上，就要回填。\n这一节以后补充说明。\n我们期待补充更多例子。\n等待填写的人。\n"
+	dir, m := component(t, map[string]string{"BRICKKIT.md": goodBrickkit + "\n" + prose})
+	assert.Empty(t, Component(dir, m), "inside a longer Chinese phrase the words are ordinary prose")
+
+	marks := "（待补）\n待补充：权限说明\n- 待填写\n后补\nTODO：写完\n"
+	dir, m = component(t, map[string]string{"BRICKKIT.md": goodBrickkit + "\n" + marks})
+	assert.Equal(t, []clierr.Code{clierr.CodeDocPlaceholder, clierr.CodeDocPlaceholder, clierr.CodeDocPlaceholder,
+		clierr.CodeDocPlaceholder, clierr.CodeDocPlaceholder}, codes(Component(dir, m)))
+}
+
 func TestOtherRootMarkdownIsNotChecked(t *testing.T) {
 	dir, m := component(t, map[string]string{"CHANGELOG.md": "TODO\n[gone](nope.md)\n"})
 	assert.Empty(t, Component(dir, m))
