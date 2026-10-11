@@ -66,9 +66,10 @@ one file and in the end everyone edits it and no one can read it — that's the 
 | The team's conventions, and which components the project has with where their docs are | `AGENTS.md` at the project root: the author's sections, then the component table |
 
 **Why there is no "merged view" command** (one command folding the three layers into one for you to look at): it would
-be a fourth thing to understand and to trust, and one day it would disagree with the files that actually take effect.
-Each question has exactly one file responsible for answering it; read that one when you need it — "read on demand,
-don't merge everything". What really gets generated (`compose.yaml`, Kubernetes manifests) is in
+be a fourth thing to understand and to trust, requiring additional work to keep it consistent with the effective config.
+Read each fact's authoritative source on demand; when a result involves several inputs, follow its references and derivation
+rules — "[Read on demand, trace derived results](../06-architecture/05-design-principles.md#10-read-on-demand-trace-derived-results)".
+What really gets generated (`compose.yaml`, Kubernetes manifests) is in
 `.brickkit/generated/`; `brickkit up --dry-run` generates without running, so that's where to look for the final result.
 
 ## What goes into Git and what doesn't

@@ -42,7 +42,7 @@ service discovery is Docker's or Kubernetes' own DNS.
 ## §2 Design principles (ten)
 
 1. **Fail loudly**: config conflicts, missing required values, duplicate keys, failed pushes — each is reported the moment it happens, never left to surface at runtime.
-2. **Minimal platform**: the platform does mechanical work and never guesses meaning — no rename detection, no type conversion, no deciding how a component degrades.
+2. **Minimal platform**: judge simplicity by the combined burden on the platform, component authors and project users. Centralize mechanical assembly work that removes repetition; never guess meaning — no rename detection, no type conversion, no deciding how a component degrades.
 3. **What you see is what runs**: there are no hidden overrides; the file you open is the configuration in effect.
 4. **Component autonomy**: what a component needs, how it degrades and what its logs look like are its own decisions; the platform asks only for a manifest, a health check and environment variables.
 5. **One job per file**: each of the three layers owns one thing, and every fact is written in exactly one place.
@@ -50,7 +50,7 @@ service discovery is Docker's or Kubernetes' own DNS.
 7. **Explicit over implicit**: exact versions, explicit `$var:` references, explicit port exposure; nothing is auto-guessed.
 8. **One model at every size**: a one-component project and a fifty-component project use the same three layers; there is no single-file mode.
 9. **Build is separate from deploy**: building an image is your explicit step (`brickkit build`); `brickkit up` never builds.
-10. **Read on demand, don't merge everything**: there is no command that folds the three layers into one view; to learn something, read the layer that owns it.
+10. **Read on demand, trace derived results**: every fact has an authoritative source; read only what answers the question, and make each derived result explainable through its inputs and derivation rules. There is no command that folds the three layers into one view.
 
 Each principle's argument — what it is, what it buys, what it costs, what it turned down — is in
 [`docs/en/06-architecture/05-design-principles.md`](../../docs/en/06-architecture/05-design-principles.md).
@@ -173,7 +173,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../.
 | Version ranges (`^1.0.0`) | Only an exact version is a contract |
 | Multi-environment overlays and inheritance | One complete deploy file per environment |
 | Building images automatically | Building is your explicit step |
-| A merged-view command | Read on demand instead |
+| A merged-view command | Read the authoritative sources on demand; trace derived results to them |
 | A single-file mode | One model at every size: always three layers |
 | Implicit config overrides | What you see is what runs |
 | Git authentication | Your machine's own Git setup is used; its errors are passed through verbatim |
@@ -1050,9 +1050,10 @@ one file and in the end everyone edits it and no one can read it — that's the 
 | The team's conventions, and which components the project has with where their docs are | `AGENTS.md` at the project root: the author's sections, then the component table |
 
 **Why there is no "merged view" command** (one command folding the three layers into one for you to look at): it would
-be a fourth thing to understand and to trust, and one day it would disagree with the files that actually take effect.
-Each question has exactly one file responsible for answering it; read that one when you need it — "read on demand,
-don't merge everything". What really gets generated (`compose.yaml`, Kubernetes manifests) is in
+be a fourth thing to understand and to trust, requiring additional work to keep it consistent with the effective config.
+Read each fact's authoritative source on demand; when a result involves several inputs, follow its references and derivation
+rules — "[Read on demand, trace derived results](../../docs/en/06-architecture/05-design-principles.md#10-read-on-demand-trace-derived-results)".
+What really gets generated (`compose.yaml`, Kubernetes manifests) is in
 `.brickkit/generated/`; `brickkit up --dry-run` generates without running, so that's where to look for the final result.
 
 ## What goes into Git and what doesn't

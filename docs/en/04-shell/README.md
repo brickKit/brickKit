@@ -4,13 +4,15 @@ A **shell** is a special kind of component: at build time it compiles the code o
 **members**) into its own process, and when deployed, one container serves all of them. Other components keep calling the
 members at their addresses, without knowing whether a container or a shell answers.
 
-**When to use one:** there are many components and running each as its own process costs too much memory (JVMs especially:
-an idle Spring Boot takes two or three hundred MB), or a few components call each other so often that you want to save the
-network round trips.
+**When to use one:** if the device's CPU or memory budget cannot support the required components running in separate
+processes, consider compiling suitable components into a shell. Sharing one runtime can reduce CPU and memory overhead.
+You can make this choice while planning the deployment; you do not have to run all components separately first.
+For members that call each other very often, a shell can also reduce network round trips through in-process calls;
+the actual savings depend on the shell's implementation.
 
 **When not to:** members that need to scale separately, isolate failures separately, or are written in different
-languages — all of that requires separate processes. A shell is a way of deploying, not a default: let components run on
-their own first, and merge when there's a real need.
+languages — all of that requires separate processes. Choose the deployment layout according to the device's resource
+budget and the components' runtime requirements. Shell members scale together and share the process's failure scope.
 
 This module uses a real example: the shell `shop/shell` compiles in `shop/cart` (the cart) and `shop/stock` (the stock),
 with `shop/order` running on its own outside.

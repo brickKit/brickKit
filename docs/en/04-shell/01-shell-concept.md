@@ -38,14 +38,16 @@ this time" has one answer. Another version of the same component can run on its 
 
 ## Where it fits
 
-- **Saving memory.** A process's memory floor is mostly decided by its language runtime: Go takes a dozen or so MB,
-  Python / Node a few dozen, a JVM two or three hundred. Twenty Spring Boot components, each its own process, take four to
-  nine GB idle; compiled into three or four shells, that's three or four runtimes.
+- **A limited CPU or memory budget.** Each component running in its own process has runtime, background-task, and other
+  overhead. If the device cannot support that overhead, suitable components can share one runtime in a shell, reducing
+  repeated CPU and memory overhead. You can choose a shell while planning the deployment, without deploying all components
+  separately first. Measure the savings with the actual components and device.
 - **Saving network round trips.** When members call each other very often, compiled into one process the shell can have
   them call each other in-process.
 
-Consider the alternatives first: components written in Go or Rust are frugal already, and merging isn't worth it; for the
-JVM, try GraalVM native images; components you don't need can be `mode: disable` in the deploy file and not run at all.
+Other ways to save resources are worth assessing too: GraalVM native images for the JVM, or `mode: disable` in the deploy
+file for components you do not need. The choice of a shell depends on the required components' total overhead and the
+device's budget, rather than the programming language alone.
 
 ## Where it doesn't
 
