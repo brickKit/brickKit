@@ -70,6 +70,51 @@ If you're adding behaviour worth a checklist line (a boundary condition, an erro
 guarantee), add the line to `tests/checklist/清单.tsv` or `tests/regression/清单.tsv` and wire a real test to it — a
 line with no test, or a test that no longer exists, fails the build **on purpose** (the README's table says why).
 
+## Test selection and execution evidence
+
+Start a change with specification-derived input/initial-state, action, expected-outcome and basis tables. Include both
+sides of boundaries, rejection paths and forbidden transitions before choosing tests. Component and assembly guidance
+lives in [Selecting tests by capability](docs/en/09-patterns/06-testing-capabilities.md). CLI-repository maintainers
+particularly check:
+
+| Changed area | Outcomes to prove |
+| --- | --- |
+| Graphs, ordering, configuration merging and parsing | Explicit cases and independent properties; YAML/reference entry points use fuzzing and fixed corpora, with reproducible seeds and minimized counterexamples kept in regression |
+| Configuration, contracts or version protocols | Supported historical files retain semantics; independently released CLI/market combinations work through real calls, unsupported formats/combinations are correctly refused |
+| Installation, removal, upgrade and release | Files, tags, caches and other observable state at failure points satisfy the operation's atomicity promise; dry-run writes nothing |
+| Process supervision, engines and shell wiring | Real signals and child cleanup, actual engine execution; generated-file assertions and member runtime equivalence have separate evidence |
+| Shared fakes, generators or gates | Fake and real implementations share contracts, generated files are fresh and repeatable; new/changed checkers include good and singly broken fixtures, invoking the checker and asserting the intended rule |
+| Performance, output, security and documentation | Benchmarks really run with recorded environments; logs do not leak secrets, scans follow risk, documentation/examples and bilingual/generated-file checks pass |
+
+Use reviewable golden files or snapshots for large outputs and scoped mutation checks for critical conditions where risk
+justifies them. Coverage is not assertion strength, and mutation scores cannot establish correct expectations. Explain
+changes to expectations, fixtures, generators and snapshots. Investigate specification and implementation failures;
+do not delete assertions, narrow inputs or repeatedly rerun to get green. Beyond named checklist tests existing, confirm
+filters actually select and execute them and that their assertions prove the promise.
+
+Existing entries have these boundaries. An entry existing proves neither execution this time nor implementation of every
+capability:
+
+| Entry | Evidence scope and environment |
+| --- | --- |
+| `make test`, `make test-unit` | Main-module `internal/` tests; not the market module, real deployment or whole business flows |
+| `make test-race` | Go race detection on main-module paths, not multi-instance job idempotency |
+| `make test-all` | Suites listed in the Makefile; unconfigured real dependencies may skip, so not evidence that all real dependencies passed |
+| `make test-market-integration` | Market PostgreSQL/RustFS tests using `.env`; verify real sub-suites ran, with missing configuration or skips still incomplete |
+| `make test-components-integration` | Fixture-component PostgreSQL migration integration using `.env`; not all business components' upgrades or recovery |
+| `make test-upgrade` | Existing Upgrade cases; CLI configuration/deployment upgrade is not old business-data, in-flight work, mixed-version or rollback acceptance |
+| `make check-smoke` | Actual binary version, init, local add and dry-run; no actual container or Kubernetes service startup |
+| `make test-perf` | Currently ordinary `Test*` cases in `tests/perf`, not `Benchmark*` measurements |
+| `go test -run '^$' -bench . -benchmem -count=3 ./tests/perf` | Actual existing benchmarks; record commit, Go version, hardware, workload and environment for comparisons |
+| `make lint` | Static, architecture, documentation and freshness checks, cross-OS compilation and a coverage gate running unit tests; not every capability's acceptance |
+
+Record specification, test implementation and execution separately; report passing, failing, skipped and not-run cases
+with environment reasons. Development runs may explicitly skip unconfigured real dependencies. Specifically requested
+integration/release acceptance is incomplete without its environment and cannot count as passing; dedicated entries
+should fail. This is an execution requirement, not a claim that all current entries already enforce missing-environment
+failure automatically: maintainers must inspect sub-suite results. Components may use their own `release.checks` for
+chosen suites; business protocols, jobs, data recovery and assembled flows remain their respective owners' responsibilities.
+
 ## Documentation conventions
 
 - **`docs/en/` and `docs/zh/` are two independently written, symmetric trees** — not a source plus a translation.

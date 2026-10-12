@@ -7,6 +7,22 @@ components, including a frontend, covering one complete business loop). To the p
 like any other — a container with a port and a health check — so this approach covers both sides: first four layers for
 backends, then four for frontends.
 
+## Decide what the project needs to prove
+
+Layering also needs capability-based selection. List each object's runtime forms, worker instance counts, operations
+crossing transactions, public contracts, persistent data and upgrades, frontend and delivery promises. Record applicable
+tests, minimum observable outcomes, owners, tiers, actual commands and evidence states.
+[Selecting tests by capability](06-testing-capabilities.md) provides the catalog and specific acceptance guidance:
+multi-instance contention, workflow recovery, shell equivalence, old data and in-flight upgrade, file and version-combination
+compatibility, real assembly, properties, fuzzing, shared contracts, checker self-tests and operational acceptance.
+These additions are recommendations, not a claim that the production review above validated every practice.
+
+An object may be a worker, an interchangeable implementation and a shell member at once; combine its applicable rows.
+Explain non-applicability, and mark unpromised rollback, offline or capacity targets as pending. **Specified, implemented
+and executed successfully are different states.** Test names, coverage and generated files do not replace the required
+outcome. Keep the four layers for organizing tests; the same suite can prove several capabilities without creating a new
+layer for each type.
+
 ## Backends: four layers of tests
 
 ```mermaid
@@ -26,7 +42,7 @@ Two further dimensions **run through every layer** — not a fifth layer, but co
 | Dimension | Covers |
 | --- | --- |
 | Permissions and data scope | The boundary of what different identities, with different ownership scopes, can see. It goes into every layer, not tested once and done |
-| Cross-component calls | Calls to other components go to the real dependency, not a stand-in; see "A component's tests and integration tests" below |
+| Cross-component calls | Actual protocols and dependency behaviour need real-path evidence; substitutes test the component's own rules and orchestration, as described below |
 
 ### Telling L2 from L3
 
@@ -56,13 +72,16 @@ field is parsed as `Decimal`, not `float`" — only meaningful for the current i
 
 ### A component's own tests: run on their own
 
-L1–L3 run in the component's own repository, without starting other components and without BrickKit. Dependency
+Local L1–L3 contract, rule and implementation checks run in the component's own repository without other components or
+BrickKit; L1's cross-process protocol connectivity is verified separately in a real integration environment. Dependency
 addresses come from environment variables, which the test sets itself; an optional dependency's variable may not exist at
 all, so treat "the variable doesn't exist" as an input to test too — how the component degrades then is its own business
 logic.
 
-**Stand-ins (mocks) are fine, but know what they can't prove**: a mock can only prove "the call happened" (right arguments,
-how many times), never "the result after the call is right".
+**Substitutes are useful within their evidence boundary.** Mock-call assertions establish arguments and call counts;
+assertions on substitute results can verify this component's rules, but cannot prove the real dependency's transactions,
+protocol or side effects. Teams maintaining a fake and real implementation run identical contract assertions against both,
+with the real implementation actually executed.
 
 ### Integration tests: real containers, cross-component calls
 
@@ -78,6 +97,11 @@ three things:
 In the component's own repository, bring the dependencies up with a workbench (see
 [Developing inside a component](../03-component-guide/05-local-dev-fractal.md)): the dependencies run in containers, the
 component under test runs on this machine as `mode: debug`, and the tests hit it directly.
+
+Platform maintainers verify configuration derivation, generated files and mechanical wiring to real engines. Components
+verify runtime contracts, business rules, degradation and recovery. The assembling project verifies deployment and whole
+business flows. A member passing alone does not accept its shell form, and all components passing separately do not accept
+the assembly. See [Proving the specific scenarios](06-testing-capabilities.md#proving-the-specific-scenarios).
 
 ## Spec first, then implementation (especially when an AI writes the component)
 
@@ -119,7 +143,9 @@ as usual, so wherever `component.yaml` and `config/` disagree shows up right the
 The same step also stops: a config item name colliding with a platform-reserved variable (a warning); a key in `required`
 with neither a default nor a value from the project (**blocking** — `--dry-run` stops with exit code 1 too).
 
-**How to write step 3.** Write it first as one sentence of "given… when… then…", then turn it into a test. The idempotency
+**How to write step 3.** Start with a "given… when… then…" sentence, then a case table of input/initial state, action,
+expected outcome and specification basis. Cover both sides of boundaries, rejection paths and forbidden transitions;
+review the expectations before turning them into tests. The idempotency
 rule from trap one, written out:
 
 > Given an idempotency key not yet processed; when two requests with the same key arrive at once; then only one really
@@ -144,6 +170,11 @@ graph LR
 | FE-2 Component tests | The shared UI parts themselves | Tables, form templates and generic cards reused by several pages — breaking one breaks every page using it, so they naturally come before parts specific to one page |
 | FE-3 End to end | Whole business flows | A real browser + a real backend (the whole assembly running). Named by "the business flow verified", not "which button was clicked" |
 | FE-4 Visual regression | Whether spacing, density and usage are consistent across pages | Screenshots compared along the way when FE-3 reaches key pages, without starting a browser again. The baseline is updated together with intended UI changes |
+
+FE-2/FE-3 exercise menus, buttons and direct page access for each role; backend authorization remains independently tested.
+Shared interactions include loading, empty and failure states. Localization, supported browsers/devices and accessibility
+requirements trigger their own checks; visual comparisons fix fonts and rendering environments. See
+[Frontends and localization](06-testing-capabilities.md#frontends-and-localization) for conditions and minimum outcomes.
 
 **When to write FE-3/FE-4**: add them in bulk once page interactions have mostly settled. While pages are still changing a
 lot, every change drags selectors and assertions along with it, and the payoff is poor. The skeleton and directory

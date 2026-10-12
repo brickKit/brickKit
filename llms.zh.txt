@@ -22,8 +22,9 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/02-dependency-resolution.md … docs/zh/06-architecture/06-bare-repo-mechanism.md
 - [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/07-cache-design.md … docs/zh/06-architecture/09-error-codes.md
 - [llms/zh/07.md](llms/zh/07.md): docs/zh/07-cli-reference/README.md … docs/zh/09-patterns/README.md
-- [llms/zh/08.md](llms/zh/08.md): docs/zh/09-patterns/01-component-design.md … docs/zh/10-troubleshooting/02-local-debug-issues.md
-- [llms/zh/09.md](llms/zh/09.md): docs/zh/10-troubleshooting/03-config-conflict-issues.md … docs/zh/11-reference/06-market-api.md
+- [llms/zh/08.md](llms/zh/08.md): docs/zh/09-patterns/01-component-design.md … docs/zh/10-troubleshooting/README.md
+- [llms/zh/09.md](llms/zh/09.md): docs/zh/10-troubleshooting/01-up-down-issues.md … docs/zh/11-reference/03-deploy-yaml-schema.md
+- [llms/zh/10.md](llms/zh/10.md): docs/zh/11-reference/04-config-schema-spec.md … docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## 回答一个问题
@@ -132,10 +133,11 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 ### 09-patterns/
 - [docs/zh/09-patterns/README.md](docs/zh/09-patterns/README.md): 模块索引——不是"怎么用"，是"怎么用好"
 - [docs/zh/09-patterns/01-component-design.md](docs/zh/09-patterns/01-component-design.md): 组件设计准则——粒度、DDD 对照、失败模式
-- [docs/zh/09-patterns/02-testing-strategy.md](docs/zh/09-patterns/02-testing-strategy.md): 测试策略——四层分工
+- [docs/zh/09-patterns/02-testing-strategy.md](docs/zh/09-patterns/02-testing-strategy.md): 测试策略——四层分工、责任与能力选型入口
 - [docs/zh/09-patterns/03-seed-data.md](docs/zh/09-patterns/03-seed-data.md): 种子数据设计——两条路径物理隔离
 - [docs/zh/09-patterns/04-service-calling.md](docs/zh/09-patterns/04-service-calling.md): 可靠调用依赖——DNS 缓存、超时、各语言行为
 - [docs/zh/09-patterns/05-deployment-selection.md](docs/zh/09-patterns/05-deployment-selection.md): 部署形态选择——拓扑 × 部署目标 × 本地模式
+- [docs/zh/09-patterns/06-testing-capabilities.md](docs/zh/09-patterns/06-testing-capabilities.md): 按能力选择测试——类型目录、最低结果、专项验收与证据
 
 ### 10-troubleshooting/
 - [docs/zh/10-troubleshooting/README.md](docs/zh/10-troubleshooting/README.md): 模块索引——格式：症状 → 原因 → 解决

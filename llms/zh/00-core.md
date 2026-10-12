@@ -4,7 +4,7 @@
 
 下面 File 与包含里的路径都相对仓库根目录 https://raw.githubusercontent.com/brickKit/brickKit/main/ ；页内链接相对这份合集自己
 
-下一份: 其余全部文档，每页一次，按阅读顺序: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/01.md … 09.md
+下一份: 其余全部文档，每页一次，按阅读顺序: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/01.md … 10.md
 
 ---
 
