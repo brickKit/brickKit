@@ -1,38 +1,10 @@
-# Selecting tests by capability
+# Test types and scenario acceptance
 
-This companion to [Testing strategy](02-testing-strategy.md) is **recommended practice**. The four layers locate a test;
-this page identifies the outcomes an object still needs to prove. Select by capability and risk: the catalog does not
-claim that every suite exists or impose release conditions on all components. Components choose their language,
-framework, business protocol, degradation and recovery. The platform verifies mechanical assembly; the project verifies
-the assembled system.
-
-## Start with objects and capabilities
-
-List deployable units and their runtime forms, background work and instance counts, operations spanning transactions or
-stores, interfaces and implementations, persistent data, upgrade paths, frontends and delivery environments. A shell is
-a merged-process runtime form; components in one process can still span transactions. The CLI having no business
-database does not remove the storage risks of the components it assembles. Combine applicable conditions for each object.
-Record a reason when a capability is absent, and reconsider when capabilities or promises change.
-
-| Owner | Main responsibilities |
-| --- | --- |
-| CLI and platform maintainers | Algorithms, parsing, configuration and generation, atomic file changes, process supervision, real-engine wiring, installable artifacts, documentation and checkers |
-| Component maintainers | Interfaces, rules, permissions, real dependencies, competing workers, failure recovery, persistent-data upgrades and the component's runtime contract |
-| Shared-contract and suite maintainers | Reviewed expected answers, capabilities and versions, common assertions for interchangeable implementations, positive and negative suite fixtures; implementations integrate the suite |
-| Shell and member maintainers | Equivalent behaviour for the same member version in standalone and merged forms, identity/configuration/resource isolation, initialization and shutdown |
-| Assembling project and delivery maintainers | Real deployment, whole business flows, supported version and environment combinations, delivery and operational promises; component tests alone do not accept the assembly |
-| Frontend maintainers | Pure logic, interactions, real backend wiring, permission visibility; visual, localization, browser and accessibility checks where applicable |
-
-Write one acceptance row for each object or capability before matching names of existing tests:
-
-| Object or capability | Types | Minimum observable result and specification | Owner, tier and actual command | Evidence state |
-| --- | --- | --- | --- | --- |
-| Two workers competing for one job | T19 | Execution count and final business state satisfy the idempotency contract; recovery after an instance exits follows its promise | Component maintainer; integration/release tier; register the actual entry point | Record specification, implementation and execution separately |
-
-**Specified, implemented and executed successfully are separate states.** Also record failures, skips, not run,
-uncovered, pending decisions and reasons for non-applicability. Release evidence includes the commit, contract version,
-environment and output. A name containing `Upgrade`, `E2E` or `Contract` is insufficient unless its assertions prove this
-row's outcome. Do not invent commands for suites that have not been implemented.
+This reference accompanies [Testing strategy](02-testing-strategy.md): look up applicability, minimum outcomes and
+specific acceptance criteria by type. The strategy owns selection, layering, responsibilities and execution evidence;
+this page keeps the details available for consultation as needed. These are recommendations, not claims that every suite
+exists or universal component release conditions. Components choose their language, framework, business protocols,
+degradation and recovery; the platform verifies mechanical assembly and projects verify assembled outcomes.
 
 ## Test catalog
 
@@ -142,7 +114,7 @@ availability and protective behaviour rather than replacing workflow-state recov
 Integration isolation must allow the behaviour under test to happen. Tests wrapped in rollback-only transactions cannot
 alone prove visibility to another connection, contention, deferred constraints, worker/Outbox claims or genuine rollback.
 Use isolated databases or other environments supporting real commits. Across component boundaries, continue preparing
-data through the owning interface; see [Seed data](03-seed-data.md) for isolation.
+data through the owning interface; see [Seed data](04-seed-data.md) for isolation.
 Count data queries/round trips for list and detail requests at different result sizes and realistic permission scopes.
 Assert the interface's budget and absence of unexpected per-row growth; there is no universal SQL-count limit.
 
@@ -190,18 +162,3 @@ T27 proves integration on a real engine, T28 proves an entry-to-outcome business
 execution of actual released artifacts. Record targets, engine/dependency versions, configuration, migrations and request
 results. Compilation, generated files, startup logs and dry-run cannot replace every outcome. Across deployment targets,
 compare shared environment values, addresses and runtime contracts rather than identical Docker and Kubernetes files.
-
-## Execution and evidence
-
-Start with specification-derived case tables, including both sides of boundaries, rejection paths and forbidden
-transitions. Coverage measures execution, snapshots measure output differences and mutation cannot establish whether
-expectations are correct. Keep minimized fuzz counterexamples and seeds in daily regression. Explain and review changes
-to expectations, fixtures, generators and snapshots. Investigate the specification and implementation first; do not
-delete assertions, narrow inputs or rerun until green. Checker fixtures invoke the actual checker and assert the intended
-rule, so unrelated failures cannot masquerade as success.
-
-Development runs may explicitly skip unconfigured real dependencies. A specifically requested integration or release
-acceptance lacking its environment remains incomplete and cannot count as passing; dedicated entries should exit with
-failure. Register actual commands, owners, tiers and environments; report passing, failing, skipped and not-run cases
-separately. Revisit the catalog for new capabilities or promises. Existing CLI-repository commands and their evidence
-boundaries are documented in [Contributing](../../../CONTRIBUTING.md#test-selection-and-execution-evidence).

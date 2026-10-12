@@ -7,21 +7,25 @@ components, including a frontend, covering one complete business loop). To the p
 like any other — a container with a port and a health check — so this approach covers both sides: first four layers for
 backends, then four for frontends.
 
-## Decide what the project needs to prove
+## Select acceptance goals by capability
 
-Layering also needs capability-based selection. List each object's runtime forms, worker instance counts, operations
-crossing transactions, public contracts, persistent data and upgrades, frontend and delivery promises. Record applicable
-tests, minimum observable outcomes, owners, tiers, actual commands and evidence states.
-[Selecting tests by capability](06-testing-capabilities.md) provides the catalog and specific acceptance guidance:
-multi-instance contention, workflow recovery, shell equivalence, old data and in-flight upgrade, file and version-combination
-compatibility, real assembly, properties, fuzzing, shared contracts, checker self-tests and operational acceptance.
-These additions are recommendations, not a claim that the production review above validated every practice.
+Determine the outcomes needed before organizing cases into backend/frontend layers. Selection and evidence management
+are additional recommendations, not a claim that the production review validated every scenario.
 
-An object may be a worker, an interchangeable implementation and a shell member at once; combine its applicable rows.
-Explain non-applicability, and mark unpromised rollback, offline or capacity targets as pending. **Specified, implemented
-and executed successfully are different states.** Test names, coverage and generated files do not replace the required
-outcome. Keep the four layers for organizing tests; the same suite can prove several capabilities without creating a new
-layer for each type.
+1. **Inventory objects and capabilities**: deployable units and runtime forms, background work and instance counts,
+   operations spanning transactions or stores, interfaces and implementations, persistent data and upgrades, frontends,
+   delivery environments and promises. A shell is a merged-process form; one process may cross transactions. The CLI
+   lacking a business database does not remove its assembled components' storage risks.
+2. **Select for each object** using the conditions and minimum outcomes in
+   [Test types and scenario acceptance](03-test-types-and-acceptance.md), before matching existing test names. An object can
+   be a worker, an interchangeable implementation and a shell member at once; combine applicable conditions. Explain
+   non-applicability and mark unpromised rollback, offline or capacity targets as pending. Revisit changed capabilities
+   and promises.
+3. **Plan verification** with the layers and responsibilities below, specifying the basis, owner, tier, actual command
+   and required environment. General techniques and scenarios overlap; one suite can prove several outcomes without
+   adding a layer for every type.
+4. **Implement and accept** in the specification-first order, then use the acceptance record at the end of this page
+   to identify uncovered, skipped and pending outcomes.
 
 ## Backends: four layers of tests
 
@@ -68,7 +72,66 @@ field is parsed as `Decimal`, not `float`" — only meaningful for the current i
 | --- | --- | --- |
 | Test only "someone with permission sees what they should" and "someone with no permission sees nothing" | The permission branch is wrong and returns the whole table: the no-permission user is stopped earlier anyway, and the rows the permitted user sees are themselves correct (they just see other people's too) — both tests pass every time | Build two pieces of data in different ownership scopes (different owners, departments, warehouses), query as one identity, and assert the result contains **none at all** of the other's data — not merely "not empty" or "empty" |
 
+## Frontends: four layers of their own
+
+The same thinking — specification apart from implementation, shared things before specific ones, real environments over
+simulated ones — with different tools and boundaries:
+
+```mermaid
+graph LR
+    F1["FE-1 Unit/logic<br/>pure functions"] --> F2["FE-2 Component tests<br/>shared UI parts"] --> F3["FE-3 End to end<br/>real browser + real backend"] --> F4["FE-4 Visual regression<br/>screenshot comparison"]
+```
+
+| Layer | Checks | Specifically |
+| --- | --- | --- |
+| FE-1 Unit/logic | Whether the logic computes right | Pure functions, composables, state management; every network request mocked, no rendering |
+| FE-2 Component tests | The shared UI parts themselves | Tables, form templates and generic cards reused by several pages — breaking one breaks every page using it, so they naturally come before parts specific to one page |
+| FE-3 End to end | Whole business flows | A real browser + a real backend (the whole assembly running). Named by "the business flow verified", not "which button was clicked" |
+| FE-4 Visual regression | Whether spacing, density and usage are consistent across pages | Screenshots compared along the way when FE-3 reaches key pages, without starting a browser again. The baseline is updated together with intended UI changes |
+
+FE-2/FE-3 exercise menus, buttons and direct page access for each role; backend authorization remains independently tested.
+Shared interactions include loading, empty and failure states. Localization, supported browsers/devices and accessibility
+requirements trigger their own checks; visual comparisons fix fonts and rendering environments. See
+[Frontends and localization](03-test-types-and-acceptance.md#frontends-and-localization) for conditions and minimum outcomes.
+
+**When to write FE-3/FE-4**: add them in bulk once page interactions have mostly settled. While pages are still changing a
+lot, every change drags selectors and assertions along with it, and the payoff is poor. The skeleton and directory
+conventions can be settled early.
+
+**Before having an AI run FE-3 or FE-4, get the user's agreement.** What's expensive isn't the tools but "an AI really
+driving a browser, debugging selectors through screenshots or reading the DOM". Say beforehand which flow is being tested
+this time and which pages it covers, and wait for the user to confirm. The cost is mostly in writing and debugging; running
+an already stable suite with a text report costs about as much as unit tests. To lower the cost of writing them the first
+time: confirm elements with accessibility-tree snapshots (structured text) rather than a full-page screenshot every time;
+on failure, read the text stack first and take a screenshot only if that doesn't tell you; have a person record the key
+paths where possible.
+
+**A trap actually fallen into: not catching "the backend refused".**
+
+| Don't | Symptom | Instead |
+| --- | --- | --- |
+| Write data loading as `try { await load() } finally { ... }` with no `catch` — because the mocked backend in FE-1 always succeeds | When the real backend legitimately refuses (403, a validation error, a dropped connection), the rejection becomes an exception nobody catches: one framework warning in the console, the page stuck blank or loading, and the user sees nothing | Every load/refresh function has an explicit `catch` and shows a visible error state. It's also why FE-3 has to hit a real backend: a mock can't test "was a real refusal handled" |
+
+**Frontend types drifting from backend contracts: prevent it with a mechanism, not with more tests.** A hand-written
+frontend type annotation says "matches the backend contract", with nothing to guarantee it. Generate frontend types and
+request functions straight from the backend contract (an OpenAPI file, a GraphQL schema), and type checking stops every
+drift at compile time, at zero extra cost for each endpoint added afterwards.
+
 ## A component's tests and integration tests
+
+### Test ownership
+
+| Owner | Main responsibilities |
+| --- | --- |
+| CLI and platform maintainers | Algorithms, parsing, configuration and generation, atomic file changes, process supervision, real-engine wiring, installable artifacts, documentation and checkers |
+| Component maintainers | Interfaces, rules, permissions, real dependencies, competing workers, failure recovery, persistent-data upgrades and the component's runtime contract |
+| Shared-contract and suite maintainers | Reviewed expected answers, capabilities and versions, common assertions for interchangeable implementations, positive and negative suite fixtures; implementations integrate the suite |
+| Shell and member maintainers | Equivalent behaviour for the same member version in standalone and merged forms, identity/configuration/resource isolation, initialization and shutdown |
+| Assembling project and delivery maintainers | Real deployment, whole business flows, supported version and environment combinations, delivery and operational promises; component tests alone do not accept the assembly |
+| Frontend maintainers | Pure logic, interactions, real backend wiring, permission visibility; visual, localization, browser and accessibility checks where applicable |
+
+A member passing alone does not accept its shell form, and all components passing separately do not accept the
+assembly. See [Proving the specific scenarios](03-test-types-and-acceptance.md#proving-the-specific-scenarios).
 
 ### A component's own tests: run on their own
 
@@ -97,11 +160,6 @@ three things:
 In the component's own repository, bring the dependencies up with a workbench (see
 [Developing inside a component](../03-component-guide/05-local-dev-fractal.md)): the dependencies run in containers, the
 component under test runs on this machine as `mode: debug`, and the tests hit it directly.
-
-Platform maintainers verify configuration derivation, generated files and mechanical wiring to real engines. Components
-verify runtime contracts, business rules, degradation and recovery. The assembling project verifies deployment and whole
-business flows. A member passing alone does not accept its shell form, and all components passing separately do not accept
-the assembly. See [Proving the specific scenarios](06-testing-capabilities.md#proving-the-specific-scenarios).
 
 ## Spec first, then implementation (especially when an AI writes the component)
 
@@ -154,51 +212,32 @@ rule from trap one, written out:
 That sentence is itself the most precise prompt you can give an AI, and it points straight at the concurrency window that
 serial replay can't reach.
 
-## Frontends: four layers of their own
+## Execute acceptance and record evidence
 
-The same thinking — specification apart from implementation, shared things before specific ones, real environments over
-simulated ones — with different tools and boundaries:
+Use one record per object or capability; matching an existing test's name is not coverage:
 
-```mermaid
-graph LR
-    F1["FE-1 Unit/logic<br/>pure functions"] --> F2["FE-2 Component tests<br/>shared UI parts"] --> F3["FE-3 End to end<br/>real browser + real backend"] --> F4["FE-4 Visual regression<br/>screenshot comparison"]
-```
+| Object or capability | Types | Minimum observable result and specification | Owner, tier and actual command | Evidence state |
+| --- | --- | --- | --- | --- |
+| Two workers competing for one job | T19 | Execution count and final business state satisfy the idempotency contract; recovery after an instance exits follows its promise | Component maintainer; integration/release tier; register the actual entry point | Record specification, implementation and execution separately |
 
-| Layer | Checks | Specifically |
-| --- | --- | --- |
-| FE-1 Unit/logic | Whether the logic computes right | Pure functions, composables, state management; every network request mocked, no rendering |
-| FE-2 Component tests | The shared UI parts themselves | Tables, form templates and generic cards reused by several pages — breaking one breaks every page using it, so they naturally come before parts specific to one page |
-| FE-3 End to end | Whole business flows | A real browser + a real backend (the whole assembly running). Named by "the business flow verified", not "which button was clicked" |
-| FE-4 Visual regression | Whether spacing, density and usage are consistent across pages | Screenshots compared along the way when FE-3 reaches key pages, without starting a browser again. The baseline is updated together with intended UI changes |
+**Specified, implemented and executed successfully are separate states.** Also record failures, skips, not run,
+uncovered, pending decisions and reasons for non-applicability. Release evidence includes the commit, contract version,
+environment and output. A name containing `Upgrade`, `E2E` or `Contract` is insufficient unless its assertions prove this
+row's outcome. Do not invent commands for suites that have not been implemented.
 
-FE-2/FE-3 exercise menus, buttons and direct page access for each role; backend authorization remains independently tested.
-Shared interactions include loading, empty and failure states. Localization, supported browsers/devices and accessibility
-requirements trigger their own checks; visual comparisons fix fonts and rendering environments. See
-[Frontends and localization](06-testing-capabilities.md#frontends-and-localization) for conditions and minimum outcomes.
+Start with specification-derived case tables, including both sides of boundaries, rejection paths and forbidden
+transitions. Coverage measures execution, snapshots measure output differences and mutation cannot establish whether
+expectations are correct. Keep minimized fuzz counterexamples and seeds in daily regression. Explain and review changes
+to expectations, fixtures, generators and snapshots. Investigate the specification and implementation first; do not
+delete assertions, narrow inputs or rerun until green. Checker fixtures invoke the actual checker and assert the intended
+rule, so unrelated failures cannot masquerade as success.
 
-**When to write FE-3/FE-4**: add them in bulk once page interactions have mostly settled. While pages are still changing a
-lot, every change drags selectors and assertions along with it, and the payoff is poor. The skeleton and directory
-conventions can be settled early.
-
-**Before having an AI run FE-3 or FE-4, get the user's agreement.** What's expensive isn't the tools but "an AI really
-driving a browser, debugging selectors through screenshots or reading the DOM". Say beforehand which flow is being tested
-this time and which pages it covers, and wait for the user to confirm. The cost is mostly in writing and debugging; running
-an already stable suite with a text report costs about as much as unit tests. To lower the cost of writing them the first
-time: confirm elements with accessibility-tree snapshots (structured text) rather than a full-page screenshot every time;
-on failure, read the text stack first and take a screenshot only if that doesn't tell you; have a person record the key
-paths where possible.
-
-**A trap actually fallen into: not catching "the backend refused".**
-
-| Don't | Symptom | Instead |
-| --- | --- | --- |
-| Write data loading as `try { await load() } finally { ... }` with no `catch` — because the mocked backend in FE-1 always succeeds | When the real backend legitimately refuses (403, a validation error, a dropped connection), the rejection becomes an exception nobody catches: one framework warning in the console, the page stuck blank or loading, and the user sees nothing | Every load/refresh function has an explicit `catch` and shows a visible error state. It's also why FE-3 has to hit a real backend: a mock can't test "was a real refusal handled" |
-
-**Frontend types drifting from backend contracts: prevent it with a mechanism, not with more tests.** A hand-written
-frontend type annotation says "matches the backend contract", with nothing to guarantee it. Generate frontend types and
-request functions straight from the backend contract (an OpenAPI file, a GraphQL schema), and type checking stops every
-drift at compile time, at zero extra cost for each endpoint added afterwards.
+Development runs may explicitly skip unconfigured real dependencies. A specifically requested integration or release
+acceptance lacking its environment remains incomplete and cannot count as passing; dedicated entries should exit with
+failure. Register actual commands, owners, tiers and environments; report passing, failing, skipped and not-run cases
+separately. Revisit the catalog for new capabilities or promises. Existing CLI-repository commands and their evidence
+boundaries are documented in [Contributing](../../../CONTRIBUTING.md#test-selection-and-execution-evidence).
 
 ---
 
-How to plan seed data and test data: [Seed data](03-seed-data.md).
+How to plan seed data and test data: [Seed data](04-seed-data.md).

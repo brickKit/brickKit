@@ -140,7 +140,7 @@ deployment:
 它是组件的一个事实，只有 Kubernetes 上有人用：平台把它写成 Service 那个端口的 `appProtocol`。原因在 gRPC 是长连接——
 Kubernetes 的 Service 按连接分流，一条连接建立之后，上面所有请求都去同一个 Pod，多副本时负载压在一处；
 服务网格或网关读到 `appProtocol`，知道这个端口是 gRPC，才会按请求分流。集群里没有读它的东西时，它什么都不改变，
-[用 gRPC 调用](../09-patterns/04-service-calling.md#用-grpc-调用)里的做法仍然要用。Docker / Podman 下每个组件只有一个容器，没有这个问题，也不生成任何东西。
+[用 gRPC 调用](../09-patterns/05-service-calling.md#用-grpc-调用)里的做法仍然要用。Docker / Podman 下每个组件只有一个容器，没有这个问题，也不生成任何东西。
 
 同一个事实，各家认的词不一样（Istio 认 `grpc`，Gateway API 的实现认 `kubernetes.io/h2c`）。那是集群的事，不写在组件里：
 平台缺省原样写（`appProtocol: grpc`），部署方在部署文件的 [`k8s.appProtocols`](../11-reference/03-deploy-yaml-schema.md) 里换成自己集群认的写法。

@@ -74,7 +74,7 @@ line with no test, or a test that no longer exists, fails the build **on purpose
 
 Start a change with specification-derived input/initial-state, action, expected-outcome and basis tables. Include both
 sides of boundaries, rejection paths and forbidden transitions before choosing tests. Component and assembly guidance
-lives in [Selecting tests by capability](docs/en/09-patterns/06-testing-capabilities.md). CLI-repository maintainers
+lives in [Test types and scenario acceptance](docs/en/09-patterns/03-test-types-and-acceptance.md). CLI-repository maintainers
 particularly check:
 
 | Changed area | Outcomes to prove |

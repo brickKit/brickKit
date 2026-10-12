@@ -41,7 +41,7 @@ AI 读的文档合集——并把它们加进同一个提交（`docs/superpowers
 ## 测试选择与执行证据
 
 改动先从规格列输入／初始状态、动作、预期结果与依据，覆盖边界两侧、拒绝路径和不允许的状态迁移，再判断适用测试。
-组件与组装项目的完整目录见[按能力选择测试](docs/zh/09-patterns/06-testing-capabilities.md)；CLI 仓库维护者重点核对：
+组件与组装项目的完整目录见[测试类型与专项验收](docs/zh/09-patterns/03-test-types-and-acceptance.md)；CLI 仓库维护者重点核对：
 
 | 改动对象 | 应证明的结果 |
 | --- | --- |

@@ -13,8 +13,8 @@ For developers who have already run a project with BrickKit and are starting to 
 | Page | Answers |
 | --- | --- |
 | [Component design](01-component-design.md) | How big a component should be; component or config switch; how DDD concepts map; failure modes to avoid |
-| [Testing strategy](02-testing-strategy.md) | Backend and frontend layers, test ownership, specification before implementation and the entry point for capability-based selection |
-| [Seed data](03-seed-data.md) | Two paths for demo data and test data; why to isolate them physically; why seed mechanisms must never reach production |
-| [Calling dependencies reliably](04-service-calling.md) | What Go / Python / Node clients each do when a dependency's container is replaced; how to set timeouts and retries |
-| [Choosing a deployment shape](05-deployment-selection.md) | Standalone / shell / mixed × Docker / K8s / processes on this machine: what each of the 12 combinations suits |
-| [Selecting tests by capability](06-testing-capabilities.md) | Test catalog, minimum outcomes and evidence; contention, recovery, shell equivalence, upgrades and real assembly |
+| [Testing strategy](02-testing-strategy.md) | The workflow: capability selection, backend/frontend layers, ownership, writing order and execution evidence |
+| [Test types and scenario acceptance](03-test-types-and-acceptance.md) | Look up conditions, minimum outcomes and tiers; specific criteria for contention, recovery, shell equivalence, upgrades and real assembly |
+| [Seed data](04-seed-data.md) | Two paths for demo data and test data; why to isolate them physically; why seed mechanisms must never reach production |
+| [Calling dependencies reliably](05-service-calling.md) | What Go / Python / Node clients each do when a dependency's container is replaced; how to set timeouts and retries |
+| [Choosing a deployment shape](06-deployment-selection.md) | Standalone / shell / mixed × Docker / K8s / processes on this machine: what each of the 12 combinations suits |
