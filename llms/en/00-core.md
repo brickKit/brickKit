@@ -76,6 +76,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - `brickkit.yaml` is the lock file: every component version in use is written there. An undeclared required dependency is an error (the error shows the `add` to run); an undeclared optional dependency simply does not exist.
 - `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run the deployment (`up`, `down`, `status`, `sync`, `build`) read it and not `deploy.yaml`; `lint` checks both whenever `deploy.local.yaml` exists, whatever the switch says; `graph` and `deps` never read `deploy.local.yaml`, so their output is the same for everyone (`graph -f` reads the file it names). It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
 - `mode: debug` is written only in `deploy.local.yaml`: "I'm debugging this on my machine right now" is a personal fact and never goes into Git.
+- `mode: local` runs a component as a process on this machine from its source (its language's toolchain must be installed), watched by the `up` that started it in the foreground: it stops with that session, one crash ends the session, nothing restarts it. A team may write it in `deploy.yaml`, but it is not a long-running deployment — that is what containers are for.
 - `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s`.
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file; `$endpoint:<id>[/path]` is another component's address, worked out like `*_ENDPOINT` (it may sit in `vars.yaml`; it adds no start order and may form cycles). The environment never overrides a value implicitly.
@@ -732,7 +733,7 @@ messages — this page is enough. Every term points to the page that explains it
 
 | Term | What it is |
 | --- | --- |
-| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on your machine while you develop it |
+| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on this machine (`local` started by BrickKit from its source, `debug` by you in your IDE) |
 | **Manifest** (`component.yaml`) | A component describing itself: what it depends on, which port it listens on, what config it needs, how to tell it's alive, where its image comes from |
 | **Project** | A set of components described by the three layers — the system you're assembling |
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../../docs/en/01-three-layers/01-overview.md) |
@@ -779,7 +780,7 @@ them does.
 | nothing | Follow the ones above |
 | `mode: enabled` | Always runs, whatever is above it; an error if one of its required dependencies is turned off (two conflicting intents) |
 | `mode: disable` | Never runs; components that **require** it stop too, while those that depend on it optionally keep running without its address |
-| `mode: local` | Always runs, but not in a container: BrickKit works out the start command, launches the process on your machine and watches it |
+| `mode: local` | Always runs, but not in a container: BrickKit works out the start command from the source, launches the process on this machine and watches it while that `up` runs; the process stops with the session, so it is not a long-running deployment (see [`mode`](../../docs/en/01-three-layers/03-deploy-yaml.md#mode-whether-it-runs-and-how)) |
 | `mode: debug` | Always runs, as a process you start yourself in your IDE; **written only in the personal `deploy.local.yaml`** |
 
 `local` and `debug` only make sense on the Docker / Podman targets: a Pod in a cluster can't reach a process on your

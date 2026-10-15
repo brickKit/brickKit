@@ -126,7 +126,8 @@ brickkit down
   components further down that ran only for them stop too, and the deploy file keeps a record, so the next `up` doesn't
   bring them back.
 - **`mode: local` components** are processes watched in the foreground by the terminal that ran `up`; they can only be
-  stopped there with `Ctrl+C`. `down` can't reach them and only names that session's process ID.
+  stopped there with `Ctrl+C` (or by closing that terminal). `down` can't reach them and only names that session's process
+  ID. If one of them crashes, the other `mode: local` processes are stopped and `up` ends; nothing restarts it.
 
 ## Common start failures
 

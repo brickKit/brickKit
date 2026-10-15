@@ -7,7 +7,7 @@ messages — this page is enough. Every term points to the page that explains it
 
 | Term | What it is |
 | --- | --- |
-| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on your machine while you develop it |
+| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on this machine (`local` started by BrickKit from its source, `debug` by you in your IDE) |
 | **Manifest** (`component.yaml`) | A component describing itself: what it depends on, which port it listens on, what config it needs, how to tell it's alive, where its image comes from |
 | **Project** | A set of components described by the three layers — the system you're assembling |
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../01-three-layers/01-overview.md) |
@@ -54,7 +54,7 @@ them does.
 | nothing | Follow the ones above |
 | `mode: enabled` | Always runs, whatever is above it; an error if one of its required dependencies is turned off (two conflicting intents) |
 | `mode: disable` | Never runs; components that **require** it stop too, while those that depend on it optionally keep running without its address |
-| `mode: local` | Always runs, but not in a container: BrickKit works out the start command, launches the process on your machine and watches it |
+| `mode: local` | Always runs, but not in a container: BrickKit works out the start command from the source, launches the process on this machine and watches it while that `up` runs; the process stops with the session, so it is not a long-running deployment (see [`mode`](../01-three-layers/03-deploy-yaml.md#mode-whether-it-runs-and-how)) |
 | `mode: debug` | Always runs, as a process you start yourself in your IDE; **written only in the personal `deploy.local.yaml`** |
 
 `local` and `debug` only make sense on the Docker / Podman targets: a Pod in a cluster can't reach a process on your
