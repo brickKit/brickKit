@@ -310,3 +310,11 @@ func TestEntryPaths(t *testing.T) {
 	}
 	assert.Contains(t, all, "paths has no effect with target: docker")
 }
+
+// 同一个键写两次按字段报"写了两次"，而不是 yaml 库归进 TypeError 的"类型不匹配"。
+func TestParseReportsDuplicateKeys(t *testing.T) {
+	_, _, err := parse(t, "target: docker\ntarget: k8s\ncomponents: []\n", deployfile.RoleTeam)
+	require.Error(t, err)
+	assert.Contains(t, fields(err), "target")
+	assert.Contains(t, err.Error(), i18n.T(msgid.YamlcheckDuplicateKey, 2, 1))
+}

@@ -187,3 +187,9 @@ func TestRepoAddressesCannotLookLikeOptions(t *testing.T) {
 		assert.Contains(t, err.Error(), "-", name)
 	}
 }
+
+func TestParseReportsDuplicateKeys(t *testing.T) {
+	_, err := projfile.Parse([]byte("project: p\nproject: q\ncomponents: []\n"), "brickkit.yaml")
+	require.Error(t, err)
+	assert.Contains(t, fields(err), "project")
+}

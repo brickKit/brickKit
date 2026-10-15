@@ -369,6 +369,7 @@ const (
 	ComposeMemoryQuotaInvalid                                  ID = "compose.memory_quota_invalid"
 	ClierrProblemMissing                                       ID = "clierr.problem_missing"
 	YamlcheckUnknownField                                      ID = "yamlcheck.unknown_field"
+	YamlcheckDuplicateKey                                      ID = "yamlcheck.duplicate_key"
 	YamlcheckDidYouMean                                        ID = "yamlcheck.did_you_mean"
 	YamlcheckAvailableFields                                   ID = "yamlcheck.available_fields"
 	YamlcheckValueMustBeString                                 ID = "yamlcheck.value_must_be_string"

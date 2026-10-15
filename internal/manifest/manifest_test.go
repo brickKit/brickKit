@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // ============================================================
@@ -761,4 +763,10 @@ func TestReleaseChecksShapeMistakesAreNamed(t *testing.T) {
 			assert.Contains(t, clierr.As(err).Format(), tc.field)
 		})
 	}
+}
+
+func TestParseReportsDuplicateKeys(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"kind: Component\n"), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "kind="+i18n.T(msgid.YamlcheckDuplicateKey, strings.Count(minimalYAML, "\n")+1, 3))
 }

@@ -35,6 +35,7 @@ func Parse(data []byte, source string, role Role) (*File, []*clierr.Error, error
 
 	shape := newProblems(source)
 	checkShapes(doc, shape)
+	yamlcheck.DuplicateKeys(doc, shape.Add)
 	yamlcheck.Walk(doc, reflect.TypeOf(File{}), shape)
 	if shape.Len() > 0 {
 		return nil, nil, shape.Err()

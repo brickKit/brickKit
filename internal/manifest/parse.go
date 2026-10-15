@@ -68,6 +68,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	checkShapes(doc, shape)
 	// 与形状问题一起报：两者都是"这份 Manifest 根本读不对"，
 	// 分两轮报会让人改完一处又撞下一处
+	yamlcheck.DuplicateKeys(doc, shape.Add)
 	walkUnknownFields(doc, shape)
 	checkTypes(doc, shape)
 	if shape.Len() > 0 {

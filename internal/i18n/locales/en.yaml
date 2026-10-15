@@ -428,6 +428,7 @@ compose.cpu_quota_invalid: "CPU quota %[1]q is invalid (expected something like 
 compose.memory_quota_invalid: "Memory quota %[1]q is invalid (expected something like 128Mi or 1Gi)"
 clierr.problem_missing: "missing (required field)"
 yamlcheck.unknown_field: "unknown field (line %[1]d)"
+yamlcheck.duplicate_key: "written twice: line %[1]d repeats the key from line %[2]d; keep one"
 yamlcheck.did_you_mean: ", did you mean %[1]s?"
 yamlcheck.available_fields: ". Fields available at this level: %[1]s"
 yamlcheck.value_must_be_string: "value must be a string (line %[1]d)"

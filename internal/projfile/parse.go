@@ -45,6 +45,7 @@ func Parse(data []byte, source string) (*File, error) {
 	shape := newProblems(source)
 	yamlfile.RequireSequence(yamlfile.Lookup(doc, "sources"), "sources", shape)
 	yamlfile.RequireSequence(yamlfile.Lookup(doc, "components"), "components", shape)
+	yamlcheck.DuplicateKeys(doc, shape.Add)
 	yamlcheck.Walk(doc, reflect.TypeOf(File{}), shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
