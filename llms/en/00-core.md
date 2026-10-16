@@ -189,7 +189,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../.
 
 ## §8 Distribution without a market
 
-- A component is a Git repository; a version is a Git tag (a component in a monorepo subdirectory uses `<scope>-<name>/<version>`).
+- A component is a Git repository; a version is a Git tag. Components in subdirectories of one repository (a monorepo) tag `<scope>-<name>/<version>`, and a project uses them through one install source with `repo` instead of `baseUrl`: at each tag the CLI finds the subdirectory whose `component.yaml` has that `metadata.id`.
 - Fetching goes through a user-level bare-repository cache (`<user cache dir>/brickkit/repos`, shared by every project on the machine), fetched incrementally as needed.
 - A manifest is read from, in order: the project's permanent cache `.brickkit/manifests/` → the local bare repository → an incremental fetch → a first clone.
 - The CLI does no authentication of its own; `git`'s errors are passed through verbatim.
@@ -1187,7 +1187,8 @@ in `schemas/` — see [JSON Schemas](../../docs/en/11-reference/05-json-schemas.
 | `project` | ✅ | Project name: lowercase letters, digits, hyphens |
 | `sources[].name` | ✅ | The install source's name |
 | `sources[].type` | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | for git | Component `a/b`'s repository is `<baseUrl>a-b` |
+| `sources[].baseUrl` | for git, or `repo` | Component `a/b`'s repository is `<baseUrl>a-b` |
+| `sources[].repo` | for git, or `baseUrl` | One repository with components in subdirectories; tags `a-b/<version>` |
 | `sources[].path` | for local | A directory on this machine |
 | `sources[].url` | for market | The component market's API address |
 | `sources[].authToken` | | A market token (usually `${VAR}`, or use `brickkit login`) |

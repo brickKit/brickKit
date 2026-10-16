@@ -47,8 +47,15 @@ func (f *File) validateSources(p *clierr.ProblemSet) {
 		case SourceTypeMarket:
 			requireFor(p, field, "url", s.URL, s.Type)
 		case SourceTypeGit:
-			requireFor(p, field, "baseUrl", s.BaseURL, s.Type)
+			// 按组件推导仓库（baseUrl），或者整个源就是一个仓库（repo）：只能是其中一种
+			switch {
+			case s.BaseURL == "" && s.Repo == "":
+				p.Add(field+".baseUrl", i18n.T(msgid.ProjfileGitSourceNeedsBaseURLOrRepo))
+			case s.BaseURL != "" && s.Repo != "":
+				p.Add(field+".repo", i18n.T(msgid.ProjfileGitSourceBaseURLAndRepo))
+			}
 			rejectOptionLike(p, field+".baseUrl", s.BaseURL)
+			rejectOptionLike(p, field+".repo", s.Repo)
 		case SourceTypeLocal:
 			requireFor(p, field, "path", s.Path, s.Type)
 		default:

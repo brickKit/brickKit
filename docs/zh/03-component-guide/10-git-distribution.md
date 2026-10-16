@@ -25,7 +25,25 @@ sources:
 
 版本对应 tag：版本 `0.1.0` 就是 tag `0.1.0`（不带 `v`）。"最新版本"是精确版本形式的 tag 里最高的那个；`v1.0.0`、`latest` 这类 tag 不算版本。
 
-**推导不出来时，单独指定。** 仓库在别的组织、名字对不上规则、或者组件在一个 monorepo 的子目录里，就在那个组件的条目上写 `source`：
+**一个仓库里放着多个组件。** 组件放在同一个仓库的几个子目录里（monorepo）时，把这个仓库声明成安装源，写 `repo`
+而不是 `baseUrl`：
+
+```yaml
+sources:
+  - name: platform
+    type: git
+    repo: https://git.example.com/platform/erp.git
+```
+
+每个组件的 tag 带命名空间 `<scope>-<name>/<版本>`（`erp-backend/2.1.0`）——在子目录里运行 `brickkit release` 打的就是这种
+tag，所以同一个仓库里的组件各管各的版本。组件在哪个子目录不写在任何地方：CLI 在每个版本的 tag 里找 `metadata.id`
+是这个组件的那份 `component.yaml`，所以组件在两个版本之间换了目录也没关系。以 `.` 开头的目录不算（`.brickkit/`、
+`.archived/` 里的是副本，不是这个仓库自己的组件）；同一个 tag 里有两份同一个组件就报错，不去猜是哪一份。
+之后 `brickkit add erp/backend@2.1.0` 一次写好三层，它依赖的、在同一个仓库里的组件也一起进来。放在仓库根目录的组件
+（tag 不带命名空间）走 `baseUrl` 或它自己的 `source`，不走 `repo`。
+
+**推导不出来时，单独指定。** 仓库在别的组织、名字对不上规则、或者只把一个组件钉在某个仓库的子目录，就在那个组件的条目上写
+`source`：
 
 ```yaml
 components:
@@ -36,6 +54,8 @@ components:
       repo: https://git.example.com/platform/erp.git
       path: services/backend      # 组件在仓库里的子目录；这时 tag 是 erp-backend/2.1.0
 ```
+
+`source` 只管这一个组件：它的依赖照样到 `sources[]` 里找。用到一个仓库里的好几个组件时，`repo` 安装源写起来更简单。
 
 `source.type: local` 则指向本机的一个组件目录（`path` 相对项目根），见 [分形的本地开发](05-local-dev-fractal.md)。
 

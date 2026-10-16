@@ -174,7 +174,9 @@ brickkit add demo/hello@1.0.0 --repo
 
 When the component is already in the project, `--repo` only does the cloning. The cloned directory has this version's
 tag checked out; it's a complete Git repository, and branches, commits and pushes are yours to manage — the CLI doesn't
-handle Git permissions.
+handle Git permissions. A component in a subdirectory of a repository (a `repo` install source, or `source.path`) comes
+with its whole repository: `components/<scope>/<name>/` is the repository, and the component is the subdirectory whose
+`component.yaml` has its `metadata.id`.
 
 Note: `components/` is a local install source, and it comes before the Git source. After cloning, the component resolves
 from your working copy — the code you change is what `brickkit build` puts into the image, and the "latest version"

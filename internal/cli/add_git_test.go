@@ -742,3 +742,50 @@ components:
 `, readFile(t, filepath.Join(dir, "deploy.yaml")))
 	g.mustRun(dir, "up", "--dry-run")
 }
+
+// 仓库源（sources[].repo）：一个仓库的子目录里放着几个组件。add 一条命令写好三层，
+// 同一个仓库里的依赖一起进来；--repo 克隆整个仓库，组件在克隆里按 metadata.id 找到。
+func TestAddFromARepositorySource(t *testing.T) {
+	mono := gittest.NewRemote(t, "acceptance")
+	mono.TagAt("probes/py", "test-probe-py/0.1.0", map[string]string{
+		"component.yaml": comp{ID: "test/probe-py", Version: "0.1.0", ConfigSchema: []string{"GREETING:hi"}}.yamlText()})
+	mono.TagAt("probes/go", "test-probe-go/0.1.0", map[string]string{
+		"component.yaml": comp{ID: "test/probe-go", Version: "0.1.0", Requires: []string{"test/probe-py@0.1.0"}, Port: 8090}.yamlText()})
+	g := newGitOrgProject(t)
+	newProject := func() string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml": "project: shop\nsources:\n  - name: components\n    type: local\n    path: ./components\n" +
+				"  - name: acceptance\n    type: git\n    repo: " + mono.URL() + "\ncomponents: []\n",
+			"deploy.yaml":   "target: docker\ncomponents: []\n",
+		})
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "components"), 0o755))
+		return dir
+	}
+
+	dir := newProject()
+	g.mustRun(dir, "add", "test/probe-go@0.1.0", "--yes")
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: test/probe-go\n    version: 0.1.0")
+	assert.Contains(t, decl, "id: test/probe-py\n    version: 0.1.0")
+	assert.NotContains(t, decl, "source:", "the repository source is enough; no entry names its own source")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "deploy.yaml")), "- id: test/probe-go\n")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "config", "test-probe-py.yaml")), "GREETING")
+	g.mustRun(dir, "lint", "--all")
+	g.mustRun(dir, "up", "--dry-run")
+
+	cloned := newProject()
+	g.mustRun(cloned, "add", "test/probe-go@0.1.0", "--repo", "--yes")
+	p, err := project.Load(cloned, project.LoadOptions{})
+	require.NoError(t, err)
+	src, ok := p.LocalRepo("test/probe-go")
+	require.True(t, ok)
+	assert.Equal(t, filepath.Join(cloned, "components", "test", "probe-go", "probes", "go"), src)
+	assert.Equal(t, "probes/go", p.LocalRepoSubpath("test/probe-go"))
+
+	// 克隆之后组件从工作区解析，与仓库根目录的组件一样：工作区里的版本就是 upgrade 看到的最新版本
+	yamlPath := filepath.Join(src, "component.yaml")
+	writeTree(t, filepath.Dir(yamlPath), map[string]string{"component.yaml": strings.Replace(readFile(t, yamlPath), "version: 0.1.0", "version: 0.2.0", 1)})
+	r := g.mustRun(cloned, "upgrade", "test/probe-go", "--dry-run")
+	assert.Contains(t, r.stdout, "0.2.0")
+}

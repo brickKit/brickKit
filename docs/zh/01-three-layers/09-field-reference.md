@@ -11,7 +11,8 @@
 | `project` | ✅ | 项目名：小写字母、数字、中划线 |
 | `sources[].name` | ✅ | 安装源的名字 |
 | `sources[].type` | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | git 必填 | 组件 `a/b` 的仓库是 `<baseUrl>a-b` |
+| `sources[].baseUrl` | git 时与 `repo` 二选一 | 组件 `a/b` 的仓库是 `<baseUrl>a-b` |
+| `sources[].repo` | git 时与 `baseUrl` 二选一 | 一个在子目录里放着多个组件的仓库；tag 是 `a-b/<版本>` |
 | `sources[].path` | local 必填 | 本机目录 |
 | `sources[].url` | market 必填 | 组件市场的 API 地址 |
 | `sources[].authToken` | | 市场令牌（通常写 `${VAR}`，或用 `brickkit login`） |

@@ -20,7 +20,8 @@ Install sources: where to look for components. Tried in the order declared; the 
 | --- | --- | --- | --- |
 | `sources[].name` | string | ✅ | The install source's name, unique in this file |
 | `sources[].type` | string | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | string | Required for `git` | The repository of component `<scope>/<name>` is `<baseUrl>/<scope>-<name>` (a trailing `/` on `baseUrl` is optional; the CLI adds exactly one); mustn't start with `-` |
+| `sources[].baseUrl` | string | For `git`, this or `repo` | The repository of component `<scope>/<name>` is `<baseUrl>/<scope>-<name>` (a trailing `/` on `baseUrl` is optional; the CLI adds exactly one); mustn't start with `-` |
+| `sources[].repo` | string | For `git`, this or `baseUrl` | One repository holding several components in subdirectories (a monorepo): a version is the tag `<scope>-<name>/<version>`, and the component's subdirectory is the one whose `component.yaml` has that `metadata.id` at that tag; mustn't start with `-` |
 | `sources[].path` | string | Required for `local` | A directory on this machine, relative to the project root, laid out as `<scope>/<name>/component.yaml` |
 | `sources[].url` | string | Required for `market` | The component market's API address |
 | `sources[].authToken` | string | | A market token, usually written `${VAR}`; after `brickkit login`, the login credentials take precedence |

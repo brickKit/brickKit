@@ -59,11 +59,10 @@ func (s *gitSource) cachedVersions(ctx context.Context, componentID string) []st
 	if s.cache == nil || s.cache.root == "" {
 		return nil
 	}
-	repoURL, subpath := s.locate(componentID)
-	repo := s.cache.get(repoURL)
+	repo := s.cache.get(s.repoFor(componentID))
 	if !isDir(repo.dir) {
 		return nil
 	}
-	versions, _ := s.versions(ctx, repo, componentID, subpath)
+	versions, _ := s.versions(ctx, repo, componentID)
 	return versions
 }

@@ -44,9 +44,10 @@ afresh every time and never cached — change it, and the next command follows t
 ## The whole flow of fetching a file
 
 1. Check the project's Manifest cache. A hit ends it.
-2. Work out the repository address: the install source's `baseUrl` plus `<scope>-<name>`, or `source.repo` when the
-   component's entry has one. When the component sits in a repository subdirectory, the tag carries a namespace:
-   `<scope>-<name>/<version>`.
+2. Work out the repository address: the install source's `baseUrl` plus `<scope>-<name>`, the install source's `repo`, or
+   `source.repo` when the component's entry has one. When the component sits in a repository subdirectory, the tag carries
+   a namespace: `<scope>-<name>/<version>`; with a `repo` install source, the subdirectory is the one whose
+   `component.yaml` has the component's `metadata.id` at that tag.
 3. Make sure the bare repository is in the cache, cloning it when it isn't. A clone lands in a temporary place under the
    cache directory first and is renamed when complete — failing or being interrupted halfway never leaves half a repository
    behind.

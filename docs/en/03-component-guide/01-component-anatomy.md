@@ -63,7 +63,7 @@ scripts) belong to **the same component**; they don't need splitting.
 When the address can't be derived (the repository is in another organisation, the name doesn't match), users can name
 the repository for that one component; see [Distributing through Git](10-git-distribution.md). Several components in
 subdirectories of one repository (a monorepo) work too: tags carry a namespace, `<scope>-<name>/<version>`, one per
-component.
+component, and users declare the repository once as an install source with `repo`.
 
 ## The smallest usable component
 

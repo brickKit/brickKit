@@ -217,7 +217,8 @@ brickkit release --local
 brickkit release --path svc/api        # 组件 erp/api，tag 是 erp-api/1.2.0
 ```
 
-检查工作区时也只看这个组件自己的目录：旁边组件的改动与它无关。
+检查工作区时也只看这个组件自己的目录：旁边组件的改动与它无关。使用这些组件的项目把这个仓库声明成一个写 `repo` 的安装源
+（见 [Git 分发](10-git-distribution.md#组件地址怎么推导)）。
 
 ## 工作台与发布无关
 

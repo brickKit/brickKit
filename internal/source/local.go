@@ -141,9 +141,9 @@ func (s *localSource) manifestFiles() ([]localManifestFile, error) {
 			if manifest.ComponentIDProblem(id) != "" {
 				continue
 			}
-			dir := filepath.Join(s.root, scope.Name(), name.Name())
-			if !hasManifest(dir) {
-				// 没有 component.yaml 的只是个普通目录，不是组件
+			// 没有 component.yaml 的只是个普通目录，不是组件；monorepo 的克隆里组件在某个子目录
+			dir, ok := project.ComponentDir(filepath.Join(s.root, scope.Name(), name.Name()), id)
+			if !ok {
 				continue
 			}
 			out = append(out, localManifestFile{id: id, path: filepath.Join(dir, manifest.FileName)})
@@ -207,7 +207,8 @@ func (s *localSource) listError(path string, cause error) error {
 		WithCause(cause)
 }
 
-// componentDir 返回该组件在本安装源里的目录。
+// componentDir 返回该组件在本安装源里的目录（<root>/<scope>/<name>，或者它是 --repo 克隆下来的
+// 整个 monorepo 时、克隆里组件所在的子目录：project.ComponentDir）。
 //
 // 活跃目录优先；那里没有 component.yaml 时，回落到归档目录
 // `<root>/.archived/<scope>/<name>/`——也就是 brickkit sync 搬过去的那一份。
@@ -233,20 +234,14 @@ func (s *localSource) componentDir(componentID string) string {
 		return s.root
 	}
 	active := filepath.Join(s.root, filepath.FromSlash(componentID))
-	if hasManifest(active) {
-		return active
+	if dir, ok := project.ComponentDir(active, componentID); ok {
+		return dir
 	}
-	if archived := filepath.Join(s.root, project.DirArchived, filepath.FromSlash(componentID)); hasManifest(archived) {
-		return archived
+	if dir, ok := project.ComponentDir(filepath.Join(s.root, project.DirArchived, filepath.FromSlash(componentID)), componentID); ok {
+		return dir
 	}
 	// 两处都没有：返回活跃目录，让"找不到"的报错指向使用者预期的位置
 	return active
-}
-
-// hasManifest 判断一个目录里有没有 component.yaml。
-func hasManifest(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, manifest.FileName))
-	return err == nil && !info.IsDir()
 }
 
 // checkRoot 校验安装源目录本身。路径不存在是配置错误，必须报出来，

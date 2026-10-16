@@ -36,6 +36,9 @@ type Source struct {
 	URL string `yaml:"url,omitempty"`
 	// BaseURL 是 git 源的组织地址：组件 erp/backend 推导为 <BaseURL>erp-backend。
 	BaseURL string `yaml:"baseUrl,omitempty"`
+	// Repo 是 git 源的一个仓库（monorepo）：它的各个子目录里的组件都从这里取，
+	// 版本 tag 是 <scope>-<name>/<版本>。与 BaseURL 二选一。
+	Repo string `yaml:"repo,omitempty"`
 	// Path 是 local 源扫描的目录。
 	Path      string `yaml:"path,omitempty"`
 	AuthToken string `yaml:"authToken,omitempty"`

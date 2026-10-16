@@ -219,7 +219,7 @@ func (c *Client) newFetcher(s projfile.Source) (fetcher, error) {
 			root:       c.resolvePath(s.Path),
 		}, nil
 	case projfile.SourceTypeGit:
-		return &gitSource{sourceID: s.Name, baseURL: s.BaseURL, cache: c.repos}, nil
+		return &gitSource{sourceID: s.Name, baseURL: s.BaseURL, repoURL: s.Repo, discover: s.Repo != "", cache: c.repos}, nil
 	case projfile.SourceTypeMarket:
 		return &marketSource{
 			sourceID:        s.Name,

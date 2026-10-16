@@ -26,13 +26,23 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // repoCache 是这一趟运行里用到的全部仓库（按地址），多个 git 源与组件级来源共用。
@@ -67,6 +77,10 @@ type gitRepo struct {
 	mu sync.Mutex
 	// fetched 表示这一趟已经从远端取过最新的 tag（刚克隆的也算）。
 	fetched bool
+
+	compMu sync.Mutex
+	// components 记着每个 tag 里有哪些组件（monorepo 源找子目录用），按 tag 名；fetch 会移动 tag，所以清空。
+	components map[string]*tagComponents
 }
 
 // ensure 保证仓库在缓存里：不在就克隆。克隆先落到 <root>/.tmp/ 再改名，中途失败或被打断
@@ -148,6 +162,9 @@ func (r *gitRepo) fetch(ctx context.Context) error {
 		return err
 	}
 	r.fetched = true
+	r.compMu.Lock()
+	r.components = nil
+	r.compMu.Unlock()
 	return nil
 }
 
@@ -188,6 +205,128 @@ func (r *gitRepo) names(ctx context.Context, tag, dir string) ([]string, error) 
 	return strings.Fields(string(out)), nil
 }
 
+// tagComponents 是一个 tag 的文件树里的全部 component.yaml。
+type tagComponents struct {
+	// byID 按 metadata.id 列出组件所在的目录（仓库根目录是空串）。
+	byID map[string][]string
+	// files 是每一份 component.yaml 的目录与 metadata.id（读不懂的 id 为空），按目录排好，报错时列出来。
+	files []tagComponentFile
+}
+
+type tagComponentFile struct{ dir, id string }
+
+// describe 列出 tag 里的每一份 component.yaml 与它的 id，给"找不到这个组件"的报错用。
+func (tc *tagComponents) describe() string {
+	if len(tc.files) == 0 {
+		return i18n.T(msgid.SourceGitNoComponentFiles)
+	}
+	parts := make([]string, len(tc.files))
+	for i, f := range tc.files {
+		id := f.id
+		if id == "" {
+			id = i18n.T(msgid.SourceGitComponentFileUnreadable)
+		}
+		parts[i] = displayDir(f.dir) + " (" + id + ")"
+	}
+	return strings.Join(parts, i18n.T(msgid.ListSeparator))
+}
+
+// displayDir 是仓库里的一个目录给人看的样子：仓库根目录写成 "."。
+func displayDir(dir string) string {
+	if dir == "" {
+		return "."
+	}
+	return dir
+}
+
+func displayDirs(dirs []string) []string {
+	out := make([]string, len(dirs))
+	for i, d := range dirs {
+		out[i] = displayDir(d)
+	}
+	return out
+}
+
+// componentDirs 读 tag 的文件树里的全部 component.yaml（manifest.InRepository 认的那些），
+// 按 metadata.id 分组（每个 tag 只读一次）。
+func (r *gitRepo) componentDirs(ctx context.Context, tag string) (*tagComponents, error) {
+	r.compMu.Lock()
+	defer r.compMu.Unlock()
+	if tc, ok := r.components[tag]; ok {
+		return tc, nil
+	}
+	listing, err := runGit(ctx, r.dir, "ls-tree", "-r", "-z", "--name-only", tag)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, p := range strings.Split(string(listing), "\x00") {
+		if manifest.InRepository(p) && !strings.ContainsAny(p, "\n") {
+			paths = append(paths, p)
+		}
+	}
+	blobs, err := r.blobs(ctx, tag, paths)
+	if err != nil {
+		return nil, err
+	}
+	tc := &tagComponents{byID: map[string][]string{}}
+	for _, p := range paths {
+		dir := path.Dir(p)
+		if dir == "." {
+			dir = ""
+		}
+		var h componentHeader
+		if yaml.Unmarshal(blobs[p], &h) != nil {
+			h.Metadata.ID = ""
+		}
+		tc.files = append(tc.files, tagComponentFile{dir: dir, id: h.Metadata.ID})
+		if h.Metadata.ID != "" {
+			tc.byID[h.Metadata.ID] = append(tc.byID[h.Metadata.ID], dir)
+		}
+	}
+	sort.Slice(tc.files, func(i, j int) bool { return tc.files[i].dir < tc.files[j].dir })
+	if r.components == nil {
+		r.components = map[string]*tagComponents{}
+	}
+	r.components[tag] = tc
+	return tc, nil
+}
+
+// blobs 一次读出 tag 里的多个文件（git cat-file --batch：一个进程，不是每个文件一个）。
+func (r *gitRepo) blobs(ctx context.Context, tag string, paths []string) (map[string][]byte, error) {
+	out := map[string][]byte{}
+	if len(paths) == 0 {
+		return out, nil
+	}
+	var in bytes.Buffer
+	for _, p := range paths {
+		in.WriteString(tag + ":" + p + "\n")
+	}
+	data, err := runGitInput(ctx, r.dir, &in, "cat-file", "--batch")
+	if err != nil {
+		return nil, err
+	}
+	// 每个文件：<对象> <类型> <大小>\n<内容>\n；不存在的是 <名字> missing\n
+	for _, p := range paths {
+		nl := bytes.IndexByte(data, '\n')
+		if nl < 0 {
+			return nil, errors.New("git cat-file --batch: truncated output")
+		}
+		header := strings.Fields(string(data[:nl]))
+		data = data[nl+1:]
+		if len(header) != 3 {
+			continue
+		}
+		size, err := strconv.Atoi(header[2])
+		if err != nil || size+1 > len(data) {
+			return nil, errors.New("git cat-file --batch: malformed output")
+		}
+		out[p] = data[:size]
+		data = data[size+1:]
+	}
+	return out, nil
+}
+
 // tags 列出仓库里的全部 tag。
 func (r *gitRepo) tags(ctx context.Context) ([]string, error) {
 	out, err := runGit(ctx, r.dir, "tag", "--list")
@@ -219,11 +358,17 @@ func (e *gitFailure) Unwrap() error { return e.err }
 
 // runGit 调系统 git。dir 非空时对那个 bare 仓库操作（--git-dir）。
 func runGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	return runGitInput(ctx, dir, nil, args...)
+}
+
+// runGitInput 与 runGit 一样，只是把 stdin 交给 git。
+func runGitInput(ctx context.Context, dir string, stdin io.Reader, args ...string) ([]byte, error) {
 	if dir != "" {
 		args = append([]string{"--git-dir=" + dir}, args...)
 	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Stdin = stdin
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

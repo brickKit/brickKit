@@ -133,6 +133,12 @@
               "null"
             ]
           },
+          "repo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "type": {
             "enum": [
               "market",

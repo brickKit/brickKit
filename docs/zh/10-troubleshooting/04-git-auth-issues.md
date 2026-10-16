@@ -43,8 +43,8 @@
 
 1. 脱离 BrickKit 单独试：`git ls-remote git@github.com:<组织>/<仓库>`。它也失败，问题就与 BrickKit 无关。
 2. `ssh -T git@github.com`（或你的托管平台）看平台认不认你的 key。
-3. 核对仓库地址：它由安装源的 `baseUrl` 加上组件 ID 推出来（`demo/hello` → `demo-hello`），除非 `brickkit.yaml` 里这个组件那一行自己写了
-   `source.repo`；报错里的"仓库"一行就是最终用的地址。
+3. 核对仓库地址：它由安装源的 `baseUrl` 加上组件 ID 推出来（`demo/hello` → `demo-hello`），或者就是安装源的 `repo`，除非 `brickkit.yaml`
+   里这个组件那一行自己写了 `source.repo`；报错里的"仓库"一行就是最终用的地址。
 
 ## 第一次连一台 SSH 主机
 

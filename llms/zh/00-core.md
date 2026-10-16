@@ -185,7 +185,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 
 ## §8 无市场分发
 
-- 组件就是一个 Git 仓库，版本就是 Git tag（monorepo 子目录里的组件用 `<scope>-<name>/<版本>`）。
+- 组件就是一个 Git 仓库，版本就是 Git tag。同一个仓库子目录里的几个组件（monorepo）打 `<scope>-<name>/<版本>`，项目用一个写 `repo`（而不是 `baseUrl`）的安装源来用它们：CLI 在每个 tag 里找 `component.yaml` 的 `metadata.id` 是它的那个子目录。
 - 拉取走用户级的 bare repo 缓存（`<用户缓存目录>/brickkit/repos`，多个项目共享），按需增量 fetch。
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
 - CLI 不处理鉴权，`git` 的报错原样透传。
@@ -1131,7 +1131,8 @@ graph TD
 | `project` | ✅ | 项目名：小写字母、数字、中划线 |
 | `sources[].name` | ✅ | 安装源的名字 |
 | `sources[].type` | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | git 必填 | 组件 `a/b` 的仓库是 `<baseUrl>a-b` |
+| `sources[].baseUrl` | git 时与 `repo` 二选一 | 组件 `a/b` 的仓库是 `<baseUrl>a-b` |
+| `sources[].repo` | git 时与 `baseUrl` 二选一 | 一个在子目录里放着多个组件的仓库；tag 是 `a-b/<版本>` |
 | `sources[].path` | local 必填 | 本机目录 |
 | `sources[].url` | market 必填 | 组件市场的 API 地址 |
 | `sources[].authToken` | | 市场令牌（通常写 `${VAR}`，或用 `brickkit login`） |

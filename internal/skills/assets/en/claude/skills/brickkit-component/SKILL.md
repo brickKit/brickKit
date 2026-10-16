@@ -174,7 +174,8 @@ registry, database pool, resource limits; session settings (`SET ROLE`, `search_
 A release is a Git tag. Bump `metadata.version`, commit, push, then `brickkit release` (or
 `--path <dir>`; `--local` releases every local-source component). It refuses (`RELEASE_BLOCKED`)
 unless `component.yaml` validates, the component directory is clean, the branch has an upstream with nothing unpushed, and the
-tag doesn't exist. Tags are `1.2.0` (no `v`), or `<scope>-<name>/1.2.0` for a monorepo subdirectory.
+tag doesn't exist. Tags are `1.2.0` (no `v`), or `<scope>-<name>/1.2.0` for a monorepo subdirectory
+(projects then use that repository as an install source with `repo`).
 A failed push deletes the local tag again. A `brickkit.yaml` next to `component.yaml` (a local
 workbench) plays no part in what gets released — `release` reads only `component.yaml` — but its
 files still count for "the component directory is clean": commit the workbench (`brickkit.yaml`,

@@ -90,6 +90,7 @@ cleared by `upgrade` / `remove`.
 | Type | What you write | Where components come from |
 | --- | --- | --- |
 | `git` | `baseUrl` | The repository of `erp/backend` is `<baseUrl>erp-backend`; a version is a Git tag in that repository |
+| `git` | `repo` | One repository with components in subdirectories (a monorepo); a version of `erp/backend` is the tag `erp-backend/<version>` |
 | `local` | `path` | A directory on this machine, laid out as `<scope>/<name>/component.yaml`; images are built from here by `brickkit build` |
 | `market` | `url` (optionally `authToken`) | A component market's API address; optional infrastructure |
 

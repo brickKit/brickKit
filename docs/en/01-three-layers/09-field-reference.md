@@ -11,7 +11,8 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `project` | ✅ | Project name: lowercase letters, digits, hyphens |
 | `sources[].name` | ✅ | The install source's name |
 | `sources[].type` | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | for git | Component `a/b`'s repository is `<baseUrl>a-b` |
+| `sources[].baseUrl` | for git, or `repo` | Component `a/b`'s repository is `<baseUrl>a-b` |
+| `sources[].repo` | for git, or `baseUrl` | One repository with components in subdirectories; tags `a-b/<version>` |
 | `sources[].path` | for local | A directory on this machine |
 | `sources[].url` | for market | The component market's API address |
 | `sources[].authToken` | | A market token (usually `${VAR}`, or use `brickkit login`) |

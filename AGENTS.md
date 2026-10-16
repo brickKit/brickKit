@@ -177,7 +177,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](docs
 
 ## §8 Distribution without a market
 
-- A component is a Git repository; a version is a Git tag (a component in a monorepo subdirectory uses `<scope>-<name>/<version>`).
+- A component is a Git repository; a version is a Git tag. Components in subdirectories of one repository (a monorepo) tag `<scope>-<name>/<version>`, and a project uses them through one install source with `repo` instead of `baseUrl`: at each tag the CLI finds the subdirectory whose `component.yaml` has that `metadata.id`.
 - Fetching goes through a user-level bare-repository cache (`<user cache dir>/brickkit/repos`, shared by every project on the machine), fetched incrementally as needed.
 - A manifest is read from, in order: the project's permanent cache `.brickkit/manifests/` → the local bare repository → an incremental fetch → a first clone.
 - The CLI does no authentication of its own; `git`'s errors are passed through verbatim.

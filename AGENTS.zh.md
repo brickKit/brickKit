@@ -173,7 +173,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 
 ## §8 无市场分发
 
-- 组件就是一个 Git 仓库，版本就是 Git tag（monorepo 子目录里的组件用 `<scope>-<name>/<版本>`）。
+- 组件就是一个 Git 仓库，版本就是 Git tag。同一个仓库子目录里的几个组件（monorepo）打 `<scope>-<name>/<版本>`，项目用一个写 `repo`（而不是 `baseUrl`）的安装源来用它们：CLI 在每个 tag 里找 `component.yaml` 的 `metadata.id` 是它的那个子目录。
 - 拉取走用户级的 bare repo 缓存（`<用户缓存目录>/brickkit/repos`，多个项目共享），按需增量 fetch。
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
 - CLI 不处理鉴权，`git` 的报错原样透传。

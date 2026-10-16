@@ -154,6 +154,111 @@ func TestGitMonorepoNamespacedTag(t *testing.T) {
 	assert.Equal(t, "1.1.0", latest.Version)
 }
 
+// monorepoSource 是一个仓库源（sources[].repo）：仓库里的组件各在一个子目录。
+func monorepoSource(t *testing.T, mono *gittest.Remote, extra ...projfile.Source) *Client {
+	t.Helper()
+	cfg := cfgWithSources(append([]projfile.Source{{Name: "mono", Type: projfile.SourceTypeGit, Repo: mono.URL()}}, extra...)...)
+	return newClient(t, newProject(t), cfg, Options{RepoCacheDir: t.TempDir()})
+}
+
+// 仓库源：组件的子目录不写在哪里，在那个版本的 tag 里按 metadata.id 找；同一个仓库里的
+// 几个组件、组件的文档与产物都从各自的子目录读。
+func TestGitRepositorySourceFindsComponentsInSubdirectories(t *testing.T) {
+	mono := gittest.NewRemote(t, "acceptance")
+	mono.TagAt("probes/go", "test-probe-go/0.1.0", specFiles(componentSpec{ID: "test/probe-go", Version: "0.1.0", Description: "go probe",
+		Artifacts: []artifactSpec{{Type: "api-docs", Files: []string{"docs/api.json"}}},
+		Files:     map[string]string{"docs/api.json": `{}`, "BRICKKIT.md": "# probe-go\n"}}))
+	mono.TagAt("probes/py", "test-probe-py/0.1.0", specFiles(componentSpec{ID: "test/probe-py", Version: "0.1.0", Description: "py probe"}))
+	mono.TagAt("probes/py", "test-probe-py/0.2.0", specFiles(componentSpec{ID: "test/probe-py", Version: "0.2.0"}))
+	c := monorepoSource(t, mono)
+	ctx := context.Background()
+
+	got, err := c.Manifest(ctx, "test/probe-go", "0.1.0")
+	require.NoError(t, err)
+	assert.Equal(t, "go probe", got.Manifest.Metadata.Description)
+	res, err := c.DownloadArtifacts(ctx, got.Manifest)
+	require.NoError(t, err)
+	require.Empty(t, res.Warnings)
+	assert.FileExists(t, filepath.Join(c.ArtifactDir("test/probe-go", "0.1.0"), "api-docs", "docs", "api.json"))
+	assert.Equal(t, "# probe-go\n", readFile(t, c.layout.CachedDocPath("test/probe-go", "0.1.0")))
+
+	got, err = c.Manifest(ctx, "test/probe-py", "0.1.0")
+	require.NoError(t, err)
+	assert.Equal(t, "py probe", got.Manifest.Metadata.Description)
+	latest, err := c.LatestVersion(ctx, "test/probe-py")
+	require.NoError(t, err)
+	assert.Equal(t, "0.2.0", latest.Version)
+
+	origin, err := c.Origin(ctx, "test/probe-py", "0.2.0")
+	require.NoError(t, err)
+	assert.Equal(t, mono.URL(), origin.GitURL)
+	assert.Equal(t, "probes/py", origin.Subpath)
+	assert.Equal(t, "test-probe-py/0.2.0", origin.Tag)
+}
+
+// 组件在两个版本之间换了目录：每个版本按它自己的 tag 找，不会读到别的目录。
+func TestGitRepositorySourceFollowsAMovedComponent(t *testing.T) {
+	mono := gittest.NewRemote(t, "platform")
+	mono.TagAt("old/api", "erp-api/1.0.0", specFiles(componentSpec{ID: "erp/api", Version: "1.0.0", Description: "old place"}))
+	mono.TagAt("old/api", "unused", map[string]string{"README.md": "moved away"})
+	mono.TagAt("services/api", "erp-api/1.1.0", specFiles(componentSpec{ID: "erp/api", Version: "1.1.0", Description: "new place"}))
+	c := monorepoSource(t, mono)
+
+	for v, want := range map[string]string{"1.0.0": "old place", "1.1.0": "new place"} {
+		got, err := c.Manifest(context.Background(), "erp/api", v)
+		require.NoError(t, err, v)
+		assert.Equal(t, want, got.Manifest.Metadata.Description, v)
+	}
+}
+
+// 同一个 tag 里两份 component.yaml 写着同一个 id：随便挑一份会静默装错，要报出来、列出两处。
+// 以 . 开头的目录（清单缓存、.archived/）不算副本。
+func TestGitRepositorySourceRefusesTwoCopies(t *testing.T) {
+	mono := gittest.NewRemote(t, "platform")
+	mono.TagAt("services/api/.brickkit/manifests/erp/api/0.9.0", "cache", specFiles(componentSpec{ID: "erp/api", Version: "0.9.0"}))
+	mono.TagAt("services/api", "erp-api/1.0.0", specFiles(componentSpec{ID: "erp/api", Version: "1.0.0"}))
+	mono.TagAt("legacy/api", "erp-api/1.1.0", specFiles(componentSpec{ID: "erp/api", Version: "1.1.0"}))
+	c := monorepoSource(t, mono)
+
+	got, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err, "a copy under a dot directory is not a second copy")
+	assert.Equal(t, "1.0.0", got.Manifest.Metadata.Version)
+
+	_, err = c.Manifest(context.Background(), "erp/api", "1.1.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy/api")
+	assert.Contains(t, err.Error(), "services/api")
+}
+
+// tag 在，但那个提交里没有这个组件：列出 tag 里有的 component.yaml，看得出是打错了 tag 还是改错了 id。
+func TestGitRepositorySourceTagWithoutTheComponent(t *testing.T) {
+	mono := gittest.NewRemote(t, "platform")
+	mono.TagAt("services/api", "erp-api/1.0.0", specFiles(componentSpec{ID: "erp/other", Version: "1.0.0"}))
+	c := monorepoSource(t, mono)
+
+	_, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "erp-api/1.0.0")
+	assert.Contains(t, err.Error(), "services/api (erp/other)")
+}
+
+// 仓库里一个版本都没有的组件不在这个仓库：交给下一个源，而不是报这个仓库缺 tag。
+func TestGitRepositorySourcePassesOnComponentsItDoesNotHold(t *testing.T) {
+	mono := gittest.NewRemote(t, "platform")
+	mono.TagAt("probes/go", "test-probe-go/0.1.0", specFiles(componentSpec{ID: "test/probe-go", Version: "0.1.0"}))
+	org := newGitOrg(t)
+	org.release(componentSpec{ID: "erp/api", Version: "1.0.0", Description: "from baseUrl"})
+	c := monorepoSource(t, mono, projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(org.dir)})
+
+	got, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, "from baseUrl", got.Manifest.Metadata.Description)
+
+	_, err = c.Manifest(context.Background(), "test/probe-go", "0.2.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "0.1.0", "the version the repository does have is listed")
+}
+
 func TestGitMissingTagListsExisting(t *testing.T) {
 	org := newGitOrg(t)
 	org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
@@ -252,6 +357,24 @@ func TestGitArtifactsAndDoc(t *testing.T) {
 	require.Empty(t, res.Warnings)
 	assert.Equal(t, `{"openapi":"3.0.0"}`, readFile(t, filepath.Join(c.ArtifactDir("erp/api", "1.0.0"), "api-docs", "docs", "openapi.json")))
 	assert.Equal(t, "# erp/api\n", readFile(t, layout.CachedDocPath("erp/api", "1.0.0")))
+}
+
+func TestProjfileGitSourceNeedsBaseURLOrRepo(t *testing.T) {
+	cases := map[string]struct {
+		src  projfile.Source
+		want string
+	}{
+		"neither":    {projfile.Source{Name: "g", Type: projfile.SourceTypeGit}, "sources[0].baseUrl"},
+		"both":       {projfile.Source{Name: "g", Type: projfile.SourceTypeGit, BaseURL: "https://x/", Repo: "https://x/y"}, "sources[0].repo"},
+		"repo flags": {projfile.Source{Name: "g", Type: projfile.SourceTypeGit, Repo: "--upload-pack=x"}, "sources[0].repo"},
+	}
+	for name, tc := range cases {
+		err := (&projfile.File{Project: "p", Sources: []projfile.Source{tc.src}}).Validate()
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.want, name)
+	}
+	ok := &projfile.File{Project: "p", Sources: []projfile.Source{{Name: "g", Type: projfile.SourceTypeGit, Repo: "https://x/y.git"}}}
+	require.NoError(t, ok.Validate())
 }
 
 func TestProjfileGitSourceValidation(t *testing.T) {

@@ -59,12 +59,12 @@ func (c *Client) ReleaseNotes(ctx context.Context, id, from, to string) ([]Versi
 // releaseNotes 读这个组件每个版本 tag 上的说明：只有带注释的 tag 有说明（轻量 tag 的
 // %(contents) 是它指向的提交的说明，不是发版说明）。
 func (s *gitSource) releaseNotes(ctx context.Context, componentID string) (map[string]string, error) {
-	repoURL, subpath := s.locate(componentID)
+	repoURL := s.repoFor(componentID)
 	repo := s.cache.get(repoURL)
 	if err := repo.ensure(ctx); err != nil {
 		return nil, s.failed(componentID, repoURL, err)
 	}
-	prefix := tagPrefix(componentID, subpath)
+	prefix := tagPrefix(componentID, s.namespaced())
 	// 一条记录：tag 名 \x00 对象类型 \x00 说明 \x01——说明里可以有任何换行
 	out, err := runGit(ctx, repo.dir, "for-each-ref",
 		"--format=%(refname:strip=2)%00%(objecttype)%00%(contents)%01", "refs/tags/"+prefix)

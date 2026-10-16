@@ -3,6 +3,7 @@ package manifest
 import (
 	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 
@@ -19,6 +20,21 @@ import (
 
 // FileName 是 Manifest 的固定文件名。
 const FileName = "component.yaml"
+
+// InRepository 报告仓库里（斜杠分隔的相对路径）的这个文件算不算一个组件的 component.yaml：
+// 文件名对，并且不在以 . 开头的目录里——.brickkit/ 里的清单缓存、.archived/ 里挪开的源码
+// 都是别处的副本，不是这个仓库自己的组件。仓库源在 tag 里、本机在 --repo 克隆里找组件都用它。
+func InRepository(p string) bool {
+	if path.Base(p) != FileName {
+		return false
+	}
+	for _, seg := range strings.Split(path.Dir(p), "/") {
+		if strings.HasPrefix(seg, ".") && seg != "." {
+			return false
+		}
+	}
+	return true
+}
 
 // ParseFile 读取并解析一个 component.yaml。
 func ParseFile(path string) (*Manifest, error) {

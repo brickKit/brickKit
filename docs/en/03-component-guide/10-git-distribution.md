@@ -27,8 +27,27 @@ From then on each component's repository address is derived by rule, without con
 A version maps to a tag: version `0.1.0` is tag `0.1.0` (no `v`). "The latest version" is the highest tag in exact-version
 form; tags like `v1.0.0` or `latest` don't count as versions.
 
-**When it can't be derived, name it.** For a repository in another organisation, a name that doesn't follow the rule, or a
-component in a monorepo subdirectory, write `source` on that component's entry:
+**One repository holding several components.** When components live in subdirectories of one repository (a monorepo),
+declare that repository as the install source with `repo` instead of `baseUrl`:
+
+```yaml
+sources:
+  - name: platform
+    type: git
+    repo: https://git.example.com/platform/erp.git
+```
+
+Each component's tags carry a namespace, `<scope>-<name>/<version>` (`erp-backend/2.1.0`) — that's what `brickkit release`
+writes when it runs in a subdirectory, so the components of one repository each keep their own versions. Which
+subdirectory a component is in is written nowhere: at each version's tag the CLI looks for the `component.yaml` whose
+`metadata.id` is that component. A component can therefore move to another directory between versions. Directories whose
+name starts with `.` don't count (copies in `.brickkit/` or `.archived/` are not the repository's own components); two
+copies of one component at one tag are an error, not a guess. `brickkit add erp/backend@2.1.0` then writes all three
+layers, and the components it depends on in the same repository come along. A component at the root of a repository
+(tags without a namespace) is reached through `baseUrl` or its own `source`, not through `repo`.
+
+**When it can't be derived, name it.** For a repository in another organisation, a name that doesn't follow the rule, or
+one component pinned to a subdirectory of some repository, write `source` on that component's entry:
 
 ```yaml
 components:
@@ -39,6 +58,9 @@ components:
       repo: https://git.example.com/platform/erp.git
       path: services/backend      # the component's subdirectory in the repository; the tag is then erp-backend/2.1.0
 ```
+
+`source` applies to that one component only: its dependencies are still looked up in `sources[]`. When several components
+of a repository are used, a `repo` install source is the simpler form.
 
 `source.type: local` points at a component directory on this machine instead (`path` relative to the project root); see
 [Developing inside a component](05-local-dev-fractal.md).

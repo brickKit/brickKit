@@ -244,6 +244,8 @@ brickkit release --path svc/api        # component erp/api, tag erp-api/1.2.0
 ```
 
 The working-tree check looks only at that component's own directory: changes in a neighbouring component don't concern it.
+Projects using these components declare the repository once, as an install source with `repo` (see
+[Distributing through Git](10-git-distribution.md#how-component-addresses-are-derived)).
 
 ## The workbench has nothing to do with releasing
 

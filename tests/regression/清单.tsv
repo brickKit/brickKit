@@ -56,3 +56,4 @@ R41	文档里的 yaml 片段不会教出 CLI 拒绝的字段	.	./tests/docfields
 R42	组件声明的发布前检查没过，release 不打 tag	.	./internal/cli	TestReleaseRunsTheComponentsChecksBeforeTagging
 R43	组件声明的发布前检查没过，publish 一个请求都不发到市场	.	./internal/cli	TestPublishRunsTheComponentsChecksFirst
 R44	发布前检查改动了组件目录，release 不打 tag	.	./internal/cli	TestReleaseRefusesWhenAPassingCheckChangedFiles
+R45	一个仓库里放多个组件（sources[].repo）：add 一条命令写好三层，同一仓库里的依赖一起进来	.	./internal/cli	TestAddFromARepositorySource

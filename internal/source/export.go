@@ -59,22 +59,20 @@ func (c *Client) ExportSource(ctx context.Context, id, version, dest string) err
 }
 
 func (s *gitSource) exportSource(ctx context.Context, componentID, version, dest string) error {
-	repoURL, subpath := s.locate(componentID)
-	tag := tagPrefix(componentID, subpath) + version
-	repo, found, err := s.repoWithTag(ctx, componentID, tag)
+	v, found, err := s.at(ctx, componentID, version)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return errNotFound
 	}
-	tree := tag
-	if subpath != "" {
-		tree += ":" + subpath
+	tree := v.tag
+	if v.subpath != "" {
+		tree += ":" + v.subpath
 	}
-	archive, err := runGit(ctx, repo.dir, "archive", "--format=tar", tree)
+	archive, err := runGit(ctx, v.repo.dir, "archive", "--format=tar", tree)
 	if err != nil {
-		return s.failed(componentID, repoURL, err)
+		return s.failed(componentID, v.repo.url, err)
 	}
 	return untar(bytes.NewReader(archive), dest)
 }
