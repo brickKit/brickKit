@@ -65,7 +65,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 	if err != nil {
 		return err
 	}
-	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
+	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{Online: true})
 	if err != nil {
 		return err
 	}

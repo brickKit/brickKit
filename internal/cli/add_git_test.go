@@ -757,7 +757,7 @@ func TestAddFromARepositorySource(t *testing.T) {
 		writeTree(t, dir, map[string]string{
 			"brickkit.yaml": "project: shop\nsources:\n  - name: components\n    type: local\n    path: ./components\n" +
 				"  - name: acceptance\n    type: git\n    repo: " + mono.URL() + "\ncomponents: []\n",
-			"deploy.yaml":   "target: docker\ncomponents: []\n",
+			"deploy.yaml": "target: docker\ncomponents: []\n",
 		})
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "components"), 0o755))
 		return dir
@@ -788,4 +788,31 @@ func TestAddFromARepositorySource(t *testing.T) {
 	writeTree(t, filepath.Dir(yamlPath), map[string]string{"component.yaml": strings.Replace(readFile(t, yamlPath), "version: 0.1.0", "version: 0.2.0", 1)})
 	r := g.mustRun(cloned, "upgrade", "test/probe-go", "--dry-run")
 	assert.Contains(t, r.stdout, "0.2.0")
+}
+
+// 同一个版本号删掉重发：用着旧内容的项目不会静默地接着用（反馈 FRR-002 的复现）。
+//   - 同一个项目 fetch 这个版本：点了名，先对着远端核对——警告 tag 被挪过，并且报错，不拿旧内容；
+//   - 新项目 add：拿到重发的内容；
+//   - 之后原项目不联网的 up 同样报错。
+func TestRepublishedVersionIsReportedNotServed(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "demo/hello", Version: "0.1.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "demo/hello@0.1.0")
+
+	g.remotes["demo/hello"].Retag("0.1.0", map[string]string{"component.yaml": comp{ID: "demo/hello", Version: "0.1.0", Port: 9191}.yamlText()})
+
+	r := g.run(dir, "fetch", "demo/hello@0.1.0")
+	assert.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Version tag 0.1.0 was moved")
+	assert.Contains(t, r.stderr, "is no longer what this project cached")
+	assert.Contains(t, r.stderr, filepath.Join(".brickkit", "manifests", "demo", "hello", "0.1.0"))
+
+	other := g.project()
+	g.mustRun(other, "add", "demo/hello@0.1.0")
+	assert.Contains(t, readFile(t, filepath.Join(other, ".brickkit", "manifests", "demo", "hello", "0.1.0", "component.yaml")), "9191")
+
+	r = g.run(dir, "up", "--dry-run")
+	assert.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "is no longer what this project cached")
 }

@@ -86,7 +86,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) (err err
 	if err != nil {
 		return err
 	}
-	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
+	client, err := newSourceClient(opts, proj.Layout, proj.Decl, onlineFor(id, version))
 	if err != nil {
 		return err
 	}

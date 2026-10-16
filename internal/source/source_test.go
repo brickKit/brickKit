@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -653,65 +652,6 @@ func TestArtifactsSkippedWhenCached(t *testing.T) {
 	assert.Empty(t, res.Downloaded)
 	assert.Len(t, res.Cached, 2)
 	assert.Len(t, mock.recorded(), before, "命中缓存时不应再请求市场")
-}
-
-// ============================================================
-// --refresh
-// ============================================================
-
-// --refresh 强制重新拉取 Manifest 与 artifacts。
-func TestRefreshForcesRefetch(t *testing.T) {
-	layout := newProject(t)
-	spec := protoSpec("department/tree", "1.0.0")
-	spec.Description = "安装源中的版本"
-	writeComponent(t, filepath.Join(layout.Root, "components"), spec)
-
-	cfg := cfgWithSources(projfile.Source{
-		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
-	})
-	ctx := context.Background()
-
-	c := newClient(t, layout, cfg, Options{})
-	got, err := c.Manifest(ctx, "department/tree", "1.0.0")
-	require.NoError(t, err)
-	_, err = c.DownloadArtifacts(ctx, got.Manifest)
-	require.NoError(t, err)
-
-	// 篡改缓存
-	cachedManifest := layout.CachedManifestPath("department/tree", "1.0.0")
-	tampered := strings.Replace(spec.yamlText(), "安装源中的版本", "被改过的缓存", 1)
-	writeFile(t, cachedManifest, tampered)
-	cachedProto := filepath.Join(layout.ArtifactsDir(), "department-tree-1-0-0",
-		"api-contract", "proto", "department", "v1", "department.proto")
-	writeFile(t, cachedProto, "// 被改过的缓存\n")
-
-	// 不带 --refresh：本地源照样不吃缓存——那份 component.yaml 与 .proto
-	// 就在使用者硬盘上、跟着代码一起改（见 TestLocalSourceManifestIsNeverStale）
-	stale, err := c.Manifest(ctx, "department/tree", "1.0.0")
-	require.NoError(t, err)
-	assert.Equal(t, "安装源中的版本", stale.Manifest.Metadata.Description)
-
-	_, err = c.DownloadArtifacts(ctx, stale.Manifest)
-	require.NoError(t, err)
-	assert.Equal(t, spec.Files["proto/department/v1/department.proto"], readFile(t, cachedProto),
-		"本地源的产物同样以硬盘上那份为准")
-
-	// 把缓存再改回去，验证 --refresh 这条路本身
-	writeFile(t, cachedProto, "// 被改过的缓存\n")
-
-	// 带 --refresh：忽略缓存重新拉取，缓存被更新
-	fresh := newClient(t, layout, cfg, Options{Refresh: true})
-	got2, err := fresh.Manifest(ctx, "department/tree", "1.0.0")
-	require.NoError(t, err)
-	assert.Equal(t, "安装源中的版本", got2.Manifest.Metadata.Description)
-	assert.False(t, got2.FromCache)
-	assert.Contains(t, readFile(t, cachedManifest), "安装源中的版本", "缓存文件应被更新")
-
-	res, err := fresh.DownloadArtifacts(ctx, got2.Manifest)
-	require.NoError(t, err)
-	assert.Len(t, res.Downloaded, 2)
-	assert.Empty(t, res.Cached)
-	assert.Equal(t, spec.Files["proto/department/v1/department.proto"], readFile(t, cachedProto))
 }
 
 // ============================================================

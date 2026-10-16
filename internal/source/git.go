@@ -83,6 +83,9 @@ func (s *gitSource) repoWithTag(ctx context.Context, componentID, tag string) (*
 	if err := repo.ensure(ctx); err != nil {
 		return nil, false, s.failed(componentID, repoURL, err)
 	}
+	if s.cache.online {
+		repo.refresh(ctx)
+	}
 	if repo.hasTag(ctx, tag) {
 		return repo, true, nil
 	}
@@ -254,6 +257,27 @@ func (s *gitSource) fileAtVersion(ctx context.Context, componentID, version, fil
 		return nil, errNotFound
 	}
 	return data, nil
+}
+
+// gitPin 是一个组件版本取自哪个仓库的哪个 tag、当时那个 tag 指向哪个提交。它跟着清单缓存记下来：
+// 版本发布了就不该再变，tag 后来指向了别的提交，缓存里这一份就不再是这个版本（Client.checkPin）。
+type gitPin struct {
+	Repo   string `json:"repo"`
+	Tag    string `json:"tag"`
+	Commit string `json:"commit"`
+}
+
+// pin 返回这个版本此刻的 gitPin；读不出来时为 nil（不记，以后也就不核对）。
+func (s *gitSource) pin(ctx context.Context, componentID, version string) *gitPin {
+	v, found, err := s.at(ctx, componentID, version)
+	if err != nil || !found {
+		return nil
+	}
+	commit, ok := v.repo.tagCommit(ctx, v.tag)
+	if !ok {
+		return nil
+	}
+	return &gitPin{Repo: v.repo.url, Tag: v.tag, Commit: commit}
 }
 
 func (s *gitSource) origin(ctx context.Context, componentID, version string) (*Origin, error) {

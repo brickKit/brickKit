@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/security"
@@ -38,5 +39,17 @@ func newSourceClient(
 	}
 	sourceOpts.Signature = policy
 	sourceOpts.RepoCacheDir = opts.RepoCacheDir
+	// 版本 tag 被挪动过这类提醒，在发现的那一刻就说
+	sourceOpts.Warn = func(w *clierr.Error) { opts.Printf("%s", opts.render(w)) }
 	return source.New(layout, cfg, sourceOpts)
+}
+
+// onlineFor 是联网的命令（add、fetch）的安装源选项：git 源先对着远端核对 tag，命令行上点了名的
+// 版本即使已经缓存着也核对一次（见 source.Options.Online）。不写版本时要先问最新版本，那一步本来就 fetch。
+func onlineFor(id, version string) source.Options {
+	o := source.Options{Online: true}
+	if version != "" {
+		o.Named = []string{id + "@" + version}
+	}
+	return o
 }

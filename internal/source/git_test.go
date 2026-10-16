@@ -640,3 +640,88 @@ func TestGitReleaseNotesBetweenVersions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []VersionNotes{{Version: "1.2.0", Notes: "## Added\n\n# Breaking"}, {Version: "1.10.0", Notes: "tenth"}}, notes)
 }
+
+// 同一个版本号删掉重发（tag 挪到了新提交上）：项目缓存里的旧内容不能再被静默当作这个版本。
+//   - 别的命令 fetch 时发现 tag 被挪动，说出来（警告），仓库缓存跟着远端；
+//   - 缓存着旧内容的项目再读这个版本——不联网也一样——报 VERSION_CHANGED，点名两处缓存；
+//   - 照提示删掉清单缓存之后，拿到的是重发的内容。
+func TestGitRepublishedVersionIsNeverServedSilently(t *testing.T) {
+	org := newGitOrg(t)
+	remote := org.release(componentSpec{ID: "demo/hello", Version: "0.1.0", Description: "FIRST"})
+	old, oldLayout := org.client()
+	got, err := old.Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err)
+	require.Equal(t, "FIRST", got.Manifest.Metadata.Description)
+
+	remote.Retag("0.1.0", specFiles(componentSpec{ID: "demo/hello", Version: "0.1.0", Description: "SECOND"}))
+
+	// 另一个项目、联网的命令：仓库缓存里已经有这个 tag，照样先 fetch，发现它被挪过
+	var warned []*clierr.Error
+	layout := newProject(t)
+	cfg := cfgWithSources(projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(org.dir)})
+	fresh := newClient(t, layout, cfg, Options{RepoCacheDir: org.cache, Online: true,
+		Warn: func(e *clierr.Error) { warned = append(warned, e) }})
+	got, err = fresh.Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err)
+	assert.Equal(t, "SECOND", got.Manifest.Metadata.Description)
+	require.Len(t, warned, 1)
+	assert.True(t, warned[0].Warning)
+	assert.Equal(t, clierr.CodeVersionChanged, warned[0].Code)
+	assert.Contains(t, warned[0].Error(), "0.1.0")
+
+	// 缓存着 FIRST 的项目：不联网的读取也要报出来
+	again := newClient(t, oldLayout, cfg, Options{RepoCacheDir: org.cache})
+	_, err = again.Manifest(context.Background(), "demo/hello", "0.1.0")
+	e := clierr.As(err)
+	require.NotNil(t, e)
+	assert.Equal(t, clierr.CodeVersionChanged, e.Code)
+	assert.Contains(t, strings.Join(e.Hints, "\n"), filepath.Join(".brickkit", "manifests", "demo", "hello", "0.1.0"))
+
+	require.NoError(t, os.RemoveAll(oldLayout.CachedManifestDir("demo/hello", "0.1.0")))
+	got, err = newClient(t, oldLayout, cfg, Options{RepoCacheDir: org.cache}).Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err)
+	assert.Equal(t, "SECOND", got.Manifest.Metadata.Description)
+}
+
+// 联网的命令对点了名的版本：项目缓存里现成的那一份也先对着远端核对（仓库缓存还没被别人更新过时，
+// 只有这样才发现得了）；没点名、已经写在 brickkit.yaml 里的版本不去联网，免得每次 add 都把项目里
+// 每个仓库 fetch 一遍。
+func TestGitOnlineCommandsCheckNamedVersionsAgainstTheRemote(t *testing.T) {
+	org := newGitOrg(t)
+	remote := org.release(componentSpec{ID: "demo/hello", Version: "0.1.0", Description: "FIRST"})
+	layout := newProject(t)
+	cfg := cfgWithSources(projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(org.dir)})
+	cfg.Components = []projfile.Component{{ID: "demo/hello", Version: "0.1.0"}}
+	_, err := newClient(t, layout, cfg, Options{RepoCacheDir: org.cache}).Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err)
+
+	remote.Retag("0.1.0", specFiles(componentSpec{ID: "demo/hello", Version: "0.1.0", Description: "SECOND"}))
+
+	_, err = newClient(t, layout, cfg, Options{RepoCacheDir: org.cache, Online: true}).Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err, "declared and not named: checked offline only")
+
+	_, err = newClient(t, layout, cfg, Options{RepoCacheDir: org.cache, Online: true, Named: []string{"demo/hello@0.1.0"}}).
+		Manifest(context.Background(), "demo/hello", "0.1.0")
+	e := clierr.As(err)
+	require.NotNil(t, e)
+	assert.Equal(t, clierr.CodeVersionChanged, e.Code)
+}
+
+// 联网的命令连不上远端：本地已有的版本照用，不因为核对不了而失败。
+func TestGitOnlineCommandsWorkOfflineWithCachedVersions(t *testing.T) {
+	org := newGitOrg(t)
+	remote := org.release(componentSpec{ID: "demo/hello", Version: "0.1.0"})
+	_, err := func() (*Fetched, error) {
+		c, _ := org.client()
+		return c.Manifest(context.Background(), "demo/hello", "0.1.0")
+	}()
+	require.NoError(t, err)
+	remote.Remove()
+
+	layout := newProject(t)
+	cfg := cfgWithSources(projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(org.dir)})
+	got, err := newClient(t, layout, cfg, Options{RepoCacheDir: org.cache, Online: true, Named: []string{"demo/hello@0.1.0"}}).
+		Manifest(context.Background(), "demo/hello", "0.1.0")
+	require.NoError(t, err)
+	assert.Equal(t, "0.1.0", got.Manifest.Metadata.Version)
+}

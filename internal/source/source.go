@@ -9,7 +9,8 @@
 //	缓存     Manifest → .brickkit/manifests/<scope>/<name>/<版本>/component.yaml（永久，
 //	         旁边是来源与签名信封 signature.json、组件带着时还有 BRICKKIT.md）
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
-//	刷新     Options.Refresh 忽略缓存强制重新拉取（brickkit add 重复添加同一版本时打开）
+//	不可变   版本发布了就不再变：git 源的缓存旁边记着当时 tag 指向的提交，tag 后来被挪到别处，
+//	         读缓存时就报 VERSION_CHANGED，不拿旧内容当这个版本用（checkPin）
 //	签名     只有市场源受签名策略约束（verify.go）；本地源与 git 源指向的是
 //	         使用者自己的目录与仓库，那里没有"发布者"这个角色
 //	来源     Origin 绕开 Manifest 缓存直接问安装源，供 brickkit add --repo 判断
@@ -42,8 +43,14 @@ import (
 
 // Options 控制安装源客户端的行为。
 type Options struct {
-	// Refresh 忽略本地缓存，强制重新拉取。brickkit add 检测到该版本已在配置里时打开它。
-	Refresh bool
+	// Online 是联网的命令（add、upgrade、fetch）：git 源读仓库之前先 fetch 一次（每个仓库每趟至多一次），
+	// 本地已经有要的 tag 也一样；清单缓存里现成的版本，只有点了名的（Named）与项目里还没有的才这样核对。
+	// 连不上时照用本地已有的。
+	Online bool
+	// Named 是命令行上点了名的组件版本（<id>@<版本>）。
+	Named []string
+	// Warn 收到不阻断命令、但要让人看见的提醒（版本 tag 被挪动过）。为空时不说。
+	Warn func(*clierr.Error)
 	// HTTPClient 用于市场安装源。为空时使用带超时的默认客户端。
 	HTTPClient *http.Client
 	// Now 用于判断 Token 是否过期。为空时使用 time.Now。
@@ -55,15 +62,6 @@ type Options struct {
 	// <用户缓存目录>/brickkit/repos；测试用它隔离。
 	RepoCacheDir string
 }
-
-// SetRefresh 打开/关闭"忽略缓存强制重新拉取"（等价于构造时的 Options.Refresh）。
-//
-// 存在的理由：brickkit add 不写版本时，要先用这个客户端解析出最新版本，
-// 才知道该版本是否已在配置里、进而才知道要不要刷新缓存。为查一次版本再建一个
-// 客户端并不划算——git 源会因此重新 clone 一遍整个仓库。
-//
-// 只能在开始取 Manifest / 产物之前调用（add 的调用点满足这个前提）。
-func (c *Client) SetRefresh(refresh bool) { c.opts.Refresh = refresh }
 
 // Fetched 是一次 Manifest 获取的结果。
 type Fetched struct {
@@ -100,6 +98,7 @@ type ArtifactResult struct {
 type Client struct {
 	layout   project.Layout
 	opts     Options
+	decl     *projfile.File
 	fetchers []fetcher
 	// overrides 是 brickkit.yaml 里自己写了 source 的组件：只从那个来源取。
 	overrides map[string]fetcher
@@ -173,7 +172,9 @@ func New(layout project.Layout, decl *projfile.File, opts Options) (*Client, err
 			opts.RepoCacheDir = filepath.Join(dir, "brickkit", "repos")
 		}
 	}
-	c := &Client{layout: layout, opts: opts, repos: newRepoCache(opts.RepoCacheDir), overrides: map[string]fetcher{}}
+	c := &Client{layout: layout, opts: opts, decl: decl, repos: newRepoCache(opts.RepoCacheDir), overrides: map[string]fetcher{}}
+	c.repos.online = opts.Online
+	c.repos.moved = c.reportMovedTags
 	if decl == nil {
 		return c, nil
 	}
@@ -272,8 +273,11 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 	}
 
 	cachePath := c.ManifestCachePath(id, version)
-	if !c.opts.Refresh && !c.servedByLocalSource(ctx, id, version) {
+	if !c.servedByLocalSource(ctx, id, version) {
 		if fetched, ok := c.fromCache(cachePath, id, version); ok {
+			if err := c.checkPin(ctx, id, version); err != nil {
+				return nil, err
+			}
 			return fetched, nil
 		}
 	}
@@ -297,7 +301,7 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 			WithHint(i18n.T(msgid.SourceHintCheckCachePermissions)).
 			WithCause(err)
 	}
-	c.writeCachedSignature(id, version, kind, sig)
+	c.writeCachedSignature(id, version, kind, sig, pinOf(ctx, f, id, version))
 	c.cacheDoc(ctx, f, id, version)
 	c.recordSignature(id, version, sig, result)
 
@@ -437,6 +441,8 @@ func docNames(files map[string][]byte) []string {
 type cachedSignature struct {
 	SourceKind string              `json:"sourceKind"`
 	Signature  *security.Signature `json:"signature,omitempty"`
+	// Git 是 git 源的版本当时取自哪个 tag、tag 指向哪个提交（checkPin 核对它）。
+	Git *gitPin `json:"git,omitempty"`
 }
 
 // readCachedSignature 读取缓存信封；文件不在或读不动时返回 false。
@@ -458,8 +464,8 @@ func (c *Client) readCachedSignature(id, version string) (cachedSignature, bool)
 // writeCachedSignature 把来源与签名写到 Manifest 缓存旁边。
 //
 // 写失败不阻断安装：这份缓存只是为了下次少一次请求，它没了最多是重新拉一遍。
-func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Signature) {
-	envelope := cachedSignature{SourceKind: kind, Signature: sig}
+func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Signature, pin *gitPin) {
+	envelope := cachedSignature{SourceKind: kind, Signature: sig, Git: pin}
 	if sig != nil && sig.Empty() {
 		envelope.Signature = nil
 	}
@@ -546,7 +552,7 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 	base := c.ArtifactDir(id, version)
 	// 与 Manifest 同一条规则：本地源的产物（.proto、openapi.json）也在使用者
 	// 硬盘上跟着代码一起改，缓存住只会让调用方按旧契约生成客户端
-	useCache := !c.opts.Refresh && !c.servedByLocalSource(ctx, id, version)
+	useCache := !c.servedByLocalSource(ctx, id, version)
 
 	res := &ArtifactResult{}
 	for _, art := range m.Artifacts {
@@ -895,4 +901,79 @@ func expandToken(token string, lookup func(string) (string, bool)) string {
 		}
 	}
 	return envref.Expand(token, lookup)
+}
+
+// pinOf 是刚从安装源 f 取到的这个版本的 gitPin：只有 git 源有。
+func pinOf(ctx context.Context, f fetcher, id, version string) *gitPin {
+	if g, ok := f.(*gitSource); ok {
+		return g.pin(ctx, id, version)
+	}
+	return nil
+}
+
+// checkPin 核对清单缓存里的 git 版本还是不是这个版本：缓存旁边记着当时 tag 指向的提交，
+// 本机仓库缓存里的同一个 tag 现在指向别处，就是有人把这个版本号重发了（删掉 tag、在别的提交上
+// 再打一次）。这时缓存里那份已经不是"这个版本"，不能一声不吭地接着用。
+//
+// 不联网：比的是本机仓库缓存里的 tag。联网的命令对点了名的、项目里还没有的版本先 fetch 一次，
+// 远端挪过的 tag 就在这里被发现。没记提交的缓存（git 源以外的、更早写下的）与不在本机的仓库不核对。
+func (c *Client) checkPin(ctx context.Context, id, version string) error {
+	envelope, ok := c.readCachedSignature(id, version)
+	if !ok || envelope.Git == nil || envelope.Git.Commit == "" || c.repos.root == "" {
+		return nil
+	}
+	pin := envelope.Git
+	repo := c.repos.get(pin.Repo)
+	if !isDir(repo.dir) {
+		return nil
+	}
+	if c.opts.Online && (c.named(id, version) || !c.declared(id, version)) {
+		repo.refresh(ctx)
+	}
+	now, ok := repo.tagCommit(ctx, pin.Tag)
+	if !ok || now == pin.Commit {
+		return nil
+	}
+	return clierr.New(clierr.CodeVersionChanged, i18n.T(msgid.SourceVersionChanged, id+"@"+version)).
+		WithDetail(i18n.T(msgid.LabelRepo), pin.Repo).
+		WithDetail(i18n.T(msgid.SourceLabelGitTag), pin.Tag).
+		WithDetail(i18n.T(msgid.SourceLabelCachedCommit), shortCommit(pin.Commit)).
+		WithDetail(i18n.T(msgid.SourceLabelTagCommitNow), shortCommit(now)).
+		WithHint(
+			i18n.T(msgid.SourceHintVersionNeverChanges),
+			i18n.T(msgid.SourceHintTakeRepublished, c.layout.CachedManifestDir(id, version), c.ArtifactDir(id, version)),
+		)
+}
+
+// named 报告这个版本是不是命令行上点了名的。
+func (c *Client) named(id, version string) bool {
+	return slices.Contains(c.opts.Named, id+"@"+version)
+}
+
+// declared 报告这个版本是不是已经写在 brickkit.yaml 里。
+func (c *Client) declared(id, version string) bool {
+	return c.decl != nil && slices.Contains(c.decl.Versions(id), version)
+}
+
+// reportMovedTags 把 fetch 发现的、被挪动过的版本 tag 说出来：命令照常往下走（以远端为准），
+// 但这是"版本发布了就不变"被打破了，别处缓存着旧内容的项目下次读到它会报 VERSION_CHANGED。
+func (c *Client) reportMovedTags(repoURL string, tags []movedTag) {
+	if c.opts.Warn == nil {
+		return
+	}
+	for _, t := range tags {
+		c.opts.Warn(clierr.Warn(clierr.CodeVersionChanged, i18n.T(msgid.SourceVersionTagMoved, t.tag)).
+			WithDetail(i18n.T(msgid.LabelRepo), repoURL).
+			WithDetail(i18n.T(msgid.SourceLabelTagCommitBefore), shortCommit(t.from)).
+			WithDetail(i18n.T(msgid.SourceLabelTagCommitNow), shortCommit(t.to)).
+			WithHint(i18n.T(msgid.SourceHintVersionNeverChanges)))
+	}
+}
+
+// shortCommit 是提交号的前 12 位。
+func shortCommit(commit string) string {
+	if len(commit) > 12 {
+		return commit[:12]
+	}
+	return commit
 }

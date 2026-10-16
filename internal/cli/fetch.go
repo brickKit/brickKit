@@ -71,7 +71,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 		return err
 	}
 
-	client, err := newSourceClient(opts, layout, decl, source.Options{})
+	client, err := newSourceClient(opts, layout, decl, onlineFor(id, version))
 	if err != nil {
 		return err
 	}

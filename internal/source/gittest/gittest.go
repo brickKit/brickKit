@@ -99,6 +99,15 @@ func (r *Remote) TagAtWithNotes(subpath, tag, notes string, files map[string]str
 	r.git(r.work, "push", "--quiet", "origin", "HEAD:refs/heads/main", "refs/tags/"+tag)
 }
 
+// Retag 把一个已经发布的版本重发一遍：删掉本地与远端的 tag，在写入 files 的新提交上再打同一个 tag
+// （有人违反"版本不可变"时做的事）。
+func (r *Remote) Retag(tag string, files map[string]string) {
+	r.t.Helper()
+	r.git(r.work, "tag", "-d", tag)
+	r.git(r.work, "push", "--quiet", "origin", ":refs/tags/"+tag)
+	r.Tag(tag, files)
+}
+
 // Remove 删掉远端（模拟离线、仓库被删）。
 func (r *Remote) Remove() {
 	r.t.Helper()

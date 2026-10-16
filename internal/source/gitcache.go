@@ -41,6 +41,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -50,6 +51,11 @@ type repoCache struct {
 	root  string
 	mu    sync.Mutex
 	repos map[string]*gitRepo
+	// online 为 true 时（联网的命令：add、upgrade、fetch），读一个仓库之前先 fetch 一次，
+	// 本地已经有要的 tag 也一样：tag 被挪动过（同一个版本号重发）就在这时发现。
+	online bool
+	// moved 收到 fetch 发现的、被挪动过的版本 tag。
+	moved func(repoURL string, tags []movedTag)
 }
 
 func newRepoCache(root string) *repoCache {
@@ -62,10 +68,16 @@ func (rc *repoCache) get(url string) *gitRepo {
 	defer rc.mu.Unlock()
 	r, ok := rc.repos[url]
 	if !ok {
-		r = &gitRepo{url: url, root: rc.root, dir: repoCacheDir(rc.root, url)}
+		r = &gitRepo{url: url, root: rc.root, dir: repoCacheDir(rc.root, url), moved: rc.moved}
 		rc.repos[url] = r
 	}
 	return r
+}
+
+// movedTag 是 fetch 时发现被挪到另一个提交上的版本 tag。
+type movedTag struct {
+	tag      string
+	from, to string
 }
 
 // gitRepo 是缓存里的一个 bare 仓库。
@@ -77,6 +89,8 @@ type gitRepo struct {
 	mu sync.Mutex
 	// fetched 表示这一趟已经从远端取过最新的 tag（刚克隆的也算）。
 	fetched bool
+	// moved 收到这个仓库被挪动过的版本 tag（repoCache.moved）。
+	moved func(repoURL string, tags []movedTag)
 
 	compMu sync.Mutex
 	// components 记着每个 tag 里有哪些组件（monorepo 源找子目录用），按 tag 名；fetch 会移动 tag，所以清空。
@@ -143,7 +157,8 @@ func sweepStaleClones(tmpRoot string) {
 	}
 }
 
-// fetch 增量取远端的 tag 与分支（这一趟只取一次）。tag 被强制移动过时以远端为准。
+// fetch 增量取远端的 tag 与分支（这一趟只取一次）。tag 被强制移动过时以远端为准，并且说出来：
+// 版本发布了就不该再变，挪过版本 tag 的仓库里，别处缓存着的同一个版本已经是另一份内容了。
 //
 // 分支也要跟着远端走，不能只取 tag：`clone --bare` 不配 fetch refspec，只带 --tags 的
 // fetch 永远不会移动缓存里的分支。而 add --repo 从缓存 clone 出源码目录，它的 origin/*
@@ -156,16 +171,71 @@ func (r *gitRepo) fetch(ctx context.Context) error {
 	if r.fetched {
 		return nil
 	}
+	before := r.tagCommits(ctx)
 	// 克隆时已经配好了 origin：不再把地址放上命令行
 	if _, err := runGit(ctx, r.dir, "fetch", "--quiet", "--tags", "--force", "--prune", "origin",
 		"+refs/heads/*:refs/heads/*"); err != nil {
 		return err
 	}
 	r.fetched = true
+	if moved := movedVersionTags(before, r.tagCommits(ctx)); len(moved) > 0 && r.moved != nil {
+		r.moved(r.url, moved)
+	}
 	r.compMu.Lock()
 	r.components = nil
 	r.compMu.Unlock()
 	return nil
+}
+
+// refresh 是联网的命令在读仓库之前做的那次 fetch：连不上、被拒绝都照用本地已有的——
+// 本地有的东西本来就能离线用；本地没有的，接下来那次非 fetch 不可的调用会把错误报出来。
+func (r *gitRepo) refresh(ctx context.Context) {
+	if err := r.fetch(ctx); err != nil {
+		logging.Info(i18n.T(msgid.LogGitRefreshSkipped), "repo", r.url, "error", lastLines(err.Error(), 3))
+	}
+}
+
+// tagCommits 是仓库里每个 tag 指向的提交（带注释的 tag 取它指向的那个提交）。读不出来时为空。
+func (r *gitRepo) tagCommits(ctx context.Context) map[string]string {
+	out, err := runGit(ctx, r.dir, "for-each-ref", "--format=%(refname:strip=2) %(objectname) %(*objectname)", "refs/tags")
+	if err != nil {
+		return nil
+	}
+	commits := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		f := strings.Fields(line)
+		switch len(f) {
+		case 2:
+			commits[f[0]] = f[1]
+		case 3:
+			commits[f[0]] = f[2]
+		}
+	}
+	return commits
+}
+
+// movedVersionTags 是两次之间指向变了的版本 tag（<版本> 或 <scope>-<name>/<版本>），按 tag 排好。
+// 别的 tag（latest 之类）本来就会动，不算。
+func movedVersionTags(before, after map[string]string) []movedTag {
+	var moved []movedTag
+	for tag, from := range before {
+		to, ok := after[tag]
+		if !ok || to == from || !manifest.IsExactVersion(path.Base(tag)) {
+			continue
+		}
+		moved = append(moved, movedTag{tag: tag, from: from, to: to})
+	}
+	sort.Slice(moved, func(i, j int) bool { return moved[i].tag < moved[j].tag })
+	return moved
+}
+
+// tagCommit 是 tag 指向的提交；仓库里没有这个 tag 时 ok 为 false。
+func (r *gitRepo) tagCommit(ctx context.Context, tag string) (string, bool) {
+	out, err := runGit(ctx, r.dir, "rev-parse", "--verify", "--quiet", "refs/tags/"+tag+"^{commit}")
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(out)), true
 }
 
 // hasTag 报告仓库里有没有这个 tag（指向一个提交）。

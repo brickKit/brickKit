@@ -62,6 +62,8 @@ const (
 	CodeVersionAmbiguous  Code = "VERSION_AMBIGUOUS"
 	CodeComponentDisabled Code = "COMPONENT_DISABLED"
 	CodeComponentNotFound Code = "COMPONENT_NOT_FOUND"
+	// CodeVersionChanged 是"一个已发布的版本，内容变了"：git 源的版本 tag 被挪到了别的提交上。
+	CodeVersionChanged Code = "VERSION_CHANGED"
 	// CodeComponentBlocked 是"市场已下架该组件版本"。
 	// 它与认证失败是两回事：去登录并不能让被下架的组件变回可安装。
 	CodeComponentBlocked Code = "COMPONENT_BLOCKED"

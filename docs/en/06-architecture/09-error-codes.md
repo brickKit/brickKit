@@ -241,6 +241,16 @@ are several now report `INVALID_ARGUMENT`.
 | `Error: <…> is not in the project` | `remove` on a component that isn't in the project | Check the component ID |
 | `Error: the focus <…> is not a component of this project` | `focus:` or `--focus` names a component that isn't in `brickkit.yaml` (removed since, or a typo) | Follow the "did you mean"; `brickkit up --all` drops the focus |
 
+### VERSION_CHANGED
+
+A released version's content changed: its Git tag was moved to another commit (deleted and tagged again). See
+[A version never changes](06-bare-repo-mechanism.md#a-version-never-changes).
+
+| Title | Situation | What to do |
+| --- | --- | --- |
+| `Error: <…> is no longer what this project cached: its version tag was moved after the release` | The tag now points at another commit than the one the project's cached copy came from | Ask for a new version and upgrade to it; to take the republished content as this version, delete the two directories the error names and run the command again |
+| `Version tag <…> was moved to another commit; the repository's copy follows the remote` | A warning: a fetch found the tag moved | Nothing breaks in this run; projects that cached the old content will stop with the error above |
+
 ### COMPONENT_BLOCKED
 
 The component market marked this component version `blocked` (confirmed to be a problem), and it can't be installed any

@@ -23,8 +23,8 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/03.md](llms/en/03.md): docs/en/02-project-guide/10-lint-and-checks.md … docs/en/03-component-guide/07-release-workflow.md
 - [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/08-component-doc-spec.md … docs/en/05-migration/04-shell-interaction.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/README.md … docs/en/06-architecture/04-deploy-file-generation.md
-- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
-- [llms/en/07.md](llms/en/07.md): docs/en/06-architecture/09-error-codes.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/07-cache-design.md
+- [llms/en/07.md](llms/en/07.md): docs/en/06-architecture/08-security-and-signing.md … docs/en/06-architecture/09-error-codes.md
 - [llms/en/08.md](llms/en/08.md): docs/en/07-cli-reference/README.md … docs/en/09-patterns/README.md
 - [llms/en/09.md](llms/en/09.md): docs/en/09-patterns/01-component-design.md … docs/en/09-patterns/05-service-calling.md
 - [llms/en/10.md](llms/en/10.md): docs/en/09-patterns/06-deployment-selection.md … docs/en/10-troubleshooting/07-migration-issues.md

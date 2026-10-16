@@ -43,7 +43,8 @@ afresh every time and never cached — change it, and the next command follows t
 
 ## The whole flow of fetching a file
 
-1. Check the project's Manifest cache. A hit ends it.
+1. Check the project's Manifest cache. A hit ends it, once the commit recorded next to it still matches the tag (see
+   [A version never changes](#a-version-never-changes)).
 2. Work out the repository address: the install source's `baseUrl` plus `<scope>-<name>`, the install source's `repo`, or
    `source.repo` when the component's entry has one. When the component sits in a repository subdirectory, the tag carries
    a namespace: `<scope>-<name>/<version>`; with a `repo` install source, the subdirectory is the one whose
@@ -51,11 +52,14 @@ afresh every time and never cached — change it, and the next command follows t
 3. Make sure the bare repository is in the cache, cloning it when it isn't. A clone lands in a temporary place under the
    cache directory first and is renamed when complete — failing or being interrupted halfway never leaves half a repository
    behind.
-4. When the repository has the tag, read the files from the tag directly.
+4. When the repository has the tag, read the files from the tag directly. `add`, `upgrade` and `fetch` fetch once first
+   even then, so a tag moved on the remote is noticed; when the remote can't be reached they read what's there.
 5. When it doesn't, `git fetch --tags` once for the increment (a repository is fetched at most once per run), then read.
-   When a tag was force-moved, the remote wins; branches deleted on the remote are deleted in the cache too.
+   When a tag was force-moved, the remote wins, and the CLI says which version tag moved; branches deleted on the remote
+   are deleted in the cache too.
 6. Write the `component.yaml` read into the project's permanent cache, together with every `BRICKKIT*.md` in the
-   component's directory at that tag — `BRICKKIT.md` and each translation (`BRICKKIT.zh.md` …), when it carries them.
+   component's directory at that tag — `BRICKKIT.md` and each translation (`BRICKKIT.zh.md` …), when it carries them —
+   and record which commit the tag pointed at.
 
 "The latest version" (`add` without a version, `upgrade`) needs the list of tags, and that step always fetches first, so
 what it sees is the remote's tags as they are now.
@@ -65,6 +69,27 @@ what it sees is the remote's tags as they are now.
 Once a version has been fetched, it's in the project's permanent cache, and `up`, `graph` and `deps` work without the
 network from then on. When another project wants the same version, the bare repository is already in the user cache and
 level 2 finds it, again without the network. Only a version never seen, or a repository never cloned, needs the network.
+
+## A version never changes
+
+Every cache here rests on one promise: once a version is released, its content never changes. Someone can still break it
+by deleting a tag and tagging the same version on another commit (a mistake, or "starting the numbers over"). The caches
+can't stop that, but they don't let it pass silently:
+
+- Next to each cached `component.yaml` the CLI records the commit the tag pointed at. Whenever the cached copy is read —
+  by any command, offline too — that commit is compared with the tag in the bare repository; when they differ, the
+  command stops with `VERSION_CHANGED` instead of using the old content under the version's name.
+- Any fetch that finds a version tag moved says so, with the old and new commit, and the bare repository follows the
+  remote.
+- `add`, `upgrade` and `fetch` fetch a repository before reading it, for the versions they bring into the project and
+  the ones named on the command line, so a moved tag is noticed even while the bare repository still holds the old one.
+  Versions already in `brickkit.yaml` are compared offline only: checking every repository of the project on every `add`
+  would cost a network round trip each.
+
+The fix is a new version number. To take the republished content as the same version anyway, delete the two directories
+the error names (`.brickkit/manifests/<component>/<version>/` and `.brickkit/artifacts/<service>/`), and run the command
+again. There is no command for clearing caches: a moved tag is the only reason to, and the error says exactly what to
+delete.
 
 ## Git submodules are never fetched
 

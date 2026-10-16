@@ -176,6 +176,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 组件就是一个 Git 仓库，版本就是 Git tag。同一个仓库子目录里的几个组件（monorepo）打 `<scope>-<name>/<版本>`，项目用一个写 `repo`（而不是 `baseUrl`）的安装源来用它们：CLI 在每个 tag 里找 `component.yaml` 的 `metadata.id` 是它的那个子目录。
 - 拉取走用户级的 bare repo 缓存（`<用户缓存目录>/brickkit/repos`，多个项目共享），按需增量 fetch。
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
+- 发布了的版本不再变：每个缓存的版本记着当时 tag 指向的提交，tag 后来被挪过（删掉后同一个版本号又打了一次）就以 `VERSION_CHANGED` 停下，不拿旧内容顶替；`add`、`upgrade`、`fetch` 对它们带进来的、点了名的版本先对着远端核对。正路是发新版本。
 - CLI 不处理鉴权，`git` 的报错原样透传。
 - `brickkit release`：校验 → 打 tag → 推送，推送失败删掉 tag；`--local` 批量发布本地源里的组件，遇到第一个失败就停。
 - 组件可以在 `component.yaml` 里声明 `release.checks`：`release` 与 `publish` 打 tag、上传之前在组件目录下跑的命令（argv，不经 shell）；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），检查改动了组件目录或自己做了提交也一样（`RELEASE_BLOCKED`：tag 装的必须是检查过的内容）；`--skip-checks` 跳过并说出来。`add` / `fetch` 从不执行它。
