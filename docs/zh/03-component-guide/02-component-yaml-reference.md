@@ -266,6 +266,17 @@ local:
   runCommand: ["go", "run", "./cmd/server"]   # 或者直接给出启动命令
 ```
 
+有 `migration` 的组件，还要写明怎么从源码运行它。`migration.command` 在你的镜像里运行，那个路径在使用者的机器上不存在，
+平台也不去猜源码里对应的写法：
+
+```yaml
+local:
+  migrationCommand: ["go", "run", "./cmd/server", "migrate"]
+```
+
+`mode: local` 时 `up` 在启动进程之前、用同一份环境跑它；`mode: debug` 时提醒使用者去跑它。不写的话，从源码跑你组件的人只能去
+`BRICKKIT.md` 里找怎么迁移。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
+
 `mode: local` 下平台还会注入 `PORT`（它为这个进程选定的本机端口，优先用 `deployment.port`）：代码读 `PORT`、读不到再用自己的缺省端口，就不会和别的进程抢端口。
 
 ## release：一个版本发出去之前要过哪些关

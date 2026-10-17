@@ -304,6 +304,18 @@ local:
   runCommand: ["go", "run", "./cmd/server"]   # or give the start command outright
 ```
 
+A component with a `migration` also writes how to run it from source. `migration.command` runs inside your image — its
+path doesn't exist on the user's machine — and the platform won't guess the source equivalent:
+
+```yaml
+local:
+  migrationCommand: ["go", "run", "./cmd/server", "migrate"]
+```
+
+Under `mode: local`, `up` runs it before starting the process, with the same environment; under `mode: debug` it tells
+the user to run it. Without it, a user running your component from source has to find out from your `BRICKKIT.md` how to
+migrate. See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
+
 Under `mode: local` the platform also injects `PORT` (the port on the machine it chose for this process, preferring
 `deployment.port`): code that reads `PORT`, falling back to its own default, never fights another process for a port.
 

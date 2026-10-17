@@ -494,6 +494,23 @@ func TestLocalBlockWithLanguageAndRunCommand(t *testing.T) {
 	assert.Equal(t, []string{"go", "run", "."}, m.Local.RunCommand)
 }
 
+// local.migrationCommand 是 migration.command 的源码写法：规则与 runCommand 相同，而且要有 migration 才有意义。
+func TestLocalMigrationCommand(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+"migration:\n  command: [\"/server\", \"migrate\"]\n"+
+		"local:\n  migrationCommand: [\"go\", \"run\", \".\", \"migrate\"]\n"), "component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"go", "run", ".", "migrate"}, m.Local.MigrationCommand)
+
+	_, err = Parse([]byte(minimalYAML+"migration:\n  command: [\"/server\", \"migrate\"]\n"+
+		"local:\n  migrationCommand: [\"go\", \" \"]\n"), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "local.migrationCommand[1]")
+
+	_, err = Parse([]byte(minimalYAML+"local:\n  migrationCommand: [\"go\", \"run\", \".\", \"migrate\"]\n"), "component.yaml")
+	require.Error(t, err, "没有 migration：容器里没有迁移，源码里却有，两种跑法对不上")
+	assert.Contains(t, clierr.As(err).Format(), "local.migrationCommand")
+}
+
 // 一次报出全部问题，而不是每次只报一个。
 func TestMultipleProblemsReportedTogether(t *testing.T) {
 	y := `

@@ -61,6 +61,9 @@ configSchema:
 migration:
   # 平台在启动组件之前执行一次；必须幂等
   command: ["/app/department-tree", "migrate"]
+local:
+  # 从源码运行的迁移，给 mode: local 用（migration.command 是镜像里的路径）
+  migrationCommand: ["go", "run", ".", "migrate"]
 
 deployment:
   type: container

@@ -142,12 +142,13 @@ K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`no
 
 ## local
 
-组件以 `mode: local` 运行时，BrickKit 怎么启动它。多数情况下不用写：从源码目录里的标记文件自动认出。
+组件以 `mode: local` 运行时，BrickKit 怎么启动它、怎么跑它的迁移。启动命令多数情况下从源码目录里的标记文件自动认出；从源码运行的迁移从不靠猜。
 
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `local.language` | 字符串 | | `go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby`；同一目录里有好几种语言的标记文件时用它指明 |
 | `local.runCommand` | 字符串列表 | | 直接给出启动命令；第一项含路径分隔符时相对组件目录 |
+| `local.migrationCommand` | 字符串列表 | | 从源码运行的 `migration.command`，写法同 `runCommand`；要先有 `migration`。`mode: local` 时 `up` 在启动进程之前跑它，失败就不启动进程。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况) |
 
 ## release
 

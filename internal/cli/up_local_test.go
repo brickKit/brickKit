@@ -18,7 +18,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/envref"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/runcmd"
 	"github.com/brickkit/brickkit/internal/sessionlock"
@@ -472,6 +475,137 @@ func TestLocalMigrationNoteNamesTheRealMode(t *testing.T) {
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "a mode: local component's database migration won't run automatically")
 	assert.NotContains(t, out, "mode: debug component's database migration")
+}
+
+// 没写 local.migrationCommand：提醒里不再给出镜像里的路径当作"在本机手动运行"的命令（照着敲退出码 127），
+// 而是说它只在镜像里运行，从源码运行要组件写 local.migrationCommand（反馈 FRR-005）。
+func TestLocalMigrationNoteDoesNotOfferTheImagePath(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml":                     "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n    mode: local\n",
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0", Migration: []string{"/app/api", "migrate"}}.yamlText(),
+		"components/erp/api/go.mod":         "module erp/api\n\ngo 1.22\n",
+		"components/erp/api/main.go":        "package main\n\nfunc main() {}\n",
+	})
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.NotContains(t, out, "by hand on this machine")
+	assert.Contains(t, out, i18n.T(msgid.ComposeHintMigrationOnlyInImage, "/app/api migrate"))
+	assert.Contains(t, out, "local.migrationCommand")
+}
+
+// 写了 local.migrationCommand：mode: local 时 up 自己从源码跑它，不再提醒"不会自动执行"，
+// dry-run 把它列进启动前的迁移；mode: debug 时进程归使用者，提醒里给的是这条从源码运行的命令。
+func TestLocalMigrationCommandIsListedOrHandedOver(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	tree := func(mode string) string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n",
+			"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/api\n",
+			"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0",
+				Migration: []string{"/app/api", "migrate"}, LocalMigration: []string{"go", "run", ".", "migrate"}}.yamlText(),
+			"components/erp/api/go.mod":  "module erp/api\n\ngo 1.22\n",
+			"components/erp/api/main.go": "package main\n\nfunc main() {}\n",
+		})
+		// mode: debug 只能写在 deploy.local.yaml：两种 mode 都走本地模式那份文件
+		r := runWithEngine(t, newFakeEngine(), dir, "local", "on")
+		require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+		writeTree(t, dir, map[string]string{
+			"deploy.local.yaml": "target: docker\ncomponents:\n  - id: erp/api\n    mode: " + mode + "\n",
+		})
+		return dir
+	}
+
+	r := runWithEngine(t, newFakeEngine(), tree("local"), "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.NotContains(t, out, "database migration won't run automatically")
+	assert.Contains(t, out, i18n.T(msgid.CliUpDatabaseMigrationsThatRunBefore))
+	assert.Contains(t, out, "erp/api@1.0.0  go run . migrate")
+
+	r = runWithEngine(t, newFakeEngine(), tree("debug"), "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	out = r.stdout + r.stderr
+	assert.Contains(t, out, "a mode: debug component's database migration won't run automatically")
+	assert.Contains(t, out, i18n.T(msgid.ComposeHintRunMigrationByHand, "go run . migrate"))
+}
+
+// local.migrationCommand 在启动进程之前跑，用的是同一份环境；成功了进程照常启动。
+func TestRunLocalComponentsRunsTheMigrationFirst(t *testing.T) {
+	opts, layout, plans := localMigrationPlans(t, 0)
+
+	err := runLocalComponents(context.Background(), opts, layout, plans, 20)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.NoError(t, err, out)
+	migrated := strings.Index(out, "migrated with PORT=")
+	listening := strings.Index(out, "listening on port")
+	require.GreaterOrEqual(t, migrated, 0, out)
+	require.Greater(t, listening, migrated, "迁移在进程启动之前：%s", out)
+	assert.Contains(t, out, "demo-hello-1-0-0-migration")
+	assert.Contains(t, out, "migrated with PORT="+strconv.Itoa(plans[0].Port), "迁移拿到的是进程那份环境")
+}
+
+// 迁移失败：报 MIGRATION_FAILED，进程不启动——与容器迁移失败挡住主服务同理。
+func TestRunLocalComponentsDoesNotStartAfterAFailedMigration(t *testing.T) {
+	opts, layout, plans := localMigrationPlans(t, 3)
+
+	err := runLocalComponents(context.Background(), opts, layout, plans, 20)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeMigrationFailed, clierr.As(err).Code)
+	assert.Contains(t, clierr.As(err).Format(), "go run . migrate")
+	assert.Contains(t, clierr.As(err).Format(), "exit code") // go run 把程序的退出码一律换成 1，具体数不比
+	assert.NotContains(t, out, "listening on port", "迁移失败，进程不启动")
+}
+
+// localMigrationPlans 搭一个写了 local.migrationCommand 的 mode: local 组件：迁移打印它拿到的 PORT，
+// 再以 migrateExit 退出；主进程监听 PORT、等探测连上之后干净退出（同 listenThenExitCleanly）。
+func localMigrationPlans(t *testing.T, migrateExit int) (*Options, project.Layout, []localComponentPlan) {
+	t.Helper()
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0", Migration: []string{"/app/hello", "migrate"},
+		LocalMigration: []string{"go", "run", ".", "migrate"}}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	main := `package main
+
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"time"
+)
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		fmt.Println("migrated with PORT=" + os.Getenv("PORT"))
+		os.Exit(` + strconv.Itoa(migrateExit) + `)
+	}
+	l, err := net.Listen("tcp", ":"+os.Getenv("PORT"))
+	if err != nil {
+		os.Exit(2)
+	}
+	go http.Serve(l, nil)
+	time.Sleep(500 * time.Millisecond)
+}
+`
+	opts, plans := localComponentPlansFor(t, f, main)
+	require.NotNil(t, plans[0].Migration)
+	return opts, f.Layout, plans
 }
 
 // mode: local 的进程继承终端环境，但平台管的名字只能来自平台：保留名、*_ENDPOINT、组件自己的配置项。

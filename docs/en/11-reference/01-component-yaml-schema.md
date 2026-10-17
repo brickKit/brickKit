@@ -154,13 +154,14 @@ event when the two are exactly equal, or when it ends in `*` and the event's nam
 
 ## local
 
-How BrickKit starts the component when it runs as `mode: local`. Usually not needed: it's recognised automatically from the
-marker files in the source directory.
+How BrickKit starts the component, and runs its migration, when it runs as `mode: local`. The start command is usually
+recognised automatically from the marker files in the source directory; a migration from source is never guessed.
 
 | Field | Type | Required | Rules |
 | --- | --- | --- | --- |
 | `local.language` | string | | `go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby`; names the language when one directory holds marker files for several |
 | `local.runCommand` | list of strings | | Gives the start command directly; when the first item contains a path separator, it's relative to the component directory |
+| `local.migrationCommand` | list of strings | | `migration.command` run from source, written like `runCommand`; requires `migration`. Under `mode: local`, `up` runs it before starting the process, and a failure stops the process from starting. See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) |
 
 ## release
 

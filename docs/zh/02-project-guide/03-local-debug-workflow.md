@@ -121,7 +121,8 @@ curl http://localhost:18080/api/v1/call
 几个要知道的限制：
 
 - **只在 Docker / Podman 下有效。** Kubernetes 集群里的 Pod 到不了你的笔记本；部署目标是 `k8s` 时 `mode: debug` 被拒绝。
-- **调试的组件不跑数据库迁移。** 容器里的迁移步骤跟着容器一起没了；组件有迁移时，第一次要自己手动跑一次。
+- **调试的组件的迁移不会替你跑。** 容器里的迁移步骤跟着容器一起没了；组件写了 `local.migrationCommand` 时 `up` 把命令告诉你
+  （`mode: local` 下它自己跑），见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
 - **配置里写死的字符串不会被改写，只有一个名字例外。** `host.docker.internal` 是"宿主机"在容器里的名字（数据库、消息队列跑在本机时，
   `config/` 里通常这么写）。在本机跑的进程拿到的值里，它换成 `localhost`——指的是同一台机器，只是 Linux 的宿主机自己解析不了前者；
   容器拿到的仍是原文。所以同一份 `config/` 两边都通，不用在 `deploy.local.yaml` 的 `vars:` 里改（`vars:` 同时作用于容器，改了它们就连不上）。

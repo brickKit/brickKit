@@ -86,16 +86,44 @@ shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "wareho
 
 ## 不跑迁移容器的情况
 
-组件以本机进程运行时（`mode: debug`、`mode: local`）没有容器，迁移容器也一并跳过，`up` 会提醒你：
+组件以本机进程运行时（`mode: local`、`mode: debug`，或者焦点运行里的焦点组件）没有容器，也就没有迁移容器。它的
+`migration.command` 也不能直接拿到本机来跑：它在组件的镜像里运行（`/app/stock migrate` 是镜像里的路径），而你跑的源码里的迁移
+可能比镜像里的新。迁移得从源码运行，怎么运行只有组件自己知道，平台不猜。所以由组件在 `local.migrationCommand` 里写明，写法同
+`local.runCommand`（argv；程序含路径分隔符时相对组件目录）：
+
+```yaml
+migration:
+  command: ["/app/stock", "migrate"]               # 在镜像里
+local:
+  migrationCommand: ["go", "run", ".", "migrate"]  # 从源码
+```
+
+**`mode: local`。** `up` 在容器起来之后、启动这个进程之前，在组件目录里用和进程相同的环境变量跑它，输出行首是
+`<服务名>-migration`。失败了，进程就不启动，会话以 `MIGRATION_FAILED` 结束——和迁移容器失败挡住主服务是同一条规则。
+`up --dry-run` 把它列在启动前会执行的迁移里。它和容器一样每次 `up` 都跑，所以同样要幂等。
+
+**`mode: debug`。** 进程由你自己启动，`up` 什么也不跑，而是提醒你，并写出命令和该用的环境变量文件：
 
 ```text
 ⚠️ 提示：mode: debug 组件的数据库迁移不会自动执行
    组件：shop/stock@0.2.0
    原因：mode: debug 的组件不生成容器，它的迁移容器也一并跳过
    建议：
-   1. 在本机手动执行该组件的迁移命令：/app/stock migrate
+   1. 从源码手动运行它的迁移，在它的源码目录里：go run . migrate
    2. 环境变量用 local-debug.shop-stock-0-2-0.env 里的那一份
 ```
 
-这时迁移要你自己跑一次：用 `local-debug.<服务名>.env` 里的环境变量，在本机执行组件的迁移命令。`mode: local` 的组件也有这份文件：
-进程由 `up` 自己启动、不读它，但里面是同一套变量，正好拿来跑这类命令。
+在组件目录里：`set -a && source <项目>/.brickkit/generated/local-debug.<服务名>.env && set +a`，再执行那条命令。
+
+**没写 `local.migrationCommand` 时**，两种 mode 下迁移都不会跑，`up` 会说明为什么给不出命令：
+
+```text
+⚠️ 提示：mode: local 组件的数据库迁移不会自动执行
+   组件：shop/stock@0.2.0
+   原因：mode: local 的组件不生成容器，它的迁移容器也一并跳过
+   建议：
+   1. 它的 migration.command（/app/stock migrate）在它的镜像里运行，照原样在这台机器上跑不了
+   2. 要从源码运行，组件要在 component.yaml 里写 local.migrationCommand（见它的 BRICKKIT.md）；mode: local 时 up 会在启动进程之前自己跑它
+```
+
+这时去组件的 `BRICKKIT.md` 里找怎么从源码运行迁移；组件是你自己的，就写上 `local.migrationCommand`。

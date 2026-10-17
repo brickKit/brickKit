@@ -160,9 +160,9 @@ everything the process on this machine depends on still gets the real addresses 
 checking the network in general; container-network addresses written by hand in `config/` aren't rewritten.
 
 **Worth knowing**: a `mode: debug` component gets a `local-debug.<service name>.env` for the IDE to load, with multi-line
-values and values holding special characters already escaped by shell rules. It **runs no database migration** — the
-migration step went away together with its container, so a component with a migration has to have it run by hand the first
-time (see [Local debugging](../02-project-guide/03-local-debug-workflow.md)).
+values and values holding special characters already escaped by shell rules. Its **database migration isn't run for you** —
+the migration step went away together with its container; you run it from source, with the command the component
+declares in `local.migrationCommand` (see [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs)).
 
 ### 5. All in shells × manual processes
 

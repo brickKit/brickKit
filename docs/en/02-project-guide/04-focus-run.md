@@ -70,9 +70,9 @@ The process runs in the foreground; Ctrl+C stops it, and the containers keep run
 `mode: debug` on the focus in `deploy.local.yaml` and start it from your IDE — see
 [Local debugging](03-local-debug-workflow.md). The focus keeps a `mode: debug` you wrote.
 
-The focus runs no database migration: a process on this machine has no migration container, and `up` says so. The
-variables the process was started with are in `.brickkit/generated/local-debug.<service name>.env`; load them and run the
-component's migration command by hand (see [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs)).
+A process on this machine has no migration container. When the focus component declares `local.migrationCommand`, `up`
+runs that migration from source before starting it, and a failure keeps it from starting; otherwise `up` says the
+migration won't run (see [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs)).
 
 ## Where the focus lives
 

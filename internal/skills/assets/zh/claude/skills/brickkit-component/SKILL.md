@@ -212,7 +212,8 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 `deployment.port` 必填，健康检查和 `_ENDPOINT` 都用它。
 
 **本地运行。** `mode: local` 时 BrickKit 从源码探测怎么启动；可选的 `local: { language, runCommand }`
-在探测不对时手动指定。仓库里的 `metadata.version` 必须等于项目里这个组件的默认版本。进程继承终端的
+在探测不对时手动指定。有 `migration` 的组件还要写 `local.migrationCommand`——从源码运行的迁移（`migration.command`
+是镜像里的路径）：`mode: local` 时 `up` 在进程启动之前跑它。仓库里的 `metadata.version` 必须等于项目里这个组件的默认版本。进程继承终端的
 环境变量，平台自己的名字除外——`COMPONENT_ID`、`COMPONENT_VERSION`、`PORT`、`BRICKKIT_SERVED_MEMBERS`、
 `BRICKKIT_SERVED_MEMBERS_CONFIG`、所有 `*_ENDPOINT`，以及你自己 `configSchema` 里的键：这些只取 BrickKit
 给的值，终端里残留的 `export` 冒充不了项目没给的值。

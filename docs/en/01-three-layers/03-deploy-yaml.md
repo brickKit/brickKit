@@ -142,7 +142,8 @@ A component that runs does so in one of three ways, each there for one purpose:
   takes this road.
 - **`local`: deployed on this machine from source.** It needs the component's source (under `components/`, or from a
   local source) and the toolchain of its language; the start command is worked out from the source, or taken from
-  `local.runCommand` in its `component.yaml`. Running a component this way is a decision a team can make — say, everyone
+  `local.runCommand` in its `component.yaml`; its migration runs from source first when the component declares
+  `local.migrationCommand`. Running a component this way is a decision a team can make — say, everyone
   runs one component from source — so it may go in `deploy.yaml`. The process is watched by the `up` that started it, in
   the foreground: `Ctrl+C` or closing that terminal stops it gracefully; if one `local` process crashes, the others are
   stopped too and `up` ends, printing only the crashed one's last lines of output (how many: `up --crash-lines`), while

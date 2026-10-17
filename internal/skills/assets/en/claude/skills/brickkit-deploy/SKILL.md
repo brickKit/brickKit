@@ -49,11 +49,14 @@ the switch and whether the file still matches `brickkit.yaml`. The file is never
 It is a personal fact ("I'm debugging this now"), so `deploy.yaml` rejects it. With it the component
 gets no container; other containers reach your IDE process through `extra_hosts`, and a
 `local-debug.<versioned-service-name>.env` is generated for the IDE to load (dependency addresses as
-`localhost` ports). Set `localPort` to what your process listens on. No migration is run for it.
+`localhost` ports). Set `localPort` to what your process listens on. No migration is run for it: `up`
+names the component's `local.migrationCommand` for you to run (without one, the migration runs only in its image).
 `mode: local` is different: BrickKit detects the start command from the local repo, launches and
 supervises the process in the foreground (`Ctrl+C` stops it), and it may go in `deploy.yaml`;
 `localPort` may be left out (a free port is picked); its variables are written to the same
-`local-debug.<…>.env` for running its migration by hand (no migration is run for it either). The
+`local-debug.<…>.env`. Before starting it, `up` runs the component's `local.migrationCommand` (its migration
+from source) when declared, and a failure keeps it from starting (`MIGRATION_FAILED`); without one, no migration
+runs. The
 process inherits your terminal's environment except the names the platform owns (`COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`,
 `BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG`, every `*_ENDPOINT`, the component's own
 `configSchema` keys) — those come only from BrickKit, so a stale `export` can't stand in for them.

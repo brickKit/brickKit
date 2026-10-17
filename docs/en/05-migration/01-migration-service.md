@@ -100,18 +100,52 @@ records overwrite each other.
 
 ## When no migration container runs
 
-A component running as a process on this machine (`mode: debug`, `mode: local`) has no container, so its migration
-container is skipped too, and `up` reminds you:
+A component running as a process on this machine (`mode: local`, `mode: debug`, or the focus component of a focus run)
+has no container, so it has no migration container either. Its `migration.command` can't simply run on your machine
+instead: it runs inside the component's image (`/app/stock migrate` is a path in the image), and the source you run may
+hold newer migrations than the image. The migration has to run from source, and only the component knows how — the
+platform doesn't guess it. So the component declares it in `local.migrationCommand`, written like `local.runCommand`
+(an argv; a program with a path separator is relative to the component's directory):
+
+```yaml
+migration:
+  command: ["/app/stock", "migrate"]               # inside the image
+local:
+  migrationCommand: ["go", "run", ".", "migrate"]  # from source
+```
+
+**`mode: local`.** `up` runs it in the component's directory, with the same environment variables as the process, after
+the containers have started and before the process starts; its output lines are prefixed with
+`<service name>-migration`. If it fails, the process isn't started and the session ends with `MIGRATION_FAILED` — the
+same rule as a migration container holding back its main service. `up --dry-run` lists it among the migrations that run
+before startup. It runs on every `up`, like the container, so it has to be idempotent too.
+
+**`mode: debug`.** You start the process yourself, so `up` runs nothing and reminds you instead, naming the command and
+the environment file:
 
 ```text
 ⚠️ Note: a mode: debug component's database migration won't run automatically
    Component: shop/stock@0.2.0
    Reason: A mode: debug component generates no container, so its migration container is skipped too
    Suggestions:
-   1. Run the component's migration command by hand on this machine: /app/stock migrate
+   1. Run its migration from source by hand, in its source directory: go run . migrate
    2. Use the environment variables from local-debug.shop-stock-0-2-0.env
 ```
 
-Run the migration yourself once then: with the environment variables from `local-debug.<service name>.env`, run the
-component's migration command on this machine. A `mode: local` component gets that file too: `up` starts the process
-itself and doesn't read the file, but it holds the same variables, ready for a command like this.
+In the component's directory: `set -a && source <project>/.brickkit/generated/local-debug.<service name>.env && set +a`,
+then the command.
+
+**Without `local.migrationCommand`**, the migration doesn't run in either mode, and `up` says why it has no command to
+give you:
+
+```text
+⚠️ Note: a mode: local component's database migration won't run automatically
+   Component: shop/stock@0.2.0
+   Reason: A mode: local component generates no container, so its migration container is skipped too
+   Suggestions:
+   1. Its migration.command (/app/stock migrate) runs inside its image and can't be run on this machine as written
+   2. To run it from source, the component declares local.migrationCommand in component.yaml (see its BRICKKIT.md); with mode: local, up then runs it before starting the process
+```
+
+How to run it from source is then in the component's `BRICKKIT.md`; if the component is yours, declare
+`local.migrationCommand`.

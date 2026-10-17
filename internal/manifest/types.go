@@ -352,6 +352,13 @@ type Local struct {
 	Language string `yaml:"language,omitempty"`
 	// RunCommand 是探测失败时的手动覆盖：Argv[0] 含路径分隔符时相对组件目录。
 	RunCommand []string `yaml:"runCommand,omitempty"`
+	// MigrationCommand 是 migration.command 从源码运行的写法，规则与 RunCommand 相同。
+	//
+	// migration.command 在组件自己的镜像里运行，给出的是镜像里的路径；mode: local 跑的是工作区的源码，
+	// 迁移也得是这份源码里的那一版。平台推不出它（runCommand 拼上 migration 的参数是猜），所以由作者写明。
+	// 写了它，mode: local 时 up 在启动这个进程之前、用同一份环境先跑它，失败就不启动；mode: debug
+	// 的进程归使用者自己启动，up 只把这条命令告诉他。
+	MigrationCommand []string `yaml:"migrationCommand,omitempty"`
 }
 
 // Release 是组件作者给发布加的关卡：brickkit release 打 tag 之前、publish 上传之前，

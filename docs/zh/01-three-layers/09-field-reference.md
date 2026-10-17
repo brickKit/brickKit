@@ -86,7 +86,7 @@
 | `readinessCheck.type` / `path` | | 就绪检查（`http` / `tcp`）：活着但还不能接流量时用；不写就看 `healthCheck` |
 | `events.publishes` / `events.subscribes` | | 发布、订阅的事件名（订阅项可以是以 `*` 结尾的前缀）；只用于 `graph` / `deps` / `lint` 的展示与提示 |
 | `shell.members` | | 外壳编进的成员，精确版本 `id@版本` |
-| `local.language` / `local.runCommand` | | `mode: local` 时指定语言或直接给出启动命令 |
+| `local.language` / `local.runCommand` / `local.migrationCommand` | | `mode: local` 时指定语言、直接给出启动命令、从源码运行的迁移 |
 | `release.checks` | | `release` / `publish` 发布之前在组件目录下跑的命令（每条一个数组）；第一条失败就停止发布 |
 
 写法与设计准则见 [component.yaml 字段参考](../03-component-guide/02-component-yaml-reference.md)。

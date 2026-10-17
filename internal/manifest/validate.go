@@ -457,6 +457,15 @@ func (m *Manifest) validateLocal(p *clierr.ProblemSet) {
 			p.Missing(fmt.Sprintf("local.runCommand[%d]", i))
 		}
 	}
+	for i, arg := range m.Local.MigrationCommand {
+		if strings.TrimSpace(arg) == "" {
+			p.Missing(fmt.Sprintf("local.migrationCommand[%d]", i))
+		}
+	}
+	// 它是 migration.command 的源码写法：没有迁移却写了它，容器里跑起来就没有迁移，两种跑法对不上
+	if len(m.Local.MigrationCommand) > 0 && m.Migration == nil {
+		p.Add("local.migrationCommand", i18n.T(msgid.ManifestLocalMigrationWithoutMigration))
+	}
 }
 
 func (m *Manifest) validateRelease(p *clierr.ProblemSet) {

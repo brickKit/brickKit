@@ -186,17 +186,23 @@ func detect(dir string, hints Hints, params Params, goos string) (Command, error
 // handWritten 处理用户自己写了 runCommand 的情况：不探测，只把相对路径的程序落到组件目录里，
 // 并在用户写明了 language 时带上那种语言需要的环境变量。
 func (s *scan) handWritten(hints Hints, a *adapter) Command {
-	argv := append([]string(nil), hints.RunCommand...)
-	// 相对路径统一在这里落成绝对路径，不指望 exec 去解析：Unix 上它相对 cmd.Dir，
-	// Windows 上却相对父进程的当前目录。
-	if strings.ContainsAny(argv[0], "/"+string(filepath.Separator)) && !filepath.IsAbs(argv[0]) {
-		argv[0] = filepath.Join(s.dir, argv[0])
-	}
-	cmd := Command{Language: hints.Language, Argv: argv, Dir: s.dir}
+	cmd := Command{Language: hints.Language, Dir: s.dir}
 	if a != nil && a.env != nil {
 		cmd.Env = a.env(s)
 	}
-	return cmd
+	// 相对路径统一在 Sibling 里落成绝对路径，不指望 exec 去解析：Unix 上它相对 cmd.Dir，
+	// Windows 上却相对父进程的当前目录。
+	return cmd.Sibling(hints.RunCommand)
+}
+
+// Sibling 是同一个组件目录里的另一条命令（例如 local.migrationCommand）：规则与手写的 runCommand
+// 相同——Argv[0] 含路径分隔符时相对组件目录——并带上同一种语言需要的环境变量。
+func (c Command) Sibling(argv []string) Command {
+	argv = append([]string(nil), argv...)
+	if len(argv) > 0 && strings.ContainsAny(argv[0], "/"+string(filepath.Separator)) && !filepath.IsAbs(argv[0]) {
+		argv[0] = filepath.Join(c.Dir, argv[0])
+	}
+	return Command{Language: c.Language, Argv: argv, Env: append([]string(nil), c.Env...), Dir: c.Dir}
 }
 
 // CheckProgram 确认 Argv[0] 真的存在，让"这台机器没装 go / npm"在启动之前就得到一个点名的错误，

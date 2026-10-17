@@ -115,7 +115,9 @@ deploy.local.yaml：存在（本地模式关闭时不读取）
 
 **解决**
 
-自己跑一次迁移：加载 `local-debug.<服务名>.env` 里的变量，在本机执行组件的迁移命令（`component.yaml` 的 `migration.command`）。
+提示里的建议写着要跑什么。组件写了 `local.migrationCommand` 时，提示给出这条命令：加载 `local-debug.<服务名>.env` 里的变量，
+在组件目录里执行它。（`mode: local` 下没有这条提示：`up` 会在进程之前自己跑。）提示说 `migration.command` 在镜像里运行时，
+组件没有写从源码迁移的办法：去它的 `BRICKKIT.md` 里找，组件是你自己的就写上 `local.migrationCommand`——见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
 
 ```bash
 set -a && source .brickkit/generated/local-debug.demo-caller-1-0-0.env && set +a

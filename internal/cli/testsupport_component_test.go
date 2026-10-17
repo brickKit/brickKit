@@ -38,6 +38,8 @@ type comp struct {
 	Artifacts []string
 	// Migration 是 migration.command。
 	Migration []string
+	// LocalMigration 是 local.migrationCommand：迁移从源码运行的写法。
+	LocalMigration []string
 	// Image 覆盖默认的 registry.example.com/<id>:<version>（digest 用例要用）；
 	// 写 "-" 表示只有 deployment.build、没有 image。
 	Image string
@@ -106,6 +108,9 @@ func (c comp) yamlText() string {
 	}
 	if len(c.Migration) > 0 {
 		fmt.Fprintf(&b, "migration:\n  command: [%s]\n", quotedList(c.Migration))
+	}
+	if len(c.LocalMigration) > 0 {
+		fmt.Fprintf(&b, "local:\n  migrationCommand: [%s]\n", quotedList(c.LocalMigration))
 	}
 	if len(c.Publishes) > 0 || len(c.Subscribes) > 0 {
 		b.WriteString("events:\n")

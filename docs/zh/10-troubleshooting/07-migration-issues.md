@@ -62,8 +62,8 @@
 
 **原因与解决**
 
-以本机进程运行的组件没有容器，迁移容器也一并跳过。自己跑一次：加载 `local-debug.<服务名>.env` 里的变量，在本机执行组件的迁移命令。
-见 [本地调试问题](02-local-debug-issues.md#本机进程报-relation-does-not-exist)。
+以本机进程运行的组件没有容器，迁移容器也一并跳过；只有组件写了 `local.migrationCommand`，迁移才从源码运行（`mode: local` 下
+`up` 自己跑，`mode: debug` 下提示里给出它）。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)与 [本地调试问题](02-local-debug-issues.md#本机进程报-relation-does-not-exist)。
 
 ## 同一个组件的两个版本，迁移顺序不对
 

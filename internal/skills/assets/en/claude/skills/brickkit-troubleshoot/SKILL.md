@@ -28,7 +28,8 @@ runs `wget` or `curl` inside the container; an image with neither can never pass
 image. (Kubernetes probes are `httpGet` and don't need either.)
 
 **4. A `mode: debug` component fails with `relation does not exist`.** It gets no migration container
-(`MIGRATION_SKIPPED`); run its migration once by hand.
+(`MIGRATION_SKIPPED`); run the `local.migrationCommand` the note names (none named: the component has no
+migration from source — see its `BRICKKIT.md`).
 
 **5. No registry, config center, gateway or long-running service** exists. Not finding one isn't a
 missing install; don't suggest adding it.
@@ -117,7 +118,7 @@ one key and hides the conflict.
 | `CLONE_FAILED` | `add --repo` couldn't clone: git failed, a directory of that name exists under `components/`, or the source is archived | Read git's words; move the directory away; `brickkit sync` brings archived source back |
 | `SUBMODULE_GUARD` | `sync` or `remove` would move or delete a directory registered as a git submodule of the project | Deregister the submodule first |
 | `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` failed, components came up unhealthy, or a `mode: local` process crashed | The engine's own output is in the error; then the component's logs |
-| `MIGRATION_SKIPPED` (warning) | A `mode: local` / `debug` component runs no migration container | Run its migration once by hand |
+| `MIGRATION_SKIPPED` (warning) | A `mode: local` / `debug` component runs no migration container, and `up` doesn't run its migration | Run the `local.migrationCommand` the note names; none: the component should declare one |
 | `PROJECT_EXISTS` | `brickkit init <name>` into a directory that exists and isn't empty (or is a file) | Another name — or go in and run `brickkit init` without a name, which only adds what's missing |
 | `INVALID_ARGUMENT` | The command line is wrong (exit code 2): unknown command or flag, a component id or version in the wrong form | `brickkit <command> --help` |
 | `INTERNAL` | Reading or writing a local file failed (disk full, no permission) — or, titled "Internal error", a CLI bug | Check disk space and permissions; report a bug with the whole output |

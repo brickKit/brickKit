@@ -125,6 +125,8 @@ type localComponentPlan struct {
 	// Ports 是这个进程要在宿主机上绑的全部端口：Port、它的 extraPorts，是外壳时还有它替成员监听的端口。
 	// 启动之前逐个确认空着（checkLocalPorts）。
 	Ports []localPort
+	// Migration 是 local.migrationCommand：启动这个进程之前、用同一份环境先跑它；nil = 组件没写。
+	Migration *runcmd.Command
 	// StopGrace 是这个组件声明的停机宽限期（0 = 没声明）。
 	StopGrace time.Duration
 }
@@ -223,6 +225,15 @@ func collectLocalComponents(
 		if err != nil {
 			return nil, err
 		}
+		var migration *runcmd.Command
+		if node.Manifest.Local != nil && len(node.Manifest.Local.MigrationCommand) > 0 {
+			m := cmd.Sibling(node.Manifest.Local.MigrationCommand)
+			if err := m.CheckProgram(); err != nil {
+				return nil, migrationProgramMissingError(ref, err)
+			}
+			migration = &m
+		}
+
 		var members []*resolver.Node
 		for _, member := range hosted[ref] {
 			if n := graph.Node(member); n != nil && n.Manifest != nil {
@@ -232,6 +243,7 @@ func collectLocalComponents(
 		out = append(out, localComponentPlan{
 			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Withhold: platformOwned(node.Manifest), Port: port,
 			Ports:     portsOf(step.Service, port, node.Manifest, members),
+			Migration: migration,
 			StopGrace: time.Duration(fileOf[ref].StopGracePeriodSeconds) * time.Second,
 		})
 	}
@@ -344,6 +356,18 @@ func programMissingError(ref resolver.Ref, err error) error {
 		WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
 }
 
+// migrationProgramMissingError：local.migrationCommand 要的程序这台机器上没有。在启动任何东西之前报。
+func migrationProgramMissingError(ref resolver.Ref, err error) error {
+	reason := err.Error()
+	var missing *runcmd.ProgramMissingError
+	if errors.As(err, &missing) {
+		reason = i18n.T(msgid.CliUpProgramNotFound, missing.Program)
+	}
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpMigrationProgramNotInstalled, ref.String())).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpHintCheckLocalMigrationCommand))
+}
+
 // localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell
 // 继承到就会让进程在没人要求调试的情况下卡住等调试器连接的环境变量。
 //
@@ -441,9 +465,11 @@ func runLocalComponents(
 
 	widest := 0
 	for _, p := range plans {
-		if len(p.Service) > widest {
-			widest = len(p.Service)
+		name := p.Service
+		if p.Migration != nil {
+			name = compose.MigrationService(p.Service)
 		}
+		widest = max(widest, len(name))
 	}
 	// 启动任何一个之前：端口被别的程序占着时，进程要么绑定失败退出，要么就绪探测连上的是那个程序、
 	// 报出一个假的"已监听"。所以先查，被占的一次列全，一个都不启动
@@ -463,7 +489,18 @@ func runLocalComponents(
 	// 复用的是它内部同一把锁，直接写会跟它产生真实的数据竞争（下面的说明）。
 	sup.Printf("\n%s\n", i18n.T(msgid.CliUpStartingLocalComponents, len(plans)))
 
+starting:
 	for _, p := range plans {
+		if p.Migration != nil {
+			switch outcome, err := runLocalMigration(ctx, sup, p); outcome {
+			case migrationFailed:
+				return err
+			case migrationCanceled:
+				return renderCrashSummary(sup, sup.Exits(), crashLines)
+			case migrationInterrupted:
+				break starting
+			}
+		}
 		proc, err := sup.Start(procsup.Spec{Name: p.Service, Argv: p.Command.Argv, Dir: p.Dir, Env: p.Env, Withhold: p.Withhold})
 		if errors.Is(err, procsup.ErrStopped) {
 			break // 已经有别的进程崩了，会话在收尾：别再启动新的
@@ -492,6 +529,57 @@ func runLocalComponents(
 	sup.Run(ctx)
 
 	return renderCrashSummary(sup, sup.Exits(), crashLines)
+}
+
+type migrationOutcome int
+
+const (
+	migrationDone migrationOutcome = iota
+	// migrationFailed：迁移非零退出，进程不启动，会话收尾（与容器的迁移失败挡住主服务同理）。
+	migrationFailed
+	// migrationCanceled：用户按了 Ctrl+C。
+	migrationCanceled
+	// migrationInterrupted：别的进程崩了，会话已经在收尾，迁移被叫停或根本没起。
+	migrationInterrupted
+)
+
+// runLocalMigration 在启动 p 的进程之前跑它的 local.migrationCommand：同一个目录、同一份环境，
+// 输出带着 <服务名>-migration 的前缀（与 compose 里迁移容器的名字一致），等它退出。
+func runLocalMigration(ctx context.Context, sup *procsup.Supervisor, p localComponentPlan) (migrationOutcome, error) {
+	name := compose.MigrationService(p.Service)
+	sup.Printf("%s\n", i18n.T(msgid.CliUpRunningLocalMigration, name, strings.Join(p.Migration.Argv, " ")))
+	mig, err := sup.Start(procsup.Spec{Name: name, Argv: p.Migration.Argv, Dir: p.Migration.Dir, Env: p.Env, Withhold: p.Withhold})
+	if errors.Is(err, procsup.ErrStopped) {
+		return migrationInterrupted, nil
+	}
+	if err != nil {
+		return migrationFailed, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).
+			WithDetail(i18n.T(msgid.LabelComponent), name).WithCause(err).WithHint(i18n.T(msgid.CliUpHintCheckLocalMigrationCommand))
+	}
+	select {
+	case <-mig.Done():
+	case <-ctx.Done():
+		return migrationCanceled, nil
+	}
+	exit := mig.Exit()
+	switch {
+	case exit.Stopped:
+		return migrationInterrupted, nil
+	case exit.Code != 0:
+		// 非零退出在 procsup 看来是崩溃，它已经在收尾；等收尾完成，报错才是最后一屏
+		sup.Shutdown()
+		how := i18n.T(msgid.CliUpExitCode, exit.Code)
+		if exit.Signal != "" {
+			how = i18n.T(msgid.CliUpKilledBySignal, exit.Signal)
+		}
+		return migrationFailed, clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
+			WithDetail(i18n.T(msgid.LabelComponent), p.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelCommand), strings.Join(p.Migration.Argv, " ")).
+			WithDetail(i18n.T(msgid.LabelReason), how).
+			WithHint(i18n.T(msgid.CliUpLocalMigrationBlocksProcess, name), i18n.T(msgid.CliUpLocalMigrationFixAndRerun))
+	}
+	sup.Printf("%s\n", i18n.T(msgid.CliUpLocalMigrationDone, name))
+	return migrationDone, nil
 }
 
 // checkLocalPorts 确认本机进程要绑的端口都空着（procsup.CheckPortFree）；被占的全部列进一条 PORT_CONFLICT。

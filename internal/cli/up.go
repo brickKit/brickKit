@@ -353,6 +353,14 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		if err != nil {
 			return nil, err
 		}
+		// 本机进程的迁移从源码跑（local.migrationCommand），同样在它启动之前、失败就不启动
+		for _, l := range plan.localComponents {
+			if l.Migration != nil {
+				plan.migrations = append(plan.migrations, migrationInfo{
+					component: l.Ref.String(), command: strings.Join(l.Migration.Argv, " "),
+				})
+			}
+		}
 	}
 	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
 	// 它取不到东西也不该拦住已经算好的这份计划

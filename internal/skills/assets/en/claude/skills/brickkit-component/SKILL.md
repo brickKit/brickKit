@@ -221,7 +221,9 @@ caller neither knows nor needs to. `COMPONENT_ID` and `COMPONENT_VERSION` are al
 `container`, frontends included (an nginx container, `port: 80`).
 
 **Local runs**: in `mode: local` BrickKit detects how to start your code from its source; the optional
-`local: { language, runCommand }` block overrides detection. The repo's `metadata.version` must equal
+`local: { language, runCommand }` block overrides detection. A component with a `migration` also writes
+`local.migrationCommand`, its migration from source (`migration.command` is a path inside the image): `up`
+runs it before a `mode: local` process starts. The repo's `metadata.version` must equal
 the project's default version of the component. The process inherits the terminal's environment except
 the names the platform owns — `COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`, `BRICKKIT_SERVED_MEMBERS`,
 `BRICKKIT_SERVED_MEMBERS_CONFIG`, every `*_ENDPOINT` and your own `configSchema` keys: those come only

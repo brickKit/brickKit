@@ -130,8 +130,11 @@ so the migration is skipped along with it.
 
 **Fix**
 
-Run the migration once yourself: load the variables from `local-debug.<service name>.env` and run the component's migration
-command (`migration.command` in `component.yaml`) on this machine.
+The note's suggestions say what to run. When the component declares `local.migrationCommand`, the note names that
+command: load the variables from `local-debug.<service name>.env` and run it in the component's directory. (Under
+`mode: local` there is no note: `up` runs it before the process.) When the note says `migration.command` runs inside the
+image, the component declares no way to migrate from source: its `BRICKKIT.md` says how, or, if the component is yours,
+declare `local.migrationCommand` — see [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 
 ```bash
 set -a && source .brickkit/generated/local-debug.demo-caller-1-0-0.env && set +a

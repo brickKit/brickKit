@@ -437,6 +437,15 @@
             "null"
           ]
         },
+        "migrationCommand": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "runCommand": {
           "items": {
             "type": "string"

@@ -671,7 +671,9 @@ Start the project in one go:
    isn't used;
 8. call the engine; database migrations run first (a one-shot container on Docker, a Job on Kubernetes), and a failure
    holds back the main service;
-9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Each process
+9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Before
+   starting any, `up` checks their ports are free (`PORT_CONFLICT` otherwise), and runs a component's
+   `local.migrationCommand` before starting it (a failure keeps it from starting: `MIGRATION_FAILED`). Each process
    inherits this terminal's environment except the names the platform owns (the reserved names, every `*_ENDPOINT`, the
    component's own `configSchema` keys), which come only from the platform; see
    [What a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits).

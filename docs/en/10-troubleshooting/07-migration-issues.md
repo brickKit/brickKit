@@ -73,9 +73,9 @@ A component running on this machine with `mode: debug` or `mode: local` reports 
 
 **Cause and fix**
 
-A component running as a process on this machine has no container, so its migration container is skipped along with it.
-Run it once yourself: load the variables from `local-debug.<service name>.env`, and run the component's migration command
-on this machine. See [Local debugging problems](02-local-debug-issues.md#the-process-on-this-machine-reports-relation-does-not-exist).
+A component running as a process on this machine has no container, so its migration container is skipped along with it;
+the migration runs from source only when the component declares `local.migrationCommand` (`up` runs it under
+`mode: local`, and names it under `mode: debug`). See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) and [Local debugging problems](02-local-debug-issues.md#the-process-on-this-machine-reports-relation-does-not-exist).
 
 ## Two versions of one component, migrations in the wrong order
 

@@ -60,3 +60,5 @@ R45	一个仓库里放多个组件（sources[].repo）：add 一条命令写好�
 R46	同一个版本号删掉重发：缓存着旧内容的项目报 VERSION_CHANGED，不静默顶替	.	./internal/cli	TestRepublishedVersionIsReportedNotServed
 R47	本地源里只写 image 的组件旁边有 Dockerfile：up 拉镜像启动时警告那份 Dockerfile 没被用到，不静默跑发布的镜像	.	./internal/cli	TestLocalSourceImageOnlyComponentIsPulled
 R48	mode: local 的端口被别的程序占着：up 启动任何进程之前报 PORT_CONFLICT 并列出被占的端口，不报假的"已监听"	.	./internal/cli	TestRunLocalComponentsRefusesATakenPortBeforeStartingAnything
+R49	mode: local 的组件写了 local.migrationCommand：up 在进程启动前从源码跑迁移，失败就不启动进程	.	./internal/cli	TestRunLocalComponentsDoesNotStartAfterAFailedMigration
+R50	本机进程组件没写 local.migrationCommand：迁移提醒不把镜像里的路径当成本机命令给出	.	./internal/cli	TestLocalMigrationNoteDoesNotOfferTheImagePath

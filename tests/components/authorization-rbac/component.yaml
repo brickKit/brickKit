@@ -86,6 +86,9 @@ configSchema:
 
 migration:
   command: ["/app/authorization-rbac", "migrate"]
+local:
+  # 从源码运行的迁移，给 mode: local 用（migration.command 是镜像里的路径）
+  migrationCommand: ["go", "run", ".", "migrate"]
 
 deployment:
   type: container

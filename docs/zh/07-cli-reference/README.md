@@ -600,7 +600,8 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
    启动，这份文件留给你手动跑迁移或别的一次性命令；
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；本地源里拉取的组件旁边放着 `Dockerfile` 时，警告它没被用到；
 8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
-9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。每个进程继承这个终端的环境，只有平台管的名字除外
+9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。启动任何一个之前先确认它们的端口空着（否则
+   `PORT_CONFLICT`），组件写了 `local.migrationCommand` 时先跑它再启动（失败就不启动：`MIGRATION_FAILED`）。每个进程继承这个终端的环境，只有平台管的名字除外
    （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见
    [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)。
 

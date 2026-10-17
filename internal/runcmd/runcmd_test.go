@@ -45,6 +45,21 @@ func TestARelativeProgramInARunCommandIsResolvedAgainstTheComponentDirectory(t *
 		"只有程序本身落成绝对路径，参数原样保留")
 }
 
+// 迁移命令（local.migrationCommand）与启动命令同一套规则：同一个目录，相对路径的程序落到组件目录，
+// 带上同一种语言的环境变量。
+func TestASiblingCommandSharesDirectoryAndLanguageEnv(t *testing.T) {
+	dir := t.TempDir()
+	run := Command{Language: LangPython, Argv: []string{"python", "manage.py", "runserver"}, Env: []string{"PYTHONUNBUFFERED=1"}, Dir: dir}
+
+	mig := run.Sibling([]string{"./bin/migrate", "--all"})
+
+	assert.Equal(t, []string{filepath.Join(dir, "bin", "migrate"), "--all"}, mig.Argv)
+	assert.Equal(t, dir, mig.Dir)
+	assert.Equal(t, LangPython, mig.Language)
+	assert.Equal(t, []string{"PYTHONUNBUFFERED=1"}, mig.Env)
+	assert.Equal(t, []string{"python", "manage.py", "runserver"}, run.Argv, "不改动原来那条命令")
+}
+
 func TestABareProgramInARunCommandIsLeftForPathLookup(t *testing.T) {
 	cmd := mustDetect(t, t.TempDir(), Hints{RunCommand: []string{"make", "serve"}})
 

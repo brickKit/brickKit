@@ -132,8 +132,9 @@ A few limits to know:
 
 - **Docker / Podman only.** A Pod in a Kubernetes cluster can't reach your laptop; with the `k8s` target, `mode: debug`
   is rejected.
-- **The debugged component runs no database migration.** The migration step went away with the container; if the
-  component has migrations, run them by hand the first time.
+- **The debugged component's migration isn't run for you.** The migration step went away with the container; `up` gives
+  you the command when the component declares `local.migrationCommand` (under `mode: local`, it runs it itself), see
+  [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 - **Strings hard-coded in config aren't rewritten, with one name excepted.** `host.docker.internal` is what a container
   calls the host machine (it is what `config/` usually says when the database or the message queue runs on your machine).
   In the values a process on your machine receives, it becomes `localhost` — the same machine, under the name that
