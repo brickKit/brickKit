@@ -122,8 +122,39 @@ type localComponentPlan struct {
 	// Withhold 挡住继承来的、平台管的那些名字（platformOwned）
 	Withhold func(name string) bool
 	Port     int
+	// Ports 是这个进程要在宿主机上绑的全部端口：Port、它的 extraPorts，是外壳时还有它替成员监听的端口。
+	// 启动之前逐个确认空着（checkLocalPorts）。
+	Ports []localPort
 	// StopGrace 是这个组件声明的停机宽限期（0 = 没声明）。
 	StopGrace time.Duration
+}
+
+// localPort 是本机进程要绑的一个宿主机端口。
+type localPort struct {
+	Port int
+	// Of 说明这是谁的端口：版本化服务名，额外端口再带上它的名字。
+	Of string
+	// Movable：进程自己的主端口，部署文件里写 localPort 就能挪开；其余端口写在 component.yaml 里，挪不动。
+	Movable bool
+}
+
+// portsOf 列出本机进程要绑的端口：自己的主端口与 extraPorts，外壳还有它这次承载的每个成员的端口
+// （外壳进程替成员在成员自己声明的端口上监听，见 internal/shell）。
+func portsOf(service string, port int, m *manifest.Manifest, members []*resolver.Node) []localPort {
+	out := []localPort{{Port: port, Of: service, Movable: true}}
+	add := func(owner string, d manifest.Deployment, withMain bool) {
+		if withMain && d.Port > 0 {
+			out = append(out, localPort{Port: d.Port, Of: owner})
+		}
+		for _, extra := range d.ExtraPorts {
+			out = append(out, localPort{Port: extra.Port, Of: owner + " (" + extra.Name + ")"})
+		}
+	}
+	add(service, m.Deployment, false)
+	for _, member := range members {
+		add(manifest.ServiceName(member.Ref.ID, member.Ref.Version), member.Manifest.Deployment, true)
+	}
+	return out
 }
 
 // localGracePeriod 是 Ctrl+C 之后等多久再强杀：本次在本机跑的组件里声明得最长的那个，
@@ -137,9 +168,11 @@ func localGracePeriod(plans []localComponentPlan) time.Duration {
 }
 
 // collectLocalComponents 按拓扑序收集全部 mode: local 组件，探测出各自的启动命令。
+//
+// hosted 是这次每个外壳承载的成员（hostedMembers）：以本机进程运行的外壳替它们监听端口。
 func collectLocalComponents(
 	proj *project.Project, graph *resolver.Graph,
-	order *resolver.Plan, localEnvFiles []compose.LocalEnvFile,
+	order *resolver.Plan, localEnvFiles []compose.LocalEnvFile, hosted map[resolver.Ref][]resolver.Ref,
 ) ([]localComponentPlan, error) {
 	localMode := make(map[resolver.Ref]bool, len(proj.Decl.Components))
 	for _, c := range proj.Decl.Components {
@@ -190,8 +223,15 @@ func collectLocalComponents(
 		if err != nil {
 			return nil, err
 		}
+		var members []*resolver.Node
+		for _, member := range hosted[ref] {
+			if n := graph.Node(member); n != nil && n.Manifest != nil {
+				members = append(members, n)
+			}
+		}
 		out = append(out, localComponentPlan{
 			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Withhold: platformOwned(node.Manifest), Port: port,
+			Ports:     portsOf(step.Service, port, node.Manifest, members),
 			StopGrace: time.Duration(fileOf[ref].StopGracePeriodSeconds) * time.Second,
 		})
 	}
@@ -405,6 +445,12 @@ func runLocalComponents(
 			widest = len(p.Service)
 		}
 	}
+	// 启动任何一个之前：端口被别的程序占着时，进程要么绑定失败退出，要么就绪探测连上的是那个程序、
+	// 报出一个假的"已监听"。所以先查，被占的一次列全，一个都不启动
+	if err := checkLocalPorts(plans); err != nil {
+		return err
+	}
+
 	sup, err := procsup.New(procsup.Options{Out: opts.Stdout, NameWidth: widest, TailLines: crashLines,
 		GracePeriod: localGracePeriod(plans)})
 	if err != nil {
@@ -446,6 +492,45 @@ func runLocalComponents(
 	sup.Run(ctx)
 
 	return renderCrashSummary(sup, sup.Exits(), crashLines)
+}
+
+// checkLocalPorts 确认本机进程要绑的端口都空着（procsup.CheckPortFree）；被占的全部列进一条 PORT_CONFLICT。
+//
+// 在引擎处理完容器之后才查：上一次 up 留下的容器要等引擎换掉才放开端口，提前查会误报。
+// mode: debug 的端口不查——它本来就该被你在 IDE 里起的进程占着。
+func checkLocalPorts(plans []localComponentPlan) error {
+	var e *clierr.Error
+	movable := false
+	seen := map[int]bool{}
+	for _, p := range plans {
+		for _, port := range p.Ports {
+			if seen[port.Port] {
+				continue
+			}
+			seen[port.Port] = true
+			err := procsup.CheckPortFree(port.Port)
+			if err == nil {
+				continue
+			}
+			if e == nil {
+				e = clierr.New(clierr.CodePortConflict, i18n.T(msgid.CliUpLocalPortsTaken))
+			}
+			reason := err.Error()
+			if errors.Is(err, procsup.ErrPortAnswering) {
+				reason = i18n.T(msgid.CliUpPortAnswering)
+			}
+			e = e.WithDetail(i18n.T(msgid.CliUpLabelPort, port.Port), port.Of+": "+reason)
+			movable = movable || port.Movable
+		}
+	}
+	if e == nil {
+		return nil
+	}
+	hints := []string{i18n.T(msgid.CliUpHintStopThePortHolder)}
+	if movable {
+		hints = append(hints, i18n.T(msgid.CliUpHintMoveWithLocalPort))
+	}
+	return e.WithHint(hints...)
 }
 
 // renderCrashSummary 在最后一屏只打印崩溃的那几个进程，不被收尾时其余进程

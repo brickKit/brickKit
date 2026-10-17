@@ -92,7 +92,7 @@ one key and hides the conflict.
 | `RELEASE_PUSH_FAILED` | The push was rejected or unreachable; the local tag was removed | Fix access/network and rerun unchanged |
 | `RELEASE_CHECK_FAILED` | A command under the component's `release.checks` exited non-zero, or couldn't run; nothing was tagged or uploaded | Read its output right above the error and fix that; "couldn't run" means a wrong argv (each item one argument, no shell) or a script without the execute bit |
 | `MIGRATION_FAILED` | The migration command failed (or a typo'd argument the entrypoint didn't reject) | Read the migration container's log, fix, rerun |
-| `PORT_CONFLICT` | Duplicate `localPort` / `exposePort`, or the host port is taken | Change the port — in `deploy.local.yaml` if it's only your machine |
+| `PORT_CONFLICT` | Duplicate `localPort` / `exposePort`, or a port a `mode: local` process needs is held by another program | Change the port — in `deploy.local.yaml` if it's only your machine |
 | `ENGINE_MISSING` | docker / podman / kubectl not on `PATH` or not running — or only Podman is installed while the deploy file says `target: docker` | Install/start it, or set `target: podman` |
 | `PROJECT_MISSING` | Not in a project, or `deploy.yaml` missing — or local mode is on but `deploy.local.yaml` was deleted | `brickkit init` completes a project without touching existing files; `brickkit local on` writes the local file again |
 | `LINT_FAILED` | `brickkit lint` found problems, each printed with its own code in brackets (`⚠️ [DOC_PLACEHOLDER] …`), file and field | Look each code up in this table, fix and rerun; warnings fail only with `--strict` |

@@ -166,7 +166,7 @@ docker / podman 用就留着，否则删掉。
 | `COMPONENT_BLOCKED` | 市场把这个组件版本下架了 | 换一个版本 |
 | `COMPONENT_DISABLED` | 钉住要跑的组件（`enabled` / `local` / `debug`）有个强依赖写了 `disable` | 两个意图矛盾，去掉其中一个 |
 | `MANIFEST_INVALID` | 某个 `component.yaml` 不合法，报错点名字段 | 由组件作者修（在组件仓库里 `brickkit lint`） |
-| `PORT_CONFLICT` | `localPort` / `exposePort` 重复，或宿主机端口被占 | 换端口；只是你机器上的事就改在 `deploy.local.yaml` |
+| `PORT_CONFLICT` | `localPort` / `exposePort` 重复，或 `mode: local` 进程要用的端口被别的程序占着 | 换端口；只是你机器上的事就改在 `deploy.local.yaml` |
 | `MIGRATION_FAILED` | 迁移命令失败（或入口没拒绝写错的参数） | 看迁移容器的日志，修好重跑 |
 | `MIGRATION_SKIPPED`（警告） | `mode: local` / `debug` 的组件没有迁移容器 | 手动跑一次它的迁移 |
 | `ENGINE_MISSING` | `docker` / `podman` / `kubectl` 不在 `PATH` 上或没在运行；或者只装了 Podman，部署文件却写着 `target: docker` | 装上、启动；或改成 `target: podman` |

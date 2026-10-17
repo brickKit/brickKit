@@ -112,3 +112,14 @@ func TestWaitListeningAlsoSeesAnIPv6OnlyListener(t *testing.T) {
 
 	assert.Equal(t, ProbeListening, got)
 }
+
+// 启动前的端口检查：空着的端口通过；已经有人应答的端口报 ErrPortAnswering——
+// 正是那种会让 WaitListening 报出假"已监听"的情形。
+func TestCheckPortFree(t *testing.T) {
+	assert.NoError(t, CheckPortFree(freePort(t)))
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = l.Close() }()
+	assert.ErrorIs(t, CheckPortFree(l.Addr().(*net.TCPAddr).Port), ErrPortAnswering)
+}

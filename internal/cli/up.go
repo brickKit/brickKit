@@ -349,7 +349,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
 	if plan.generated != nil {
 		plan.localComponents, err = collectLocalComponents(
-			proj, plan.graph, order, plan.generated.LocalEnvFiles)
+			proj, plan.graph, order, plan.generated.LocalEnvFiles, hostedMembers(proj, plan.states))
 		if err != nil {
 			return nil, err
 		}

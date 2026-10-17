@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -356,6 +357,54 @@ func TestRunLocalComponentsReportsACrash(t *testing.T) {
 	assert.Contains(t, out, "exit code 1")
 }
 
+// 端口被别的程序占着：启动之前就报 PORT_CONFLICT，一个进程都不启动——否则就绪探测连上的是
+// 那个程序，先报一句假的"已监听"（反馈 FRB-002）。
+func TestRunLocalComponentsRefusesATakenPortBeforeStartingAnything(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	opts, plans := localComponentPlansFor(t, f, listenThenExitCleanly)
+	holder, err := net.Listen("tcp", ":"+strconv.Itoa(plans[0].Port))
+	require.NoError(t, err)
+	defer func() { _ = holder.Close() }()
+
+	err = runLocalComponents(context.Background(), opts, f.Layout, plans, 20)
+
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, strconv.Itoa(plans[0].Port))
+	assert.Contains(t, text, "demo-hello-1-0-0")
+	assert.Contains(t, text, "localPort", "主端口挪得动：提示写 localPort")
+	out := opts.Stdout.(*bytes.Buffer).String()
+	assert.NotContains(t, out, "listening on port")
+	assert.NotContains(t, out, "Starting", "一个进程都没启动")
+}
+
+// 本机进程要绑的端口：自己的主端口（写 localPort 挪得动）、extraPorts，外壳还有它替成员监听的端口。
+func TestPortsOfCoversExtraPortsAndHostedMembers(t *testing.T) {
+	shell := &manifest.Manifest{Deployment: manifest.Deployment{Port: 8080,
+		ExtraPorts: []manifest.ExtraPort{{Name: "admin", Port: 9000}}}}
+	member := &resolver.Node{Ref: resolver.Ref{ID: "erp/a", Version: "1.0.0"}, Manifest: &manifest.Manifest{
+		Deployment: manifest.Deployment{Port: 8081, ExtraPorts: []manifest.ExtraPort{{Name: "grpc", Port: 9090}}}}}
+
+	ports := portsOf("erp-shell-1-0-0", 8085, shell, []*resolver.Node{member})
+
+	assert.Equal(t, []localPort{
+		{Port: 8085, Of: "erp-shell-1-0-0", Movable: true},
+		{Port: 9000, Of: "erp-shell-1-0-0 (admin)"},
+		{Port: 8081, Of: "erp-a-1-0-0"},
+		{Port: 9090, Of: "erp-a-1-0-0 (grpc)"},
+	}, ports)
+}
+
 // --crash-lines 的帮助文本承诺"0 = 只打印崩溃信息，不带输出行"——但
 // procsup.Options.TailLines 自己的约定是 "<= 0 时用默认行数"（它自己的
 // TestTailKeepsOnlyTheConfiguredNumberOfLines 锁死的），同一个 0 在两层
@@ -404,7 +453,7 @@ func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
 		Engine: compose.EngineDocker, Root: f.Dir, Lookup: envref.Lookup(f.Dir),
 	})
 	require.NoError(t, err)
-	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles)
+	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles, hostedMembers(proj, states))
 }
 
 // 本机进程运行的组件不跑迁移容器，提醒里要说出它真实的 mode：mode: local 的组件被说成

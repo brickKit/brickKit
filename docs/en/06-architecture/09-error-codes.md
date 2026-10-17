@@ -267,6 +267,7 @@ addresses and the like are ordinary config items of the component.
 | --- | --- | --- |
 | `Error: two components on shell <…> both want port <…>` | A shell and one of its members, or two members, use the same port | Ports must all differ |
 | `Error: host port <…> is claimed by more than one component` | Several processes on this machine or exposed ports collide on one host port | Change `localPort` or `exposePort` |
+| `Error: another program on this machine already holds a port a mode: local process needs` | Checked before any `mode: local` process starts; each taken port is listed, and none starts | Stop the program holding it, or move the process with `localPort` |
 
 ### MIGRATION_FAILED
 

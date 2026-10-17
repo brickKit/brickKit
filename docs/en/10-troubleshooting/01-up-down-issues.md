@@ -64,6 +64,19 @@ the container, with `port is already allocated` or `address already in use` in t
 
 **Fix**: find the program holding it (`ss -ltnp | grep <port>`) and stop it, or pick another `exposePort`.
 
+For a `mode: local` process, `up` finds this out before starting any of them, and starts none:
+
+```text
+❌ Error: another program on this machine already holds a port a mode: local process needs
+   Port 8083: demo-gamma-0-1-0: another program already answers on it
+   Suggestions:
+   1. Stop the program holding it, then run up again; none of the mode: local processes was started
+   2. Or move the process to another port: write localPort on its entry in the deploy file (ports declared in component.yaml can't be moved)
+```
+
+The containers have started by then; only the local processes wait. A port in `extraPorts`, or one a shell listens on
+for a member, is declared in `component.yaml`: free it on your machine.
+
 **Symptom three: two components on a shell use the same port** — see
 [Shell problems](06-shell-issues.md#two-components-on-a-shell-want-the-same-port).
 
