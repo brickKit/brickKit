@@ -30,7 +30,7 @@ brickkit build demo/hello@1.1.0 --force
 
 **症状**
 
-改了 `components/` 里一个组件的代码，`brickkit build` 之后 `up`，跑的还是旧的。`build` 没有构建它，而是说：
+改了 `components/` 里一个组件的代码，`brickkit build` 之后 `up`，跑的还是旧的。`build` 没有构建它，两条命令都说：
 
 ```text
 ⚠️ demo/web 只写了 deployment.image：它的镜像总是拉取的，来自本地源也一样，旁边的 Dockerfile 不会被用到
@@ -39,7 +39,7 @@ brickkit build demo/hello@1.1.0 --force
    建议：要从这份源码构建镜像，就写上 deployment.build（Dockerfile 在根目录时：build: {dockerfile: Dockerfile}）
 ```
 
-`brickkit lint` 给出同一条警告。
+`brickkit up --dry-run` 与 `brickkit lint` 给出同一条警告。
 
 **原因**
 

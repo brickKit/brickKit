@@ -160,7 +160,8 @@ func TestAddShellMemberWithoutImageFails(t *testing.T) {
 }
 
 // 本地源里只写了 image 的组件（只有契约、没有源码：克隆来的契约仓库、离线放进来的 component.yaml）
-// 照样拉镜像——它没有源码可构建。旁边有 Dockerfile 时，build 说出它不会被用到。
+// 照样拉镜像——它没有源码可构建。旁边有 Dockerfile 时，up、build、lint 都说出它不会被用到：
+// 只跑 up 的人改了工作区的代码，否则会看着拉来的旧镜像全绿地跑起来。
 func TestLocalSourceImageOnlyComponentIsPulled(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
@@ -175,9 +176,14 @@ func TestLocalSourceImageOnlyComponentIsPulled(t *testing.T) {
 		return runWith(t, func(o *Options) { o.Engine = eng; o.Images = images }, dir, args...)
 	}
 
-	r := run("up")
+	r := run("up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ManifestDockerfileUnused, "erp/api"))
+
+	r = run("up")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Len(t, eng.ups, 1, "镜像从 registry 拉，照常启动")
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ManifestDockerfileUnused, "erp/api"))
 
 	r = run("build")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
@@ -214,6 +220,7 @@ func TestLocalSourceRejectsAPulledImageWithTheSameTag(t *testing.T) {
 	assert.Equal(t, []string{"registry.example.com/erp-api:1.0.0"}, images.built(), "没有本地构建标签的镜像不算数，照样构建")
 	r = run("up")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, i18n.T(msgid.ManifestDockerfileUnused, "erp/api"), "写了 build，Dockerfile 用得上")
 }
 
 // 外壳镜像过期有自己的错误码：脚本要分得清"重建镜像"与"配置写错了"。

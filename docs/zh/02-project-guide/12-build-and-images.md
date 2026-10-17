@@ -22,7 +22,7 @@
 
 第四行是只给镜像的组件：只放着 `component.yaml` 与 `BRICKKIT.md` 的仓库（闭源组件，或者包装别人镜像的组件）被 `add --repo`
 克隆下来，或者在连不上 Git 的机器上把这样一份 `component.yaml` 放进本地源。只有写了 `deployment.build` 的组件才会被构建；
-BrickKit 不猜 `component.yaml` 旁边的 `Dockerfile` 是给它用的。有 `Dockerfile` 而没写 `build` 时，`brickkit lint` 与 `brickkit build` 会警告它没被用到。
+BrickKit 不猜 `component.yaml` 旁边的 `Dockerfile` 是给它用的。有 `Dockerfile` 而没写 `build` 时，`brickkit up`、`brickkit build` 与 `brickkit lint` 都会警告它没被用到。
 
 点名一个镜像平常是拉取的组件（`brickkit build demo/x`），它写了 `deployment.build` 时照样在本机构建一份——镜像仓库连不上时的出路——并说一声
 （只写了 `image` 的组件没有东西可构建，`build` 会这样说）：

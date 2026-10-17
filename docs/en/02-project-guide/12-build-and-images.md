@@ -27,7 +27,8 @@ The fourth row is a component that ships only an image: a repository holding jus
 (a closed-source component, or a wrapper around someone else's image) cloned with `add --repo`, or such a
 `component.yaml` copied into a local source on a machine without network access to Git. Only a component that writes
 `deployment.build` is ever built; BrickKit doesn't guess that a `Dockerfile` lying next to `component.yaml` is meant for
-it. When one is there and `build` isn't written, `brickkit lint` and `brickkit build` warn that it isn't used.
+it. When one is there and `build` isn't written, `brickkit up`, `brickkit build` and `brickkit lint` warn that it isn't
+used.
 
 Naming a component whose image is normally pulled (`brickkit build demo/x`) builds a local image anyway when it writes
 `deployment.build` — a way out when the registry can't be reached — and says so (a component with only an `image` has

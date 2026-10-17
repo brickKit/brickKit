@@ -122,7 +122,7 @@ configSchema:
 
 `image` 与 `build` 至少写一个。只写 `build`：使用方用 `brickkit build` 从你的 tag 构建。两个都写：你的 Git / 市场使用方拉镜像，
 把源码克隆下来开发的人从源码构建。只写 `image`：镜像总是拉取的，来自本地源也一样——不给代码也能分发组件，就靠它；
-旁边的 `Dockerfile` 不会被用到，`lint` 会警告。
+旁边的 `Dockerfile` 不会被用到，`up`、`build` 与 `lint` 都会警告。
 
 **配额只建议 `requests`。** 你知道自己稳态要多少；"最多能涨到多少"是部署方的判断，而且你写了 `limits.cpu`，使用方就去不掉它了。
 平台不给 `limits` 编默认值：编一个 512Mi，一个本来需要 600Mi 的健康组件就会被 OOM 杀掉。

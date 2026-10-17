@@ -110,11 +110,8 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 		tag := manifest.ImageRef(node.Manifest)
 		if !needsLocalBuild(ctx, client, node) {
 			if id == "" {
-				// 本地源里只写了 image、旁边却有 Dockerfile：不构建它，但要说出来——作者多半以为会
-				if dir, ok := proj.LocalRepo(ref.ID); ok && client.IsLocal(ctx, ref.ID, ref.Version) {
-					if w := manifest.UnusedDockerfileWarning(node.Manifest, dir); w != nil {
-						renderWarnings(opts, []*clierr.Error{w})
-					}
+				if w := unusedDockerfileWarning(proj, ref.ID, node.Manifest, client.IsLocal(ctx, ref.ID, ref.Version)); w != nil {
+					renderWarnings(opts, []*clierr.Error{w})
 				}
 				continue
 			}
@@ -181,6 +178,20 @@ func localImageUsable(ctx context.Context, images engine.Images, node *resolver.
 // needsLocalBuild：这个版本的镜像要在本机构建（manifest.BuiltLocally）；其余的镜像是拉的。
 func needsLocalBuild(ctx context.Context, client *source.Client, node *resolver.Node) bool {
 	return node.Manifest.BuiltLocally(client.IsLocal(ctx, node.Ref.ID, node.Ref.Version))
+}
+
+// unusedDockerfileWarning：本地源给出的版本只写了 image、旁边却有 Dockerfile——镜像是拉取的，
+// 那份 Dockerfile 不会被构建，工作区里改的代码也就不会跑起来。作者多半以为会，所以 build 跳过它、
+// up 拿拉来的镜像启动它时都要说出来（lint 逐个文件查同一件事）。
+func unusedDockerfileWarning(proj *project.Project, id string, m *manifest.Manifest, fromLocalSource bool) *clierr.Error {
+	if !fromLocalSource {
+		return nil
+	}
+	dir, ok := proj.LocalRepo(id)
+	if !ok {
+		return nil
+	}
+	return manifest.UnusedDockerfileWarning(m, dir)
 }
 
 // buildOne 找到源码、构建一个版本。

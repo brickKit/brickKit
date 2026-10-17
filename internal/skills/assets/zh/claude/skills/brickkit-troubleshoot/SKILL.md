@@ -82,7 +82,7 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 `brickkit build <id>`。`IMAGE_STALE`：本机构建的外壳镜像里编进的成员版本与它的 `component.yaml`
 不一致 → `brickkit build <外壳> --force`。`IMAGE_UNVERIFIED` 只是警告：外壳镜像没有 `brickkit build`
 留下的标签，无法核对成员版本。改了代码没升版本号时，镜像 tag 没变，也要 `--force` 重建。
-`build` 警告某个 `Dockerfile` 不会被用到、`up` 跑的是发布出去的镜像：组件只写了 `deployment.image`，
+`up` / `build` 警告某个 `Dockerfile` 不会被用到、`up` 跑的是发布出去的镜像：组件只写了 `deployment.image`，
 来自本地源也是拉取的 → 写上 `deployment.build`（`build: {dockerfile: Dockerfile}`）。
 
 **10. 从本地仓库运行的组件：仓库里的版本 ≠ 项目的默认版本。**

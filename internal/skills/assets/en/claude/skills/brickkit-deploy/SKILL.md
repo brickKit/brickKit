@@ -129,7 +129,7 @@ with only `deployment.build`) need `brickkit build [<id>]` first; while the imag
 `IMAGE_MISSING`. Tags equal `metadata.version`, and an existing image of that version is skipped —
 changed code without a version bump needs `--force`. A shell image built with stale member versions is
 `IMAGE_STALE`. Every other component with `image:` is pulled — a local-source one with only `image:` too
-(`lint` / `build` warn when a `Dockerfile` sits next to it unused).
+(`up` / `build` / `lint` warn when a `Dockerfile` sits next to it unused).
 
 **8. Shells are chosen in the deploy file.** Nest member entries under the shell entry and they run
 inside it (no own container; their `*_ENDPOINT` points at the shell; their own labels / health

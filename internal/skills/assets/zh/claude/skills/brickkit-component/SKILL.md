@@ -97,7 +97,7 @@ K8s 的 readinessProbe 和 Docker / Podman 的 healthcheck（依赖方与 `up` �
 
 只有 `build: { context: ., dockerfile: Dockerfile }` 的组件，使用者要 `brickkit build`；`up` 从不
 构建。只有写了 `build` 的组件才会被构建：只写 `image` 的组件来自本地源也是拉取的——所以带代码的组件要写
-`build`（只写 `image` 而旁边有 `Dockerfile` 时 `lint` 会警告），不给代码分发的组件只写 `image`。所以**改了代码、没改版本**，旧镜像还在，`build` 会跳过——要么升 `metadata.version`，要么
+`build`（只写 `image` 而旁边有 `Dockerfile` 时 `lint`、`build`、`up` 都会警告），不给代码分发的组件只写 `image`。所以**改了代码、没改版本**，旧镜像还在，`build` 会跳过——要么升 `metadata.version`，要么
 让使用者 `brickkit build <id> --force`。
 
 **9. 外壳：`shell.members` 写的是编进去的精确版本。**

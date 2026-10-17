@@ -134,7 +134,7 @@ How to design config well — how finely to split it, how to name it, what shoul
 Write at least one of `image` and `build`. Only `build`: users build from your tag with `brickkit build`. Both: users of
 your Git or market release pull the image, while people who clone the source to develop build from source. Only
 `image`: the image is always pulled, from a local source too — the way to ship a component without its code; a
-`Dockerfile` next to it isn't used, and `lint` warns about it.
+`Dockerfile` next to it isn't used, and `up`, `build` and `lint` warn about it.
 
 **Recommend `requests` only.** You know what you need at steady state; "how far it may grow" is the deployer's call, and
 if you write `limits.cpu`, users can't take it away. The platform invents no default `limits`: invent 512Mi, and a

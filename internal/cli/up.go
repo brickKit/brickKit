@@ -335,11 +335,16 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	plan.collectTargets(order)
+	var unusedDockerfiles []*clierr.Error
 	for i := range plan.images {
 		info := &plan.images[i]
 		info.localSource = client.IsLocal(ctx, info.ref.ID, info.ref.Version)
 		info.needsLocal = info.manifest.BuiltLocally(info.localSource)
+		if w := unusedDockerfileWarning(proj, info.ref.ID, info.manifest, info.localSource); w != nil {
+			unusedDockerfiles = append(unusedDockerfiles, w)
+		}
 	}
+	renderWarnings(opts, unusedDockerfiles)
 	// plan.generated 只在 docker / podman 目标下才有值；k8s 目标下 mode: local 在部署文件
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
 	if plan.generated != nil {

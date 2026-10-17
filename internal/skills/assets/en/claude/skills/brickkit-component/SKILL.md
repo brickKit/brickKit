@@ -105,7 +105,7 @@ share a database, the state table's key must include the component's identity.
 
 `build: { context: ., dockerfile: Dockerfile }` lets `brickkit build` build it; `image:` lets git or
 market consumers pull it. Only a component that writes `build` is ever built: one with only `image` is
-pulled even from a local source, so a component with its own code writes `build` (`lint` warns when a
+pulled even from a local source, so a component with its own code writes `build` (`lint`, `build` and `up` warn when a
 `Dockerfile` sits next to an image-only `component.yaml`), and a component shipped without its code
 writes only `image`. The image **tag is always `metadata.version`**. `up` never builds, and
 `brickkit build` skips a version whose image already exists — so changed code without a version bump

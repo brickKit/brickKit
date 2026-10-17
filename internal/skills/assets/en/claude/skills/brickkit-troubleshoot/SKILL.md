@@ -70,7 +70,7 @@ one key and hides the conflict.
 | `add` refuses: the project already has this component | A direct `add` of another version | `brickkit upgrade <id>@<version>` |
 | `IMAGE_MISSING` | The image needs a local build; `up` never builds | `brickkit build <id>` |
 | Code changes don't show up after `brickkit build` | An image of that version already exists and is skipped | `brickkit build <id> --force` (or bump the version) |
-| `build` warns a `Dockerfile` is never used; `up` runs the published image | The component writes only `deployment.image`, so it is pulled even from a local source | Add `deployment.build` (`build: {dockerfile: Dockerfile}`) |
+| `up` / `build` warn a `Dockerfile` is never used; `up` runs the published image | The component writes only `deployment.image`, so it is pulled even from a local source | Add `deployment.build` (`build: {dockerfile: Dockerfile}`) |
 | `IMAGE_STALE` | A locally built shell image contains other member versions than its `component.yaml` | `brickkit build <shell> --force` |
 | `IMAGE_UNVERIFIED` (warning) | A shell image without the member-version label (not built by `brickkit build`) | Fine if you trust it; rebuild with `brickkit build` to make it checkable |
 | "Code that runs from a local repository does not match this run" (`CONFIG_INVALID`) | A `mode: local` / `debug` component (or bare-process shell member) has a repo `metadata.version` ≠ the default version, or a `requiredBy` version was given `mode: local` / `debug` (only the default runs from the repo) | `brickkit upgrade <id>@<repo version>`, or check out the tag matching the default version |

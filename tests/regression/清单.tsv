@@ -58,3 +58,4 @@ R43	组件声明的发布前检查没过，publish 一个请求都不发到市�
 R44	发布前检查改动了组件目录，release 不打 tag	.	./internal/cli	TestReleaseRefusesWhenAPassingCheckChangedFiles
 R45	一个仓库里放多个组件（sources[].repo）：add 一条命令写好三层，同一仓库里的依赖一起进来	.	./internal/cli	TestAddFromARepositorySource
 R46	同一个版本号删掉重发：缓存着旧内容的项目报 VERSION_CHANGED，不静默顶替	.	./internal/cli	TestRepublishedVersionIsReportedNotServed
+R47	本地源里只写 image 的组件旁边有 Dockerfile：up 拉镜像启动时警告那份 Dockerfile 没被用到，不静默跑发布的镜像	.	./internal/cli	TestLocalSourceImageOnlyComponentIsPulled
