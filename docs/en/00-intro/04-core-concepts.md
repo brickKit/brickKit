@@ -54,7 +54,7 @@ them does.
 | nothing | Follow the ones above |
 | `mode: enabled` | Always runs, whatever is above it; an error if one of its required dependencies is turned off (two conflicting intents) |
 | `mode: disable` | Never runs; components that **require** it stop too, while those that depend on it optionally keep running without its address |
-| `mode: local` | Always runs, but not in a container: BrickKit works out the start command from the source, launches the process on this machine and watches it while that `up` runs; the process stops with the session, so it is not a long-running deployment (see [`mode`](../01-three-layers/03-deploy-yaml.md#mode-whether-it-runs-and-how)) |
+| `mode: local` | Always runs, but not in a container: BrickKit works out the start command from the source, launches the process on this machine (after its migration from source, when the component declares `local.migrationCommand`) and watches it while that `up` runs; the process stops with the session, so it is not a long-running deployment (see [`mode`](../01-three-layers/03-deploy-yaml.md#mode-whether-it-runs-and-how)) |
 | `mode: debug` | Always runs, as a process you start yourself in your IDE; **written only in the personal `deploy.local.yaml`** |
 
 `local` and `debug` only make sense on the Docker / Podman targets: a Pod in a cluster can't reach a process on your

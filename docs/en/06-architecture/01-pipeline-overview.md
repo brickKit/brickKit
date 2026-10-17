@@ -70,7 +70,8 @@ it first, and their main service starts only when it finished successfully; then
 check to pass.
 
 **⑩ Supervise local processes.** With `mode: local` components, `up` stays in the foreground, starting and supervising
-those processes on this machine until `Ctrl+C`.
+those processes on this machine until `Ctrl+C`. Before starting any, it checks every port they bind is free
+(`PORT_CONFLICT`); a component's `local.migrationCommand` runs before its process, and a failure keeps it from starting.
 
 ## One pipeline, several exits
 

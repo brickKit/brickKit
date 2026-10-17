@@ -56,7 +56,8 @@ flowchart TD
 **⑨ 调用引擎。** `docker compose up`（或 `podman compose`、`kubectl apply`）。声明了迁移的组件先跑迁移，迁移成功结束后才启动主服务；
 然后等每个组件的健康检查通过。
 
-**⑩ 看护本机进程。** 有 `mode: local` 的组件时，`up` 留在前台，启动并看护这些本机进程，直到 `Ctrl+C`。
+**⑩ 看护本机进程。** 有 `mode: local` 的组件时，`up` 留在前台，启动并看护这些本机进程，直到 `Ctrl+C`。启动任何一个之前，
+先确认它们要绑的端口都空着（`PORT_CONFLICT`）；组件的 `local.migrationCommand` 在它的进程之前跑，失败就不启动。
 
 ## 同一条流水线，不同的出口
 

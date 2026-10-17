@@ -29,7 +29,7 @@ demo-quote/
 | `README.md` | It should be there | People browsing the repository on GitHub |
 | `docs/`, `CHANGELOG.md` | Optional | Whoever develops the component; history itself lives in Git, and each version's release notes in its tag ([Releasing](07-release-workflow.md#release-notes)) |
 | Contract files | When it has an external interface, they should be there | Callers; see [Contracts and artifacts](06-artifacts-and-contracts.md) |
-| Database migration scripts | When the component has a database | The component's own migration command (`migration.command`) |
+| Database migration scripts | When the component has a database | The component's own migration command (`migration.command`, and `local.migrationCommand` to run it from source) |
 | Source | Depends | The platform never reads source |
 
 How to write each document, and how `brickkit lint` checks them: [A component's documentation](08-component-doc-spec.md).

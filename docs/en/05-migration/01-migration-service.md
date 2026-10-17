@@ -10,7 +10,9 @@ migration:
 
 The command is an array: the very command to run in the container. It uses the component's **own image**: the migration
 scripts and the component's code live in the same repository and the same image, and are always the same version — the
-table structure the code needs is exactly what this version's migration builds.
+table structure the code needs is exactly what this version's migration builds. Being a command inside the image, it
+can't run as written when the component runs as a process from source; that is what `local.migrationCommand` is for (see
+[When no migration container runs](#when-no-migration-container-runs)).
 
 The entry program has to tell "run the migration" from "start the service" by its argument, and **must fail at once on an
 argument it doesn't know**:

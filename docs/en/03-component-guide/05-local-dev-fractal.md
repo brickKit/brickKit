@@ -144,6 +144,9 @@ A few notes:
   `mode: debug` is your personal business and goes in `deploy.local.yaml` (`brickkit local on`).
 - **Under `mode: local` the platform injects `PORT`**: the port on your machine it chose for this process (preferring
   `deployment.port`). Code that reads `PORT`, falling back to its default, never fights another process for a port.
+- **A component with a `migration` declares `local.migrationCommand`**, its migration from source (`migration.command`
+  is a path inside the image): `up` runs it before starting the process, so the tables are there. See
+  [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 - **Whether to commit this workbench into the component repository** is up to you: commit it, and collaborators who clone
   the repository are one `brickkit up` away from running it; it doesn't affect releases, and users never see it.
 

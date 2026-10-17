@@ -69,6 +69,8 @@ docker run --rm --env-file .env brickkit-demo/auth-password-login:1.0.0 migrate 
 docker run --rm --env-file .env brickkit-demo/auth-password-login:1.0.0 migrate reset    # 全部回退
 ```
 
+从源码跑同一条迁移：`go run . migrate`（参数相同，`.env` 先 `set -a && source .env && set +a` 载入）。它就是 `component.yaml` 的 `local.migrationCommand`：组件以 `mode: local` 运行时，`brickkit up` 在启动进程之前自动跑它。
+
 ## 设计取舍
 
 - **身份不在本组件存第二份**：登录时向 `people/basic` 现取。主体的存废由人员系统说了算，也不会出现两份会漂移的身份数据，部门调整只改一处。代价是多一次网络调用，以及 `people/basic` 挂掉时登录不可用——这正是强依赖的含义，所以如实报 503，而不是假装成认证失败。
@@ -115,7 +117,7 @@ docker run --rm --env-file .env brickkit-demo/auth-password-login:1.0.0 migrate 
 
 - `configSchema` 的键就是代码读的环境变量名。不能用保留名：`COMPONENT_ID`、`COMPONENT_VERSION`、`PORT`、`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`，以及任何 `*_ENDPOINT`。
 - 依赖写精确版本。依赖的地址以 `<ID>_ENDPOINT` 注入；缺席的可选依赖根本没有这个变量，读的时候要带兜底。
-- `/healthz` 只查本进程，不查依赖。迁移命令用同一个镜像跑，遇到不认识的参数必须直接失败。
+- `/healthz` 只查本进程，不查依赖。迁移命令用同一个镜像跑，遇到不认识的参数必须直接失败；`local.migrationCommand` 从源码跑同一条迁移，给 `mode: local` 用。
 - `BRICKKIT.md` 会随版本进入每个使用它的项目，在那里是脱离仓库单独读的：跟代码一起改，不放相对链接。
 - 发版：改 `metadata.version`，提交、推送，`brickkit release`。`brickkit lint` 会检查清单和这些文档——在项目里、在这个目录下跑，只查这个组件（`--all` 查整个项目）。
 - 完整规则在 `brickkit-component` 技能里（装了技能的项目或仓库根目录下的 `.claude/skills/brickkit-component/SKILL.md`；`brickkit skills update` 会装上）；参数问 `brickkit <命令> --help`；BrickKit 自己的文档用 `brickkit docs` 看。

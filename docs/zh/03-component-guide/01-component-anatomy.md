@@ -29,7 +29,7 @@ demo-quote/
 | `README.md` | 应该有 | 在 GitHub 上浏览仓库的人 |
 | `docs/`、`CHANGELOG.md` | 可选 | 开发这个组件的人；历史本身在 Git 里，每个版本的发版说明在它的 tag 里（[发布](07-release-workflow.md#发版说明)） |
 | 契约文件 | 有对外接口就应该有 | 调用方，见 [契约与产物](06-artifacts-and-contracts.md) |
-| 数据库迁移脚本 | 组件有数据库时 | 组件自己的迁移命令（`migration.command`） |
+| 数据库迁移脚本 | 组件有数据库时 | 组件自己的迁移命令（`migration.command`，从源码运行用 `local.migrationCommand`） |
 | 源码 | 视情况 | 平台从不读源码 |
 
 每份文档怎么写、`brickkit lint` 怎么检查它们，见 [组件的文档](08-component-doc-spec.md)。译本放在原文旁边、带语言后缀

@@ -133,6 +133,7 @@ curl http://localhost:8080/api/v1/quote
 - **想打断点，用 `mode: debug`。** 平台不启动它，只生成一份环境变量文件，你在 IDE 里加载它、自己启动（见 [本地调试](../02-project-guide/03-local-debug-workflow.md)）。
   `mode: debug` 是你个人的事，写在 `deploy.local.yaml`（`brickkit local on`）里。
 - **`mode: local` 下平台注入 `PORT`**：它为这个进程选定的本机端口（优先用 `deployment.port`）。代码读 `PORT`、读不到再用缺省端口，就不会和别的进程抢。
+- **有 `migration` 的组件写上 `local.migrationCommand`**，即从源码运行的迁移（`migration.command` 是镜像里的路径）：`up` 在启动进程之前跑它，表就建好了。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
 - **这份工作台要不要提交进组件仓库**，由你定：提交了，协作者 clone 下来就能一条 `brickkit up` 跑起来；它不会影响发布，也不会被使用方看到。
 
 ## 工作台还是焦点运行

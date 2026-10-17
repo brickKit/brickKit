@@ -153,7 +153,8 @@ A component's migration container gets exactly the main service's environment (t
 file). A `mode: debug` component has no container; the platform writes the variables it would have got into
 `.brickkit/generated/local-debug.<service name>.env` for you to load in your IDE; in that file, dependency addresses are
 `http://localhost:<port>`, reachable from this machine. A `mode: local` component gets the same file: `up` starts that
-process with these variables itself, and the file is there for running its migration or another one-off command by hand.
+process with these variables itself — and runs its `local.migrationCommand`, when declared, with the same ones — and the
+file is there for running a one-off command by hand.
 
 ## What a `mode: local` process inherits
 

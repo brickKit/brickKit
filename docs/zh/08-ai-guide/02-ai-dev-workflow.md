@@ -9,7 +9,7 @@
 2. **读依赖。** 新组件要调用的每个组件：它的 `BRICKKIT.md`、`configSchema`、契约。只读直接依赖。
 3. **生成骨架。** `brickkit new <scope>/<name>`（独立仓库用 `--path`，要契约占位用 `--contract openapi|proto`）。
 4. **先写 `component.yaml`。** `dependencies`（精确版本）、`configSchema`（键就是环境变量名，密钥标 `secret: true`，平台推导不出的写成必填）、
-   `deployment`、`healthCheck`、需要的话 `migration`。然后 `brickkit lint`。
+   `deployment`、`healthCheck`、需要的话 `migration`（连同 `local.migrationCommand`：从源码运行的同一条迁移）。然后 `brickkit lint`。
 5. **写契约。** 先把接口写进契约文件——调用方可以同时开工，你也有了验收标准。
 6. **写代码。** 依赖地址从 `*_ENDPOINT` 读；弱依赖的变量可能不存在，用 `.get()` 读并写明降级；健康检查只查本进程；入口对不认识的参数立刻报错退出。
 7. **写 Dockerfile。** 镜像里要有 `wget` 或 `curl`（HTTP 健康检查用），不以 root 运行。

@@ -52,7 +52,7 @@
 | 不写 | 跟着上层走 |
 | `mode: enabled` | 一定跑，不管上层；它的强依赖被关掉时报错（两个意图冲突） |
 | `mode: disable` | 一定不跑；**强**依赖它的组件跟着不跑，弱依赖它的组件照常跑，只是拿不到它的地址 |
-| `mode: local` | 一定跑，但不在容器里：BrickKit 从源码探测启动命令、在这台机器上拉起这个进程，在那次 `up` 运行期间盯着它；会话结束进程就停，所以不是一直运行的部署（见 [`mode`](../01-three-layers/03-deploy-yaml.md#mode跑不跑怎么跑)） |
+| `mode: local` | 一定跑，但不在容器里：BrickKit 从源码探测启动命令、在这台机器上拉起这个进程（组件写了 `local.migrationCommand` 时先从源码跑迁移），在那次 `up` 运行期间盯着它；会话结束进程就停，所以不是一直运行的部署（见 [`mode`](../01-three-layers/03-deploy-yaml.md#mode跑不跑怎么跑)） |
 | `mode: debug` | 一定跑，进程由你自己在 IDE 里启动；**只能写在个人的 `deploy.local.yaml` 里** |
 
 `local` 和 `debug` 只在 Docker / Podman 目标下有意义：集群里的 Pod 连不到你笔记本上的进程。
