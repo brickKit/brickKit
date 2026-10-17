@@ -145,7 +145,7 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [docs/zh/10-troubleshooting/02-local-debug-issues.md](docs/zh/10-troubleshooting/02-local-debug-issues.md): 本地调试问题——过期、校验报错
 - [docs/zh/10-troubleshooting/03-config-conflict-issues.md](docs/zh/10-troubleshooting/03-config-conflict-issues.md): 配置冲突——重复 key、$var: 缺失
 - [docs/zh/10-troubleshooting/04-git-auth-issues.md](docs/zh/10-troubleshooting/04-git-auth-issues.md): Git 鉴权问题——SSH/HTTPS/CI
-- [docs/zh/10-troubleshooting/05-build-issues.md](docs/zh/10-troubleshooting/05-build-issues.md): 构建问题——--force、Dockerfile 错误
+- [docs/zh/10-troubleshooting/05-build-issues.md](docs/zh/10-troubleshooting/05-build-issues.md): 构建问题——--force、本地组件拉的是镜像（没写 deployment.build）、源码里没有项目钉着的版本、Dockerfile 错误、镜像太大
 - [docs/zh/10-troubleshooting/06-shell-issues.md](docs/zh/10-troubleshooting/06-shell-issues.md): 外壳问题——JSON 解析、特殊字符
 - [docs/zh/10-troubleshooting/07-migration-issues.md](docs/zh/10-troubleshooting/07-migration-issues.md): 迁移问题——超时、顺序、连接串
 - [docs/zh/10-troubleshooting/08-lint-and-schema-issues.md](docs/zh/10-troubleshooting/08-lint-and-schema-issues.md): lint 与 Schema 问题

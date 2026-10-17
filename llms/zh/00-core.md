@@ -552,7 +552,7 @@ brickkit up
    建议：up 从不自动构建（构建与部署分离）：先运行 brickkit build demo/hello@1.0.0
 ```
 
-它失败了，而且说得很清楚为什么：本地源里的组件是**正在开发的代码**，镜像必须从它构建；而
+它失败了，而且说得很清楚为什么：本地源里写了 `deployment.build` 的组件是**正在开发的代码**，镜像必须从它构建；而
 `brickkit up` **从不自动构建**。构建是你的显式动作，部署是平台的机械操作——这样 `up` 永远不会
 悄悄把一份你没打算发布的代码打进镜像。
 
@@ -565,8 +565,8 @@ brickkit build
 ✅ 已构建 demo/hello@1.0.0 → brickkit-demo/hello:1.0.0
 ```
 
-什么时候需要 `build`：组件来自本地源，或者组件没有写 `deployment.image`（只写了怎么构建）。从 Git 仓库或
-市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。没写 `image` 时，镜像名由组件 ID 推出、
+什么时候需要 `build`：组件来自本地源且写了 `deployment.build`，或者组件没有写 `deployment.image`（只写了怎么构建）。
+其余写了 `image` 的组件，镜像都是拉取的，不用构建——来自 Git 仓库、市场还是本地源都一样。没写 `image` 时，镜像名由组件 ID 推出、
 tag 就是组件版本（`demo-hello:1.0.0`）；`image` 没写 tag 时，也会接上组件版本。
 
 ## 第四步：启动
@@ -707,7 +707,7 @@ brickkit down
 | **三层文件** | `brickkit.yaml`（有什么）、`deploy.yaml` / `deploy.local.yaml`（怎么跑）、`config/`（拿到什么配置），见 [三层架构总览](../../docs/zh/01-three-layers/01-overview.md) |
 | **锁文件** | `brickkit.yaml` 的角色：用到的每个组件都锁在一个精确版本上，没写进去的组件就不存在 |
 | **安装源**（Source） | 去哪里找组件：Git 仓库（不用市场时的常规分发方式，版本就是 Git tag）、本机目录（本地源）、组件市场（可选） |
-| **本地源**（Local Source） | 本机上的一个目录，里面按 `<scope>/<name>/component.yaml` 放着组件源码；它们的镜像由 `brickkit build` 构建 |
+| **本地源**（Local Source） | 本机上的一个目录，里面按 `<scope>/<name>/component.yaml` 放着组件源码；写了 `deployment.build` 的，镜像由 `brickkit build` 构建；只写了 `image` 的照样拉取 |
 | **强依赖 / 弱依赖** | 强依赖缺了就报错、不启动；弱依赖（`optional: true`）缺了只是**不注入**它的地址变量——不是注入空字符串 |
 | **契约**（Contract / Artifacts） | 组件对外公开的 API 描述（OpenAPI、Protobuf 等），在 `component.yaml` 的 `artifacts` 里声明，`add` / `fetch` 时下载 |
 | **外壳**（Shell） | 把多个组件编进**一个进程**里跑的组件，用来省内存和 CPU，见 [外壳机制](../../docs/zh/04-shell/README.md) |

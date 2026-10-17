@@ -140,8 +140,8 @@ Can start on their own: demo-hello-1-0-0 (no dependencies)
    Suggestion: up never builds on its own (building and deploying are separate): run brickkit build demo/hello@1.0.0 first
 ```
 
-It fails, and it says exactly why: a component in a local source is **code you're developing**, so its image has to be
-built from it — and `brickkit up` **never builds**. Building is your explicit step; deploying is the platform's
+It fails, and it says exactly why: a component in a local source that writes `deployment.build` is **code you're
+developing**, so its image has to be built from it — and `brickkit up` **never builds**. Building is your explicit step; deploying is the platform's
 mechanical one. That way `up` can never quietly bake code you didn't mean to ship into an image.
 
 ```bash
@@ -153,9 +153,9 @@ brickkit build
 ✅ Built demo/hello@1.0.0 → brickkit-demo/hello:1.0.0
 ```
 
-When you need `build`: the component comes from a local source, or its `component.yaml` doesn't name a
-`deployment.image` (it only says how to build one). A component added from a Git repository or a market that does
-name an `image` is pulled, not built. Without an `image`, the image is named after the component ID and
+When you need `build`: the component comes from a local source and writes `deployment.build`, or its `component.yaml`
+doesn't name a `deployment.image` (it only says how to build one). Every other component that names an `image` is
+pulled, not built — from a Git repository, a market, or a local source alike. Without an `image`, the image is named after the component ID and
 tagged with its version (`demo-hello:1.0.0`); an `image` written without a tag gets the version appended.
 
 ## Step 4: start it

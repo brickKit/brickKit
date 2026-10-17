@@ -163,7 +163,7 @@ brickkit add demo/hello@1.0.0 --repo
 分支、提交、推送都是你自己的事，CLI 不管 Git 权限。放在某个仓库子目录里的组件（`repo` 安装源，或 `source.path`）连同整个仓库一起克隆：
 `components/<scope>/<name>/` 是那个仓库，组件是其中 `component.yaml` 的 `metadata.id` 是它的那个子目录。
 
-注意：`components/` 是本地安装源，而且排在 Git 源前面。克隆之后，这个组件就从你的工作区里解析——你改的代码会被 `brickkit build`
+注意：`components/` 是本地安装源，而且排在 Git 源前面。克隆之后，这个组件就从你的工作区里解析——它写了 `deployment.build` 时（只写了 `image` 的照样拉取），你改的代码会被 `brickkit build`
 打进镜像，`upgrade` 看到的"最新版本"也是工作区里的版本（见 [升级](07-upgrade-and-migration.md#组件来自本地源时)）。
 
 `--repo-all` 把这次加进来的每个开源组件的源码都克隆下来（各自的默认版本）。

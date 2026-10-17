@@ -30,6 +30,42 @@ brickkit build shop/order@0.1.0 --force
 Then `brickkit up` — `up` sees the image changed and recreates the container. For changes you'll release, raise the
 version (`metadata.version`) and build, with no need for `--force`.
 
+## The component's code is in `components/`, but `up` runs the published image
+
+**Symptom**
+
+You change a component's code in `components/`, run `brickkit build` and `up`, and the old behaviour runs. `build`
+doesn't build it, and says:
+
+```text
+⚠️ demo/web declares only deployment.image: its image is always pulled, from a local source too, and the Dockerfile next to it is never used
+   File: components/demo/web/Dockerfile
+   deployment.image: registry.example.com/demo/web:1.0.0
+   Suggestion: To build the image from this source, declare deployment.build (for a Dockerfile at the root: build: {dockerfile: Dockerfile})
+```
+
+`brickkit lint` gives the same warning.
+
+**Cause**
+
+Only a component that writes `deployment.build` is built. Its `component.yaml` names only an `image`, so the image is
+pulled from the registry wherever the component comes from — a local source too — and the `Dockerfile` next to it is
+never used. BrickKit doesn't guess that a `Dockerfile` is meant for it.
+
+**Fix**
+
+Say how to build it, under `deployment`:
+
+```yaml
+deployment:
+  image: registry.example.com/demo/web
+  build:
+    dockerfile: Dockerfile
+```
+
+Then `brickkit build` and `brickkit up`. With both written, users of your released versions keep pulling the image,
+and whoever develops the code in a local source builds it.
+
 ## `up` says the images haven't been built yet
 
 **Symptom**
@@ -46,7 +82,8 @@ version (`metadata.version`) and build, with no need for `--force`.
 
 **Cause**
 
-These components come from a local source, or their `component.yaml` writes only `deployment.build` and no `image` — the
+These components come from a local source and write `deployment.build`, or their `component.yaml` writes only
+`deployment.build` and no `image` — the
 image has to be built on this machine, and this machine doesn't have it yet. Common right after cloning a project, right
 after `upgrade` to a new version, or right after `add --repo` cloned a component's source into `components/` (from then on
 it's provided by the local source, and its image is built from your workspace instead of pulling the one the author

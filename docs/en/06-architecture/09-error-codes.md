@@ -341,7 +341,7 @@ completes.
 
 | Title | Situation | What to do |
 | --- | --- | --- |
-| `Error: image pull not authorized` | The image registry refused the pull | `docker login` to that registry; or build it on this machine instead |
+| `Error: image pull not authorized` | The image registry refused the pull | `docker login` to that registry; or, when the component writes `deployment.build`, build it on this machine instead |
 | `Error: image not found` | The registry has no such image | Check the image reference; or build it on this machine with `brickkit build` |
 
 ### IMAGE_MISSING

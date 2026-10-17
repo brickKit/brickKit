@@ -135,7 +135,7 @@ brickkit up
    建议：up 从不自动构建（构建与部署分离）：先运行 brickkit build demo/hello@1.0.0
 ```
 
-它失败了，而且说得很清楚为什么：本地源里的组件是**正在开发的代码**，镜像必须从它构建；而
+它失败了，而且说得很清楚为什么：本地源里写了 `deployment.build` 的组件是**正在开发的代码**，镜像必须从它构建；而
 `brickkit up` **从不自动构建**。构建是你的显式动作，部署是平台的机械操作——这样 `up` 永远不会
 悄悄把一份你没打算发布的代码打进镜像。
 
@@ -148,8 +148,8 @@ brickkit build
 ✅ 已构建 demo/hello@1.0.0 → brickkit-demo/hello:1.0.0
 ```
 
-什么时候需要 `build`：组件来自本地源，或者组件没有写 `deployment.image`（只写了怎么构建）。从 Git 仓库或
-市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。没写 `image` 时，镜像名由组件 ID 推出、
+什么时候需要 `build`：组件来自本地源且写了 `deployment.build`，或者组件没有写 `deployment.image`（只写了怎么构建）。
+其余写了 `image` 的组件，镜像都是拉取的，不用构建——来自 Git 仓库、市场还是本地源都一样。没写 `image` 时，镜像名由组件 ID 推出、
 tag 就是组件版本（`demo-hello:1.0.0`）；`image` 没写 tag 时，也会接上组件版本。
 
 ## 第四步：启动

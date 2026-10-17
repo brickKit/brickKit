@@ -106,10 +106,11 @@ Secret 用 `existingSecret` 引用，平台不读不写它的值。**平台不�
 
 **7. `up` 从不构建镜像。**
 
-本地源的组件（和只有 `deployment.build` 的组件）先 `brickkit build`；镜像不在时 `up` 报
+本地源里写了 `deployment.build` 的组件（和只有 `deployment.build` 的组件）先 `brickkit build`；镜像不在时 `up` 报
 `IMAGE_MISSING`。镜像 tag 就是组件版本，同版本的镜像已存在时 `build` 跳过，所以改了代码没升版本要
 `brickkit build <id> --force`。本机构建的外壳镜像里编进的成员版本与它的 `component.yaml` 不一致时是
-`IMAGE_STALE`。有 `image:` 的 git / 市场组件是拉取的。
+`IMAGE_STALE`。其余有 `image:` 的组件都是拉取的——本地源里只有 `image:` 的也一样（旁边放着没用上的
+`Dockerfile` 时 `lint` / `build` 会警告）。
 
 **数据库、缓存没有「资源绑定」。** 它们由运维部署，组件通过自己的配置项（`DB_HOST`、`DB_PASSWORD`……）
 去连。数据库本身由你建一次；表由组件的迁移建。

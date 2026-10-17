@@ -110,6 +110,10 @@ conformance: 12 cases, all passed
 不用 `gofmt -w`）。新出现的文件也算改动，和跑检查之前的规则一样——检查必须留下的产物（构建输出、覆盖率报告）写进
 `.gitignore`。检查自己做了提交，同样会被拦下：检查过的提交已经不是当前提交了。
 
+按开源发布的版本（组件目录有 `origin`，或 `--source-type git`）要先 `brickkit release` 才能发到市场：市场记下仓库与这个版本的 tag，
+`add --repo` 克隆之后检出它。tag 不在远端、或不在要发布的这个提交上时，`publish` 在任何东西到达市场之前就停下。按闭源发布
+（`--source-type registry`）不需要 tag。
+
 `brickkit publish` 在任何东西到达市场之前跑同样的检查，也认同一个 `--skip-checks`。它跑完检查之后不再看目录：
 它上传的东西（`component.yaml` 和文档）在检查开始之前就读好了。
 

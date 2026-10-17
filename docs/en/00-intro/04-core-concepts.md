@@ -13,7 +13,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../01-three-layers/01-overview.md) |
 | **Lock file** | The role of `brickkit.yaml`: every component in use is locked to an exact version, and a component not written there doesn't exist |
 | **Install source** | Where to look for components: a Git repository (the usual way to distribute without a market; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
-| **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; their images are built by `brickkit build` |
+| **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; the images of those that write `deployment.build` are built by `brickkit build`; one that writes only an `image` is pulled |
 | **Required / optional dependency** | A missing required dependency is an error and nothing starts; a missing optional one (`optional: true`) only means its address variable is **not injected** — not injected as an empty string |
 | **Contract** (artifacts) | The API description a component publishes (OpenAPI, Protobuf, …), declared under `artifacts` in `component.yaml` and downloaded by `add` / `fetch` |
 | **Shell** | A component that compiles several components into **one process**, to save memory and CPU; see [Shells](../04-shell/README.md) |

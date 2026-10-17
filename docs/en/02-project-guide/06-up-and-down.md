@@ -77,8 +77,8 @@ Change the config and run it again, and only the affected containers are recreat
 
 | Component | How `up` checks it |
 | --- | --- |
-| From a local source (code being developed), or its `component.yaml` says only how to build and names no `image` | The image must already be on this machine (built by `brickkit build`); otherwise it's an error |
-| A Git / market component that names an `image` | The image is on this machine or can be pulled from the registry; otherwise it's an error, with a note that you can build locally instead |
+| From a local source and writes `deployment.build` (code being developed), or its `component.yaml` says only how to build and names no `image` | The image must already be on this machine (built by `brickkit build`); otherwise it's an error |
+| Any other component that names an `image` — from Git, a market, or a local source with only an `image` | The image is on this machine or can be pulled from the registry; otherwise it's an error, with a note that you can build locally instead when the component writes `deployment.build` |
 
 Every problem is listed at once, rather than one at a time. Why it doesn't just build: see [Building and images](12-build-and-images.md).
 

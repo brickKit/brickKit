@@ -124,6 +124,11 @@ check that makes a commit of its own is stopped the same way: the commit that wa
 doesn't look at the directory afterwards: what it uploads (`component.yaml` and the documents) was read before the
 checks ran.
 
+An open-source version (the component directory has an `origin`, or `--source-type git`) goes to a market only after
+`brickkit release`: the market records the repository and the version's tag, and `add --repo` checks that tag out.
+`publish` stops before anything reaches the market when the tag isn't on the remote at the commit being published. A
+closed-source version (`--source-type registry`) needs no tag.
+
 **Why in `component.yaml`, and why the platform doesn't decide.** A tag, once pushed, and a version, once on a market,
 can't be taken back, and `release` / `publish` are the only steps every way of releasing goes through. A Git hook or a
 `make` target guards one machine or one habit; a check written in `component.yaml` travels with the component. What to

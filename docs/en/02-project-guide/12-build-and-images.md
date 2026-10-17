@@ -100,7 +100,7 @@ yourself.
 ⏭️  demo/hello@1.0.0: image demo-hello:1.0.0 already exists, skipped (--force rebuilds)
 ```
 
-For a component from a local source, "exists" means an image `brickkit build` built from local code; one with the same
+For a component built from a local source, "exists" means an image `brickkit build` built from local code; one with the same
 tag that came from anywhere else (pulled, or built by hand) is rebuilt. So is a shell's image whose recorded member
 versions differ from the members the shell declares.
 
@@ -140,8 +140,8 @@ deployment:
 ```
 
 Users build nothing: `up` checks the image is on the machine or can be pulled from the registry, then starts it. When it
-can't be pulled (not logged in, no permission, no network), `up` stops with an error and points out that you can build
-locally instead.
+can't be pulled (not logged in, no permission, no network), `up` stops with an error and, when the component also writes
+`deployment.build`, points out that you can build locally instead.
 
 ## Building locally: `build`
 

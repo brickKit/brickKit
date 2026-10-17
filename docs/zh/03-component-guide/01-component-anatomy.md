@@ -23,7 +23,7 @@ demo-quote/
 | 文件 | 必须有吗 | 谁读它 |
 | --- | --- | --- |
 | `component.yaml` | 必须 | CLI：安装、生成部署文件、注入环境变量全靠它 |
-| `Dockerfile` | 组件没有预构建镜像时必须 | `brickkit build` |
+| `Dockerfile` | 组件从源码构建时（`deployment.build` 指向它）必须 | `brickkit build` |
 | `BRICKKIT.md` | 应该有 | 使用这个组件的人和 AI 助手；它会缓存进使用方的项目，在那里脱离仓库单独被读 |
 | `AGENTS.md`、`CLAUDE.md` | 应该有 | 开发这个组件的 AI 助手（和人）；从不离开这个仓库 |
 | `README.md` | 应该有 | 在 GitHub 上浏览仓库的人 |
@@ -63,7 +63,8 @@ demo-quote/
 
 最少只要两个文件：`component.yaml` 和让镜像存在的东西。
 
-- 组件写自己的代码：`component.yaml` + `Dockerfile` + 源码。
+- 组件写自己的代码：`component.yaml`（写上 `deployment.build`）+ `Dockerfile` + 源码。不写 `deployment.build`，`Dockerfile`
+  永远用不上：镜像是拉取的。
 - 组件包装一个现成的镜像（比如一个开源服务）：`component.yaml` 里写 `deployment.image` 就够了，一行代码、一个 Dockerfile 都不需要。
 
 前端组件也一样是容器：用 nginx 之类的 Web 服务器容器提供静态文件，`port: 80`。平台里没有"不是容器的组件"。

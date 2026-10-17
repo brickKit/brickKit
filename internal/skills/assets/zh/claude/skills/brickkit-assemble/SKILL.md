@@ -92,7 +92,7 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 该启动的移回来，判据与 `up` 完全一致。把 `components/` 提交进 Git 的项目，用 `brickkit restore`
 把 `deploy.yaml` 里的 `mode` 恢复到上次提交的样子，源码布局跟着回去。
 
-**12. `up` 从不构建镜像。** 本地源的组件要先 `brickkit build`，见 `brickkit-deploy` 技能。
+**12. `up` 从不构建镜像。** 本地源里写了 `deployment.build` 的组件要先 `brickkit build`，见 `brickkit-deploy` 技能。
 
 **13. 只改一个组件时，用焦点运行，别起整套。**
 

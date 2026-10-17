@@ -124,11 +124,12 @@ Vault itself — any way of getting the value into the process environment works
 reads it through its own config keys (`DB_HOST`, `DB_PASSWORD`, …). The database itself is created
 by you, once; tables come from the component's migration.
 
-**7. `up` never builds images.** Local-source components (and git ones with only
-`deployment.build`) need `brickkit build [<id>]` first; while the image is missing `up` stops with
+**7. `up` never builds images.** Local-source components that write `deployment.build` (and git ones
+with only `deployment.build`) need `brickkit build [<id>]` first; while the image is missing `up` stops with
 `IMAGE_MISSING`. Tags equal `metadata.version`, and an existing image of that version is skipped —
 changed code without a version bump needs `--force`. A shell image built with stale member versions is
-`IMAGE_STALE`. Git / market components with `image:` are pulled.
+`IMAGE_STALE`. Every other component with `image:` is pulled — a local-source one with only `image:` too
+(`lint` / `build` warn when a `Dockerfile` sits next to it unused).
 
 **8. Shells are chosen in the deploy file.** Nest member entries under the shell entry and they run
 inside it (no own container; their `*_ENDPOINT` points at the shell; their own labels / health

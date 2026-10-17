@@ -23,7 +23,7 @@ demo-quote/
 | File | Required? | Who reads it |
 | --- | --- | --- |
 | `component.yaml` | Yes | The CLI: installing, generating deployment files and injecting environment variables all rest on it |
-| `Dockerfile` | When the component has no prebuilt image | `brickkit build` |
+| `Dockerfile` | When the component is built from source (`deployment.build` names it) | `brickkit build` |
 | `BRICKKIT.md` | It should be there | The people and AI assistants using the component; it is cached into their projects and read there without the repository |
 | `AGENTS.md`, `CLAUDE.md` | They should be there | The AI assistant (and person) developing the component; never leaves the repository |
 | `README.md` | It should be there | People browsing the repository on GitHub |
@@ -69,7 +69,8 @@ component, and users declare the repository once as an install source with `repo
 
 Two files at least: `component.yaml`, and whatever makes the image exist.
 
-- A component with its own code: `component.yaml` + `Dockerfile` + source.
+- A component with its own code: `component.yaml` (with `deployment.build`) + `Dockerfile` + source. Without
+  `deployment.build` the `Dockerfile` is never used: the image is pulled.
 - A component wrapping an existing image (an open-source service, say): `deployment.image` in `component.yaml` is enough —
   no code, no Dockerfile.
 

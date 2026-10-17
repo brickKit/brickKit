@@ -179,7 +179,8 @@ with its whole repository: `components/<scope>/<name>/` is the repository, and t
 `component.yaml` has its `metadata.id`.
 
 Note: `components/` is a local install source, and it comes before the Git source. After cloning, the component resolves
-from your working copy — the code you change is what `brickkit build` puts into the image, and the "latest version"
+from your working copy — when it writes `deployment.build`, the code you change is what `brickkit build` puts into the
+image (one that writes only an `image` keeps pulling it), and the "latest version"
 `upgrade` sees is the working copy's version (see [Upgrading](07-upgrade-and-migration.md#when-a-component-comes-from-a-local-source)).
 
 `--repo-all` clones the source of every open-source component this add brings in (each at its default version).

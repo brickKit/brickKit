@@ -582,8 +582,8 @@ Can start on their own: demo-hello-1-0-0 (no dependencies)
    Suggestion: up never builds on its own (building and deploying are separate): run brickkit build demo/hello@1.0.0 first
 ```
 
-It fails, and it says exactly why: a component in a local source is **code you're developing**, so its image has to be
-built from it — and `brickkit up` **never builds**. Building is your explicit step; deploying is the platform's
+It fails, and it says exactly why: a component in a local source that writes `deployment.build` is **code you're
+developing**, so its image has to be built from it — and `brickkit up` **never builds**. Building is your explicit step; deploying is the platform's
 mechanical one. That way `up` can never quietly bake code you didn't mean to ship into an image.
 
 ```bash
@@ -595,9 +595,9 @@ brickkit build
 ✅ Built demo/hello@1.0.0 → brickkit-demo/hello:1.0.0
 ```
 
-When you need `build`: the component comes from a local source, or its `component.yaml` doesn't name a
-`deployment.image` (it only says how to build one). A component added from a Git repository or a market that does
-name an `image` is pulled, not built. Without an `image`, the image is named after the component ID and
+When you need `build`: the component comes from a local source and writes `deployment.build`, or its `component.yaml`
+doesn't name a `deployment.image` (it only says how to build one). Every other component that names an `image` is
+pulled, not built — from a Git repository, a market, or a local source alike. Without an `image`, the image is named after the component ID and
 tagged with its version (`demo-hello:1.0.0`); an `image` written without a tag gets the version appended.
 
 ## Step 4: start it
@@ -740,7 +740,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../../docs/en/01-three-layers/01-overview.md) |
 | **Lock file** | The role of `brickkit.yaml`: every component in use is locked to an exact version, and a component not written there doesn't exist |
 | **Install source** | Where to look for components: a Git repository (the usual way to distribute without a market; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
-| **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; their images are built by `brickkit build` |
+| **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; the images of those that write `deployment.build` are built by `brickkit build`; one that writes only an `image` is pulled |
 | **Required / optional dependency** | A missing required dependency is an error and nothing starts; a missing optional one (`optional: true`) only means its address variable is **not injected** — not injected as an empty string |
 | **Contract** (artifacts) | The API description a component publishes (OpenAPI, Protobuf, …), declared under `artifacts` in `component.yaml` and downloaded by `add` / `fetch` |
 | **Shell** | A component that compiles several components into **one process**, to save memory and CPU; see [Shells](../../docs/en/04-shell/README.md) |

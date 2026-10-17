@@ -106,7 +106,7 @@ It moves the source of components that won't start this run into `components/.ar
 using exactly `up`'s decision. Containers aren't touched. `brickkit restore` puts `deploy.yaml`'s
 `mode` values back to the last commit, for projects that commit `components/`.
 
-**11. `up` never builds images.** Local-source components need `brickkit build` first — see the
+**11. `up` never builds images.** Local-source components that write `deployment.build` need `brickkit build` first — see the
 `brickkit-deploy` skill.
 
 **12. To work on one component, run a focus run — not the whole stack.**

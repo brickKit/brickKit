@@ -150,7 +150,7 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/10-troubleshooting/02-local-debug-issues.md](docs/en/10-troubleshooting/02-local-debug-issues.md): local debugging problems — a stale personal file, containers not reaching your process
 - [docs/en/10-troubleshooting/03-config-conflict-issues.md](docs/en/10-troubleshooting/03-config-conflict-issues.md): config conflicts — duplicate keys, missing $var:, config that doesn't take effect
 - [docs/en/10-troubleshooting/04-git-auth-issues.md](docs/en/10-troubleshooting/04-git-auth-issues.md): Git authentication — SSH, HTTPS, CI, offline
-- [docs/en/10-troubleshooting/05-build-issues.md](docs/en/10-troubleshooting/05-build-issues.md): build problems — --force, Dockerfile errors, image size
+- [docs/en/10-troubleshooting/05-build-issues.md](docs/en/10-troubleshooting/05-build-issues.md): build problems — --force, a local component that pulls its image (no deployment.build), the pinned version missing from the source, Dockerfile errors, image size
 - [docs/en/10-troubleshooting/06-shell-issues.md](docs/en/10-troubleshooting/06-shell-issues.md): shell problems — JSON, member config, routing
 - [docs/en/10-troubleshooting/07-migration-issues.md](docs/en/10-troubleshooting/07-migration-issues.md): migration problems — hangs, order, connection strings
 - [docs/en/10-troubleshooting/08-lint-and-schema-issues.md](docs/en/10-troubleshooting/08-lint-and-schema-issues.md): lint and schema problems
