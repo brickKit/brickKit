@@ -46,7 +46,12 @@ func TestLocalRepoVersionMustMatchDefault(t *testing.T) {
 	assert.Contains(t, r.stderr, "erp/portal@1.0.0")
 	assert.Contains(t, r.stderr, "1.1.0")
 	assert.Contains(t, r.stderr, "brickkit upgrade erp/portal@1.1.0")
-	assert.Contains(t, r.stderr, "checkout 1.0.0")
+	assert.Contains(t, r.stderr, "git -C components/erp/portal checkout 1.0.0")
+
+	// 在项目的子目录里运行：提示里的路径按使用者所在的目录写，照着敲就能用
+	r = runWithEngine(t, newFakeEngine(), filepath.Join(dir, "config"), "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "git -C ../components/erp/portal checkout 1.0.0")
 }
 
 // 外壳以裸进程运行时，成员的代码从成员的本地仓库来——它的版本也要对。

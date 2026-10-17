@@ -65,7 +65,6 @@ func checkLocalRepos(proj *project.Project, states *cascade.Result) error {
 			}
 			return
 		}
-		display := displayPath(proj.Layout.Root, dir)
 		if def, _ := proj.Decl.DefaultVersion(ref.ID); def != ref.Version {
 			p.Add(field, i18n.T(msgid.CliUpLocalRepoNotDefault, ref.String(), def))
 			hint(i18n.T(msgid.CliUpHintMakeDefault, ref.String()))
@@ -73,15 +72,15 @@ func checkLocalRepos(proj *project.Project, states *cascade.Result) error {
 		}
 		version, err := project.LocalRepoVersion(dir)
 		if err != nil {
-			p.Add(field, i18n.T(msgid.CliUpLocalRepoUnreadable, ref.String(), display, err.Error()))
+			p.Add(field, i18n.T(msgid.CliUpLocalRepoUnreadable, ref.String(), dir, err.Error()))
 			return
 		}
 		if version == ref.Version {
 			return
 		}
-		p.Add(field, i18n.T(msgid.CliUpLocalRepoVersionMismatch, ref.String(), display, version))
+		p.Add(field, i18n.T(msgid.CliUpLocalRepoVersionMismatch, ref.String(), dir, version))
 		hint(i18n.T(msgid.CliUpHintUpgradeToRepo, ref.ID+"@"+version))
-		hint(i18n.T(msgid.CliUpHintCheckoutTag, display, source.VersionTag(ref.ID, ref.Version, proj.LocalRepoSubpath(ref.ID))))
+		hint(i18n.T(msgid.CliUpHintCheckoutTag, dir, source.VersionTag(ref.ID, ref.Version, proj.LocalRepoSubpath(ref.ID))))
 	}
 	for _, c := range proj.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}

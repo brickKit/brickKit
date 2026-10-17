@@ -140,3 +140,12 @@ func TestNewfAndWithDetailf(t *testing.T) {
 	assert.Contains(t, e.Format(), "❌ people/basic 存在多个版本")
 	assert.Contains(t, e.Format(), "   版本列表: 1.0.0, 2.0.0")
 }
+
+// 错误一层层往上传，每层都可能补同一行明细：一字不差的那行只留一份；键相同、值不同的照样追加。
+func TestWithDetailSkipsAnIdenticalLine(t *testing.T) {
+	e := New(CodeComponentNotFound, "Error: component not found").
+		WithDetail("Component", "erp/api@1.0.0").
+		WithDetail("Component", "erp/api@1.0.0").
+		WithDetail("Component", "erp/api@2.0.0")
+	assert.Equal(t, []Detail{{Key: "Component", Value: "erp/api@1.0.0"}, {Key: "Component", Value: "erp/api@2.0.0"}}, e.Details)
+}

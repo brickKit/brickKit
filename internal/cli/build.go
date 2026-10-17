@@ -204,9 +204,14 @@ func buildOne(ctx context.Context, opts *Options, proj *project.Project, client 
 
 // sourceRoot 是这个版本的源码目录：本地仓库正是这个版本时用它，否则从 tag 导出到临时目录。
 func sourceRoot(ctx context.Context, proj *project.Project, client *source.Client, ref resolver.Ref) (string, func(), error) {
-	if dir, ok := proj.LocalRepo(ref.ID); ok {
-		if v, err := project.LocalRepoVersion(dir); err == nil && v == ref.Version {
-			return dir, func() {}, nil
+	dir, hasRepo := proj.LocalRepo(ref.ID)
+	var repoVersion string
+	if hasRepo {
+		if v, err := project.LocalRepoVersion(dir); err == nil {
+			if v == ref.Version {
+				return dir, func() {}, nil
+			}
+			repoVersion = v
 		}
 	}
 	tmp, err := os.MkdirTemp("", "brickkit-build-")
@@ -216,9 +221,30 @@ func sourceRoot(ctx context.Context, proj *project.Project, client *source.Clien
 	cleanup := func() { _ = os.RemoveAll(tmp) }
 	if err := client.ExportSource(ctx, ref.ID, ref.Version, tmp); err != nil {
 		cleanup()
+		if repoVersion != "" {
+			return "", nil, localRepoOtherVersion(proj, ref, dir, repoVersion, err)
+		}
 		return "", nil, err
 	}
 	return tmp, cleanup, nil
+}
+
+// localRepoOtherVersion 补全"哪个安装源都没有这个版本的源码"：本地仓库里是另一个版本（开发时把
+// metadata.version 升了，项目还钉着原来那个）。拿那份代码构建这个版本会打出名不副实的镜像，所以照旧拒绝；
+// 但 CLI 知道仓库里是哪个版本，只说"没找到"会让人去翻安装源配置。出路与 up 发现同样的情况时一样：
+// 在仓库里检出这个版本的 tag，或者让项目改用仓库里的版本。
+func localRepoOtherVersion(proj *project.Project, ref resolver.Ref, dir, repoVersion string, cause error) error {
+	e := clierr.As(cause)
+	if e.Code != clierr.CodeComponentNotFound {
+		return cause
+	}
+	dup := *e
+	dup.Details = append([]clierr.Detail{}, e.Details...)
+	dup.Hints = append([]string{
+		i18n.T(msgid.CliBuildHintCheckoutTag, ref.String(), dir, source.VersionTag(ref.ID, ref.Version, proj.LocalRepoSubpath(ref.ID))),
+		i18n.T(msgid.CliBuildHintUpgradeToRepo, ref.ID+"@"+repoVersion),
+	}, e.Hints...)
+	return dup.WithDetail(i18n.T(msgid.CliBuildLabelLocalRepo), i18n.T(msgid.CliBuildLocalRepoHolds, dir, repoVersion))
 }
 
 // imageLabels 是写进镜像的标签：组件与版本；外壳还有编进去的成员版本（排好序）。

@@ -4,12 +4,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 func (g *gitOrgProject) runImages(dir string, images *fakeImages, args ...string) result {
@@ -111,6 +114,34 @@ func TestBuildCompatibilityVersionFromTag(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"erp-db:1.0.0"}, images.built())
 	assert.Equal(t, "one\n", contexts["erp-db:1.0.0"], "构建上下文是 1.0.0 那个 tag 的源码")
+}
+
+// 本地仓库已经升到别的版本、哪个安装源都没有项目钉着的那个版本的源码：不能拿新代码构建旧版本，
+// 但报错要说出仓库里是哪个版本，并给出与 up 一样的两条出路，而不是只说"没找到"。
+func TestBuildPinnedVersionNamesTheLocalRepoVersion(t *testing.T) {
+	dir := localRepoFixture(t)
+	bumpRepo(t, dir, "components", "erp/portal", "1.0.0", "1.1.0")
+
+	images := newFakeImages()
+	r := runWith(t, func(o *Options) {
+		o.Engine = newFakeEngine()
+		o.Images = images
+	}, dir, "build", "erp/portal@1.0.0")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Empty(t, images.built())
+	repo := filepath.Join("components", "erp", "portal")
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliBuildLocalRepoHolds, repo, "1.1.0"))
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliBuildHintCheckoutTag, "erp/portal@1.0.0", repo, "1.0.0"))
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliBuildHintUpgradeToRepo, "erp/portal@1.1.0"))
+	assert.Equal(t, 1, strings.Count(r.stderr, "erp/portal@1.0.0\n"), "组件那一行只出现一次：%s", r.stderr)
+
+	// 在项目的子目录里运行：仓库路径按使用者所在的目录写
+	r = runWith(t, func(o *Options) {
+		o.Engine = newFakeEngine()
+		o.Images = images
+	}, filepath.Join(dir, "config"), "build", "erp/portal@1.0.0")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "git -C "+filepath.Join("..", repo)+" checkout 1.0.0")
 }
 
 // 不点名时，镜像是拉取的组件不构建；点名时照样构建一份本机镜像（源码从它的 tag 导出）——

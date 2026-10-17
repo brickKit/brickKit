@@ -197,8 +197,14 @@ func Warn(code Code, message string) *Error {
 	return &Error{Code: code, Message: message, Warning: true, Exit: ExitOK}
 }
 
-// WithDetail 追加一行明细。
+// WithDetail 追加一行明细。与已有的某一行一字不差时不再追加：错误一层层往上传，每层都可能补一句
+// "组件：…"，同一行出现两次只是噪音。
 func (e *Error) WithDetail(key, value string) *Error {
+	for _, d := range e.Details {
+		if d.Key == key && d.Value == value {
+			return e
+		}
+	}
 	e.Details = append(e.Details, Detail{Key: key, Value: value})
 	return e
 }

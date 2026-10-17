@@ -788,8 +788,8 @@ func firstRealError(failures []failure, ref string) error {
 		}
 		e := clierr.As(f.err)
 		dup := *e
-		dup.Details = append(append([]clierr.Detail{}, e.Details...), clierr.Detail{Key: i18n.T(msgid.LabelComponent), Value: ref})
-		return &dup
+		dup.Details = append([]clierr.Detail{}, e.Details...)
+		return dup.WithDetail(i18n.T(msgid.LabelComponent), ref)
 	}
 	return nil
 }
