@@ -744,6 +744,10 @@ func engineFailure(action string, err error) error {
 
 // describeStatus 把引擎的状态说成人话。
 func describeStatus(s engine.Status) string {
+	return withReplicas(s, describeState(s))
+}
+
+func describeState(s engine.Status) string {
 	switch {
 	case s.State == "running" && s.Health != "":
 		return i18n.T(msgid.CliUpRunning, s.Health)

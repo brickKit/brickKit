@@ -20,7 +20,10 @@ const (
 	K8s = "k8s"
 )
 
-// Status 是一个 service 的运行状态。
+// Status 是一个 service 的运行状态：**每个 service 一条**，不论它有几个副本。
+//
+// 有多个副本时，State / Health / ExitCode 说的是最差的那一个（有一个没起来，
+// 这个组件就不算好），Replicas / Ready 说有几个、几个能接流量。
 type Status struct {
 	// Service 是 compose 里的 service 名（即版本化服务名）。
 	Service string
@@ -33,6 +36,10 @@ type Status struct {
 	Ports string
 	// ExitCode 只在 State 为 exited 时有意义。
 	ExitCode int
+	// Replicas 是这个 service 的副本数：compose 是引擎里的容器数，K8s 是 Deployment 要的副本数。
+	Replicas int
+	// Ready 是其中跑着且没坏（见 Running）的副本数。
+	Ready int
 }
 
 // Running 判断该 service 是否处于"跑着且没坏"的状态。

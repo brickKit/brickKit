@@ -1,15 +1,12 @@
 package cli
 
-// 本文件测「写了不生效就得出声」这条规矩，两个方向都测。
+// 本文件测「写了不生效就得出声」这条规矩，两个方向都测：
 //
-// 起点是 replicas：Docker 目标下它完全不生效，
-// 不提醒的话，使用者写了 replicas: 3、`up` 一切正常、然后 `docker ps` 里
-// 只有一个容器——他会怀疑是不是自己写错了字段名，而字段名是对的。
+//	Docker / Podman  只服务于 K8s 的字段（k8s: 块、hostname / tlsSecret 这对 Ingress 字段……）
+//	K8s              只对 Docker / Podman 有意义的 exposePort
 //
-// 后来补齐的两处：
-//
-//	反方向    K8s 目标下 exposePort 同样不生效，而从前一个字都不提
-//	hostname  与 tlsSecret 是一对（都只服务于 Ingress），从前只报后者
+// 不生效却不说，使用者会怀疑是自己写错了字段名，而字段名是对的。
+// replicas 不在名单里：三种目标下它都生效。
 
 import (
 	"strings"
@@ -21,40 +18,16 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// replicasProject 造一个 target 可指定、组件写了 replicas 的项目。
-func replicasProject(t *testing.T, target string) *projectFixture {
-	t.Helper()
-
+// replicas 在 Docker 下生效（compose 的 deploy.replicas），不该再被报成"被忽略"。
+func TestReplicasOnDockerIsNotIgnored(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, "components:\n  - id: demo/hello\n    version: 1.0.0\n    replicas: 3\n")
-
-	body := strings.Replace(f.legacy,
-		"target: docker", "target: "+target, 1)
-	f.rewrite(t, body)
-	return f
-}
-
-// Docker 目标下写 replicas 要警告，但不阻断。
-func TestReplicasOnDockerWarns(t *testing.T) {
-	f := replicasProject(t, "docker")
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code, "是提醒不是错误：%s", r.stderr)
-	out := r.stdout + r.stderr
-	assert.Contains(t, out, "replicas",
-		"Docker 下它完全不生效，不说的话使用者会以为是自己写错了字段名：%s", out)
-}
-
-// K8s 目标下不该有这条警告。
-func TestReplicasOnK8sDoesNotWarn(t *testing.T) {
-	f := replicasProject(t, "k8s")
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "only take effect on K8s",
-		"K8s 下它是生效的，再提醒就是噪音")
+	assert.NotContains(t, r.stdout+r.stderr, "replicas has no effect")
+	assert.Contains(t, generatedCompose(t, f.Dir), "replicas: 3")
 }
 
 // 平台承诺的是"部署文件里只对 K8s 生效的字段**全部**会在 Docker 下
@@ -67,7 +40,6 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: demo/hello
     version: 1.0.0
-    replicas: 2
     tlsSecret: demo-tls
     serviceAccountName: demo-sa
     expose: true
@@ -96,7 +68,7 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
 		"k8s.context", "k8s.namespace", "k8s.createNamespace",
 		"k8s.podSecurity", "k8s.imagePullSecrets", "k8s.ingressClass",
 		"k8s.ingressAnnotations", "k8s.networkPolicy", "k8s.serviceAccount",
-		"replicas", "hostname", "tlsSecret", "serviceAccountName",
+		"hostname", "tlsSecret", "serviceAccountName",
 	} {
 		assert.Contains(t, out, field,
 			"Docker 下写了 %s 必须提醒它被忽略了：%s", field, out)
@@ -132,7 +104,7 @@ func TestExposePortOnK8sWarns(t *testing.T) {
 // 警告按**字段**归集，不按组件。
 //
 // 同一件事说 N 遍会把警告区刷满，而使用者一旦开始整块跳过警告，
-// 真正要紧的那几条也一起被跳过。真跑过：4 个组件各写 replicas + tlsSecret
+// 真正要紧的那几条也一起被跳过。真跑过：4 个组件各写两个被忽略的字段
 // 就是 8 行，20 个组件就是 40 行。
 func TestTargetOnlyFieldsGroupedByField(t *testing.T) {
 	specs := []comp{
@@ -144,20 +116,20 @@ func TestTargetOnlyFieldsGroupedByField(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: demo/a
     version: 1.0.0
-    replicas: 2
+    serviceAccountName: a-sa
   - id: demo/b
     version: 1.0.0
-    replicas: 2
+    serviceAccountName: b-sa
   - id: demo/c
     version: 1.0.0
-    replicas: 2
+    serviceAccountName: c-sa
 `)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	out := r.stdout + r.stderr
-	assert.Equal(t, 1, strings.Count(out, "replicas has no effect"),
+	assert.Equal(t, 1, strings.Count(out, "serviceAccountName has no effect"),
 		"三个组件写了同一个字段，只该出现一行：%s", out)
 	assert.Contains(t, out, "demo/a@1.0.0, demo/b@1.0.0, demo/c@1.0.0",
 		"一行里点清是哪几个：%s", out)

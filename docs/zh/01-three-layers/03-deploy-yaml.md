@@ -55,7 +55,7 @@ components:
 | `exposePort` | Docker 下映射到宿主机的哪个端口（缺省与组件端口相同）；K8s 下不用 |
 | `hostname`、`tlsSecret` | K8s 下 Ingress 的域名与 TLS 证书 Secret |
 | `paths` | K8s 下这个组件在 `hostname` 下接的路径前缀；不写就是整个域名。见[几个组件共用一个域名](#几个组件共用一个域名) |
-| `replicas` | K8s 下的副本数（缺省 1）；大于 1 时自动生成 PodDisruptionBudget |
+| `replicas` | 副本数（缺省 1）。Docker / Podman 下是同一个服务的几个容器，K8s 下是 Deployment 的副本数（大于 1 时自动生成 PodDisruptionBudget）；见[多个副本](#多个副本) |
 | `resources` | 资源配额 `requests` / `limits`，覆盖组件建议的值 |
 | `serviceAccountName` | K8s 下用一个运维已经建好的 ServiceAccount |
 | `labels` | 原样透传：Docker 下是容器标签，K8s 下是 Pod 注解（给 Traefik、Prometheus 这类工具读） |
@@ -63,9 +63,23 @@ components:
 | `skipWaitFor` | 启动时不等这几个强依赖就绪（只去掉等待，照样连得到它们）。只对 Docker / Podman 有效：K8s 没有启动顺序。见 [外壳合并造成的启动环](../04-shell/04-members-management.md) |
 | `members` | 只有外壳条目有：它承载的成员，每个成员也是一个完整的条目 |
 
-只对 K8s 有意义的字段（`hostname`、`tlsSecret`、`paths`、`replicas`、`serviceAccountName`）在别的 `target` 下写了只警告，
+只对 K8s 有意义的字段（`hostname`、`tlsSecret`、`paths`、`serviceAccountName`）在别的 `target` 下写了只警告，
 命令照常执行——同一份条目可以在两种目标之间切换。反过来也一样：只对 Docker / Podman 有意义的 `exposePort`、
 `skipWaitFor` 在 `target: k8s` 下写了也只警告。
+
+## 多个副本
+
+`replicas: 2` 让同一个组件同时跑两份，三种目标下都生效。调用方拿到的地址不变：Docker / Podman 下服务名在项目网络里解析到每个副本，
+K8s 下 Service 选中每个 Pod。迁移不论几个副本都只跑一次。
+
+Docker / Podman 下有两点和 K8s 不同：
+
+- **多个副本不能映射宿主机端口。** 一个宿主机端口只能映射给一个容器。组件写了 `expose`，或者有本机进程（`mode: local` / `debug`）
+  要经宿主机端口连它时，`up` 在生成阶段就报错，并按端口的来源给出路；只在自己机器上调试时，在 `deploy.local.yaml` 里把它改成 `replicas: 1`。
+- **没有滚动升级。** `up` 换镜像或配置时，所有副本一起重建。
+
+所以单机上的多副本是为了在本机验证组件同时跑几份时的行为（定时任务只跑一次、队列里的任务只被一份认领，
+见[后台任务](../09-patterns/01-component-design.md#后台任务同一份代码可能同时跑着好几份)），不是为了不停机升级。
 
 ## 几个组件共用一个域名
 

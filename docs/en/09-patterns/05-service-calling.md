@@ -118,7 +118,8 @@ When the dependency declares a gRPC extra port (say `extraPorts: [{name: grpc, p
 - **With several replicas on K8s, a long-lived connection is pinned to one Pod.** A ClusterIP balances at layer 4: once an
   HTTP/2 connection is up, every request on it goes to the same Pod, and Pods added later get no traffic. Set
   `MaxConnectionAge` on the server (connections are rebuilt and rebalanced from time to time), or balance on the client.
-  On Docker / Podman each component is one container, and the problem doesn't arise. When the cluster has a service
+  On Docker / Podman with `replicas` it's the same: the service name resolves to every replica, but a connection picks
+  one when it's opened, and every request on a long-lived connection goes there. When the cluster has a service
   mesh or gateway, have the provider declare
   [`protocol: grpc`](../03-component-guide/02-component-yaml-reference.md#deployment-how-i-run) on that port: the
   platform writes it as `appProtocol` on the Service port, and a mesh or gateway that reads it balances per request.

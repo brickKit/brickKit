@@ -57,6 +57,7 @@ Docker 下，每个声明了迁移的组件多一个一次性的 service：
 
 Kubernetes 下它是一个 Job：`up` 先删掉上一次留下的同名 Job，再创建、等它完成，然后才部署主服务。Job 不重试（`backoffLimit: 0`），
 而且只跑一次——不论主服务有几个副本（用 Pod 的 InitContainer 的话，三个副本会并发跑三次同一个迁移）。
+Docker / Podman 下同样：迁移容器只有一个，主服务的每个副本都等它成功结束。
 
 `up` 会提前告诉你这次会动哪些库：
 

@@ -436,14 +436,56 @@ func parsePS(out []byte) ([]Status, error) {
 		}
 	}
 
-	out2 := make([]Status, 0, len(entries))
+	var out2 []Status
+	index := map[string]int{}
 	for _, e := range entries {
-		out2 = append(out2, Status{
+		replica := Status{
 			Service: e.Service, State: e.State, Health: e.Health,
-			Ports: portsOf(e), ExitCode: e.ExitCode,
-		})
+			Ports: portsOf(e), ExitCode: e.ExitCode, Replicas: 1,
+		}
+		if replica.Running() {
+			replica.Ready = 1
+		}
+		i, seen := index[e.Service]
+		if !seen {
+			index[e.Service] = len(out2)
+			out2 = append(out2, replica)
+			continue
+		}
+		out2[i] = mergeReplica(out2[i], replica)
 	}
 	return out2, nil
+}
+
+// mergeReplica 把同一个 service 的又一个容器（`replicas` 大于 1 时 compose 每个副本一行）并进那一条。
+//
+// 状态取最差的：一个副本退出了或不健康，这个组件就不算好——取最后一行（"后来者覆盖"）
+// 会让一个坏掉的副本被一个好的盖住，`up` 照样报成功。
+func mergeReplica(into, replica Status) Status {
+	merged := into
+	if replicaSeverity(replica) > replicaSeverity(into) {
+		merged = replica
+	}
+	merged.Replicas = into.Replicas + replica.Replicas
+	merged.Ready = into.Ready + replica.Ready
+	if merged.Ports == "" {
+		merged.Ports = into.Ports
+	}
+	return merged
+}
+
+// replicaSeverity 给一个容器的状态排坏的程度：没在跑 > 跑着但不健康 > 还在启动 > 好的。
+func replicaSeverity(s Status) int {
+	switch {
+	case s.State != "running":
+		return 3
+	case s.Health == "unhealthy":
+		return 2
+	case !s.Running():
+		return 1
+	default:
+		return 0
+	}
 }
 
 func statusParseError(err error) error {

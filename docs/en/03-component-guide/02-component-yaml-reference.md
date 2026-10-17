@@ -156,8 +156,9 @@ port of the Service. The reason is that gRPC keeps connections open — a Kubern
 once a connection is up every request on it goes to the same Pod, and with several replicas the load piles onto one. A
 service mesh or gateway that reads `appProtocol` knows the port is gRPC and balances per request. When nothing in the
 cluster reads it, it changes nothing, and what
-[Calling over gRPC](../09-patterns/05-service-calling.md#calling-over-grpc) says still applies. On Docker / Podman each
-component is one container; the problem doesn't arise and nothing is generated.
+[Calling over gRPC](../09-patterns/05-service-calling.md#calling-over-grpc) says still applies. On Docker / Podman nothing is
+generated: with several replicas a long-lived connection is pinned to one replica just the same, handled as
+[Calling over gRPC](../09-patterns/05-service-calling.md#calling-over-grpc) says.
 
 The same fact goes by different words (Istio reads `grpc`, Gateway API implementations read `kubernetes.io/h2c`). That
 belongs to the cluster, not to the component: the platform writes the word as it is (`appProtocol: grpc`) unless the

@@ -106,6 +106,8 @@ components:
   `wget` 与 `curl` 都试，所以镜像里有其中一个就行。
 - **端口**：只有 `expose: true` 的组件映射宿主机端口；其余只在项目网络里可达。
 - **资源**：`requests` 写成 `reservations`；没人写 `limits` 时不生成上限。
+- **副本**：`replicas` 大于 1 时写成 `deploy.replicas`，服务名在项目网络里解析到每个副本；迁移容器仍只有一个。
+  多个副本的服务不能映射宿主机端口（一个宿主机端口只能给一个容器），生成阶段就报错（见[多个副本](../01-three-layers/03-deploy-yaml.md#多个副本)）。
 - **网络**：一个项目一个网络，名字是 `brickkit-<项目名>-net`；Compose 项目名是 `brickkit-<项目名>`。
   项目之外的容器（自己的数据库、IdP、网关的 compose）要和组件在同一个网络里，比如 IdP 的 webhook 要按服务名回调组件时，
   别去模仿这个网络的内部标签，而是让网络归项目：先建好它，在部署文件里写 `network: <名字>`。生成的 compose 把它标成 `external`，

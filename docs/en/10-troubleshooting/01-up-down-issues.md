@@ -80,6 +80,20 @@ for a member, is declared in `component.yaml`: free it on your machine.
 **Symptom three: two components on a shell use the same port** — see
 [Shell problems](06-shell-issues.md#two-components-on-a-shell-want-the-same-port).
 
+**Symptom four: a component with several replicas needs a host port.**
+
+```text
+❌ Error: demo/hello@1.0.0 has 2 replicas, yet needs host ports — a host port maps to one container only
+   Host ports: 18080:8080
+   Suggestion: A process on this machine (mode: local / debug) reaches it through a host port: set replicas: 1 for it in the deploy file this run reads (deploy.local.yaml in local mode), or run that caller in a container too
+```
+
+On Docker / Podman a host port maps to one container only. The port comes either from the component's own `expose` or
+from a process on this machine that reaches it; the suggestion matches the source.
+
+**Fix**: do as the suggestion says. When it's only you debugging on your machine, write `replicas: 1` in
+`deploy.local.yaml` and leave the team's `deploy.yaml` alone.
+
 ## A migration fails
 
 **Symptom**

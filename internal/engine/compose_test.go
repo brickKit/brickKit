@@ -316,6 +316,61 @@ func TestParsePSArray(t *testing.T) {
 	assert.False(t, statuses[1].Running())
 }
 
+// replicas 大于 1 时 compose 每个副本一行；Status 仍是每个 service 一条，副本数与就绪数各记一份。
+func TestParsePSFoldsReplicasIntoOneService(t *testing.T) {
+	out := `{"Service":"a","State":"running","Health":"healthy","Publishers":"8080/tcp"}
+{"Service":"a","State":"running","Health":"healthy","Publishers":"8080/tcp"}
+{"Service":"a-migration","State":"exited","ExitCode":0}`
+
+	statuses, err := parsePS([]byte(out))
+
+	require.NoError(t, err)
+	require.Len(t, statuses, 2)
+	assert.Equal(t, "a", statuses[0].Service)
+	assert.True(t, statuses[0].Running())
+	assert.Equal(t, 2, statuses[0].Replicas)
+	assert.Equal(t, 2, statuses[0].Ready)
+	assert.Equal(t, 1, statuses[1].Replicas)
+}
+
+// 一个副本坏了，这个组件就不算好——不论坏的那行排在前面还是后面。
+// 取"最后一行"会让好的副本盖住坏的，up 照样报成功。
+func TestParsePSReportsTheWorstReplica(t *testing.T) {
+	cases := map[string]string{
+		"坏的在前": `{"Service":"a","State":"exited","ExitCode":2}
+{"Service":"a","State":"running","Health":"healthy"}`,
+		"坏的在后": `{"Service":"a","State":"running","Health":"healthy"}
+{"Service":"a","State":"exited","ExitCode":2}`,
+	}
+	for name, out := range cases {
+		t.Run(name, func(t *testing.T) {
+			statuses, err := parsePS([]byte(out))
+
+			require.NoError(t, err)
+			require.Len(t, statuses, 1)
+			assert.False(t, statuses[0].Running())
+			assert.Equal(t, "exited", statuses[0].State)
+			assert.Equal(t, 2, statuses[0].ExitCode)
+			assert.Equal(t, 2, statuses[0].Replicas)
+			assert.Equal(t, 1, statuses[0].Ready)
+		})
+	}
+}
+
+func TestParsePSUnhealthyReplicaOutranksAStartingOne(t *testing.T) {
+	out := `{"Service":"a","State":"running","Health":"starting"}
+{"Service":"a","State":"running","Health":"unhealthy"}
+{"Service":"a","State":"running","Health":"healthy"}`
+
+	statuses, err := parsePS([]byte(out))
+
+	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	assert.Equal(t, "unhealthy", statuses[0].Health)
+	assert.Equal(t, 3, statuses[0].Replicas)
+	assert.Equal(t, 1, statuses[0].Ready)
+}
+
 func TestParsePSEmpty(t *testing.T) {
 	statuses, err := parsePS([]byte("  \n"))
 

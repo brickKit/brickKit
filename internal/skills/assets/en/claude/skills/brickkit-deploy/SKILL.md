@@ -195,23 +195,29 @@ that would break the file is refused before anything is written.
 **Targets**: `target: docker | podman | k8s` in the deploy file. Podman runs the same generated
 compose file through `podman compose`. K8s settings live in the `k8s:` block (`context`, `namespace`,
 `createNamespace`, `podSecurity`, `imagePullSecrets`, `ingressClass`, `ingressAnnotations`,
-`serviceAccount`, `networkPolicy`) and warn on other targets; per-entry `hostname`, `tlsSecret`,
-`replicas` (`> 1` adds a PDB) and `serviceAccountName` are K8s only; `exposePort` and `skipWaitFor`
-are docker / podman only.
+`serviceAccount`, `networkPolicy`) and warn on other targets; per-entry `hostname`, `tlsSecret` and
+`serviceAccountName` are K8s only; `exposePort` and `skipWaitFor` are docker / podman only.
+
+**Replicas**: `replicas` works on every target — several containers of one service on docker / podman
+(the service name resolves to each), the Deployment's replicas on K8s (`> 1` adds a PDB); the migration
+runs once either way. On docker / podman a service with several replicas can't map a host port: `expose`,
+or a `mode: local` / `debug` process reaching it, stops `up` — set `replicas: 1` (in `deploy.local.yaml`
+when it's only your machine). Compose has no rolling update; replicas on one machine are for checking
+how a component behaves when several copies run, not for zero-downtime upgrades.
 
 **Addresses** are `http://<versioned-service-name>:<port>` on every target, so code never changes and
 several versions coexist.
 
 **Exposing**: `expose: true`. On K8s it needs a `hostname` (an Ingress is generated; `tlsSecret`
 optional); on Docker the port is mapped to the host (`exposePort` changes the host port). Not written:
-not exposed. `replicas > 1` on K8s adds a PodDisruptionBudget.
+not exposed.
 Several components on one domain, split by path: on K8s share the `hostname` and give each entry its
 own `paths: [/api/sales]` (prefix match, no rewriting; a path belongs to one component, and `tlsSecret`
 must be the same); on Docker the platform generates no gateway — write the routes in each entry's
 `labels` for a gateway such as Traefik.
 
 **Migrations**: on K8s a separate Job (not an init container, so several replicas never migrate at
-once); on Docker a one-shot container. A failure keeps the main service from starting.
+once); on Docker a one-shot container, one however many replicas. A failure keeps the main service from starting.
 
 **`status` / `down`** read the same deploy file as `up` (and take `-f`); `down` never deletes volumes.
 

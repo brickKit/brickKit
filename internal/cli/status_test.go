@@ -64,6 +64,21 @@ func TestStatusSeparatesUnhealthyComponent(t *testing.T) {
 	assert.Contains(t, r.stdout, "exit code 1", "退出码是排障的第一手信息")
 }
 
+// 多个副本时要看得出几个就绪：状态只说最差的那个副本，分不出"一个坏了"和"全坏了"。
+func TestStatusShowsHowManyReplicasAreReady(t *testing.T) {
+	f, eng := startedProject(t)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy", Replicas: 2, Ready: 2},
+		{Service: "erp-backend-1-0-0", State: "exited", ExitCode: 1, Replicas: 3, Ready: 2},
+	}
+
+	r := statusOf(t, eng, f.Dir)
+
+	assert.Contains(t, r.stdout, "2/2 replicas ready")
+	assert.Contains(t, r.stdout, "2/3 replicas ready")
+	assert.Contains(t, r.stdout, "exit code 1")
+}
+
 // 迁移容器不该出现在组件列表里：它是平台的实现细节，不是使用者装的组件。
 func TestStatusHidesMigrationContainers(t *testing.T) {
 	f, eng := startedProject(t)

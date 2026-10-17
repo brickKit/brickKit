@@ -119,9 +119,14 @@ func TestValidateRejects(t *testing.T) {
 }
 
 func TestWarningsForTarget(t *testing.T) {
-	_, warnings, err := parse(t, "target: docker\nk8s:\n  namespace: shop\ncomponents:\n  - {id: a/b, replicas: 2}\n", deployfile.RoleTeam)
+	_, warnings, err := parse(t, "target: docker\nk8s:\n  namespace: shop\ncomponents:\n  - {id: a/b, serviceAccountName: a-sa}\n", deployfile.RoleTeam)
 	require.NoError(t, err)
 	assert.Len(t, warnings, 2)
+
+	// replicas 三种目标下都生效（Docker / Podman 是 compose 的 deploy.replicas），不在被忽略的名单里
+	_, warnings, err = parse(t, "target: docker\ncomponents:\n  - {id: a/b, replicas: 2}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
 
 	_, warnings, err = parse(t, "target: k8s\ncomponents:\n  - {id: a/b, expose: true, hostname: a.example.com, exposePort: 8080}\n", deployfile.RoleTeam)
 	require.NoError(t, err)
@@ -136,8 +141,8 @@ k8s:
   context: prod
   namespace: shop
 components:
-  - {id: demo/a, replicas: 2}
-  - {id: demo/b@1.0.0, replicas: 3, hostname: b.example.com}
+  - {id: demo/a, serviceAccountName: a-sa}
+  - {id: demo/b@1.0.0, serviceAccountName: b-sa, hostname: b.example.com}
   - {id: demo/c}
 `, deployfile.RoleTeam)
 	require.NoError(t, err)
@@ -149,7 +154,7 @@ components:
 	all := strings.Join(text, "")
 	require.Len(t, warnings, 3, all)
 	assert.Contains(t, all, "k8s.context, k8s.namespace")
-	assert.Contains(t, all, "replicas has no effect with target: docker")
+	assert.Contains(t, all, "serviceAccountName has no effect with target: docker")
 	assert.Contains(t, all, "demo/a, demo/b@1.0.0")
 	assert.Contains(t, all, "hostname has no effect")
 	assert.NotContains(t, all, "components[", "点名组件用 id，不用下标")

@@ -145,14 +145,16 @@ Scheduled jobs, message consumers, clean-ups — the platform schedules none of 
 process, and are the component's business. What the component needs to know is when the platform runs the same code
 several times at once:
 
-- `replicas` above 1 on K8s: every replica runs your scheduled job.
+- `replicas` above 1 (Docker, Podman and K8s alike): every replica runs your scheduled job.
 - A rolling update on K8s: old and new Pods overlap for a while, both running.
 - Several versions side by side: two versions of one component running together, often against the same database.
 - A shell: a member's tasks run in the shell's process, sharing CPU and connections with the other members; one heavy
   scheduled job slows every member in that process, so give it a limit.
 
-On Docker / Podman each component is one container, stopped before its replacement starts, so none of this shows on a
-single machine — it appears on K8s. Write for one of three shapes:
+On Docker / Podman without `replicas` each component is one container, stopped before its replacement starts, so none of
+this shows on a single machine — it appears on K8s. To check it on your own machine, give the component `replicas: 2` and
+run it on Docker: two containers run the scheduled job and consume the queue at the same time. Write for one of three
+shapes:
 
 | Shape | Example | How it's done once |
 | --- | --- | --- |

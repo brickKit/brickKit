@@ -366,6 +366,9 @@ func TestKubectlStatus(t *testing.T) {
 	// 副本没就绪的不能算"在跑"：这时候请求打过去是通不了的
 	assert.False(t, byService["department-tree-1-0-0"].Running())
 	assert.Equal(t, "starting", byService["department-tree-1-0-0"].Health)
+	assert.Equal(t, 1, ready.Replicas)
+	assert.Equal(t, 1, ready.Ready)
+	assert.Equal(t, 0, byService["department-tree-1-0-0"].Ready)
 }
 
 func TestKubectlStatusOnEmptyNamespace(t *testing.T) {

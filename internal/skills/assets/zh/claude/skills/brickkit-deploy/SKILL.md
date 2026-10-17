@@ -24,8 +24,8 @@ description: 把 BrickKit 项目部署到 Docker、Podman 或 Kubernetes，编�
 `networkPolicy`，只在 `target: k8s` 时生效，别的 target 下写了会警告）、`vars:`，以及
 `components:` 下每个组件版本一个条目：`mode`、`localPort`、`expose` / `exposePort` / `hostname` /
 `tlsSecret`、`replicas`、`serviceAccountName`、`resources`、`labels`、`skipWaitFor`、外壳的 `members`。
-其中 `hostname`、`tlsSecret`、`replicas`、`serviceAccountName` 只对 K8s 有意义，`exposePort`、`skipWaitFor`
-只对 docker / podman 有意义，写在别的 target 下会警告。
+其中 `hostname`、`tlsSecret`、`serviceAccountName` 只对 K8s 有意义，`exposePort`、`skipWaitFor`
+只对 docker / podman 有意义，写在别的 target 下会警告。`replicas` 三种 target 都生效，见下面的「副本」。
 不带版本的 `id` 指默认版本；每个兼容版本要有自己的 `id@版本` 条目（外壳下的成员也算）。条目数对不上
 `brickkit.yaml` 是 `DEPLOY_INCONSISTENT`。这些条目由 `add` / `remove` / `upgrade` 维护——别靠手写条目来加组件。
 
@@ -177,11 +177,16 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 **地址格式在所有 target 下一样**：`http://<版本化服务名>:<端口>`，组件代码零修改，多版本天然共存。
 
 **暴露**：`expose: true`。K8s 下必须给 `hostname`（生成 Ingress），`tlsSecret` 可选；Docker 下映射到宿主
-端口，`exposePort` 可改。不写就不暴露。`replicas > 1` 时 K8s 自动生成 PDB。
+端口，`exposePort` 可改。不写就不暴露。
 几个组件共用一个域名、按路径分流：K8s 下共用 `hostname`、各写各的 `paths: [/api/sales]`（前缀匹配，不改写路径；
 同一条路径只能归一个组件，`tlsSecret` 要相同）；Docker 下平台不生成网关，路由写在条目的 `labels` 里交给 Traefik 这类网关。
 
-**迁移**：K8s 下是一个独立的 Job（不是 InitContainer，避免多副本并发迁移），Docker 下是一次性容器；
+**副本**：`replicas` 三种 target 都生效——docker / podman 下是同一个服务的几个容器（服务名解析到每一个），
+K8s 下是 Deployment 的副本数（`> 1` 时自动生成 PDB）；迁移都只跑一次。docker / podman 下多个副本的服务不能映射
+宿主机端口：写了 `expose`，或者有 `mode: local` / `debug` 的进程要连它，`up` 会报错——改成 `replicas: 1`（只是自己
+机器上就写在 `deploy.local.yaml` 里）。compose 没有滚动升级；单机多副本是为了验证组件同时跑几份时的行为，不是不停机升级。
+
+**迁移**：K8s 下是一个独立的 Job（不是 InitContainer，避免多副本并发迁移），Docker 下是一次性容器（不论几个副本都只有一个）；
 失败则主服务不启动。
 
 **`up` 做了什么**：装载三层文件 → 判定谁启动 → 检查镜像（缺了给出 build 提示，git 镜像去拉）→ 生成部署文件

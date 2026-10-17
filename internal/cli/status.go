@@ -309,6 +309,19 @@ func statusText(s engine.Status, found bool) string {
 		// 部署文件里有、引擎里没有：多半是被 down 掉了
 		return i18n.T(msgid.CliStatusNotCreated)
 	}
+	return withReplicas(s, stateText(s))
+}
+
+// withReplicas 在有多个副本时补上"几个就绪"：状态说的是最差的那个副本（见 engine.Status），
+// 只看它分不出"一个坏了"和"全坏了"。
+func withReplicas(s engine.Status, text string) string {
+	if s.Replicas <= 1 {
+		return text
+	}
+	return i18n.T(msgid.CliStatusReplicasReady, text, s.Ready, s.Replicas)
+}
+
+func stateText(s engine.Status) string {
 	switch {
 	case s.Running():
 		if s.Health != "" {

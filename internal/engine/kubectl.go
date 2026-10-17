@@ -602,7 +602,8 @@ func parseDeployments(out []byte) ([]Status, error) {
 
 		status := Status{
 			Service: item.Metadata.Name, State: "running",
-			Ports: containerPortsOf(item.Spec.Template.Spec.Containers),
+			Ports:    containerPortsOf(item.Spec.Template.Spec.Containers),
+			Replicas: desired, Ready: min(item.Status.ReadyReplicas, desired),
 		}
 		switch {
 		case desired == 0:

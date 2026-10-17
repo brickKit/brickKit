@@ -68,7 +68,8 @@ The main service **waits for it to finish successfully**, not for it to "be up":
 On Kubernetes it's a Job: `up` first deletes the same-named Job left over from last time, then creates it and waits for
 it to complete, and only then deploys the main service. The Job doesn't retry (`backoffLimit: 0`), and it runs once only,
 however many replicas the main service has (with a Pod InitContainer, three replicas would run the same migration three
-times at once).
+times at once). On Docker / Podman likewise: there's one migration container, and every replica of the main service waits
+for it to succeed.
 
 `up` tells you beforehand which ones it will run:
 

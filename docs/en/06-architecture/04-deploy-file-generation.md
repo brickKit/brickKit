@@ -116,6 +116,9 @@ Item by item:
   image is enough.
 - **Ports**: only `expose: true` components map a host port; the rest are reachable only inside the project's network.
 - **Resources**: `requests` become `reservations`; when nobody writes `limits`, no ceiling is generated.
+- **Replicas**: `replicas` above 1 becomes `deploy.replicas`, and the service name resolves to every replica in the project
+  network; there's still one migration container. A service with several replicas can't map a host port (a host port maps
+  to one container only), which stops generation (see [Several replicas](../01-three-layers/03-deploy-yaml.md#several-replicas)).
 - **The network**: one network per project, named `brickkit-<project name>-net`; the Compose project name is
   `brickkit-<project name>`.
   When containers outside the project (your own database, an IdP, a gateway's compose) must share a network with the

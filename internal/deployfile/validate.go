@@ -367,7 +367,6 @@ func (f *File) targetWarnings() []*clierr.Error {
 			warn(strings.Join(keys, ", "), nil)
 		}
 		checks = []fieldCheck{
-			{"replicas", func(c Entry) bool { return c.Replicas != nil }},
 			{"serviceAccountName", func(c Entry) bool { return c.ServiceAccountName != "" }},
 			{"tlsSecret", func(c Entry) bool { return c.TLSSecret != "" }},
 			{"hostname", func(c Entry) bool { return c.Hostname != "" }},

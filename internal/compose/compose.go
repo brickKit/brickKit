@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -342,6 +343,9 @@ func newPlan(
 	if err := p.assignHostPorts(); err != nil {
 		return nil, err
 	}
+	if err := p.checkReplicaHostPorts(); err != nil {
+		return nil, err
+	}
 	p.rewriteEndpointsForLocalDependencies()
 	p.hostPathsForBareShellMembers()
 
@@ -462,6 +466,46 @@ func (p *plan) checkExposePorts() error {
 	return nil
 }
 
+// checkReplicaHostPorts 拒绝"多个副本 + 宿主机端口"：一个宿主机端口只能映射给一个容器。
+//
+// 不拦的话，compose 在启动第二个副本时才报端口被占用，那时第一个已经起来了；
+// 而"只给第一个副本映射"会让经宿主机端口来的流量悄悄只到一个副本——两样都不该发生。
+// 宿主机端口有两个来源，出路不同，提示按来源给：
+//
+//	expose            开放给外面（外壳替成员开放的也算）：改成 replicas: 1，或者不开放
+//	本机上的调用方     mode: local / debug 的进程经宿主机端口连它：这次读的部署文件里改成 replicas: 1
+//
+// 外壳成员条目上的 replicas 不在这里：成员没有自己的容器，它跟着外壳的副本数。
+func (p *plan) checkReplicaHostPorts() error {
+	for _, c := range p.components {
+		replicas := c.Entry.ReplicaCount()
+		ports := p.hostPortsOf(c)
+		if replicas <= 1 || len(ports) == 0 {
+			continue
+		}
+		exposed := 0
+		if _, ok := p.exposedPort[c.Service]; ok {
+			exposed++
+		}
+		for _, s := range p.exposedMembers() {
+			if manifest.ServiceName(s.Shell.ID, s.Shell.Version) == c.Service {
+				exposed++
+			}
+		}
+		var hints []string
+		if exposed > 0 {
+			hints = append(hints, i18n.T(msgid.ComposeHintReplicasDropExpose))
+		}
+		if len(ports) > exposed {
+			hints = append(hints, i18n.T(msgid.ComposeHintReplicasForHostCallers))
+		}
+		return clierr.New(clierr.CodePortConflict, i18n.T(msgid.ComposeReplicasWithHostPorts, refText(c.Ref), replicas)).
+			WithDetail(i18n.T(msgid.ComposeLabelHostPorts), strings.Join(ports, ", ")).
+			WithHint(hints...)
+	}
+	return nil
+}
+
 // exposeHostPort 返回宿主机端口：exposePort 优先，否则用组件主端口。
 func exposeHostPort(c componentPlan) int {
 	if c.Entry.ExposePort > 0 {
@@ -521,7 +565,7 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	if seconds := c.Env.StopGracePeriodSeconds; seconds > 0 {
 		svc["stop_grace_period"] = fmt.Sprintf("%ds", seconds)
 	}
-	if deploy := deployOf(c.Env); deploy != nil {
+	if deploy := deployOf(c); deploy != nil {
 		svc["deploy"] = deploy
 	}
 	// 平台不解释键值，只透传。
@@ -690,22 +734,30 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	}
 }
 
-// deployOf 渲染资源配额。
+// deployOf 渲染 compose 的 deploy 段：副本数与资源配额。
 //
-// compose 用 limits / reservations 表达 K8s 的 limits / requests。
-func deployOf(c inject.Component) map[string]any {
-	resources := map[string]any{}
+// 副本数只在大于 1 时写：compose 缺省就是 1。compose 的 limits / reservations
+// 表达 K8s 的 limits / requests。
+func deployOf(c componentPlan) map[string]any {
+	deploy := map[string]any{}
+	if replicas := c.Entry.ReplicaCount(); replicas > 1 {
+		deploy["replicas"] = replicas
+	}
 
-	if spec := quotaOf(c.Resources.Limits); len(spec) > 0 {
+	resources := map[string]any{}
+	if spec := quotaOf(c.Env.Resources.Limits); len(spec) > 0 {
 		resources["limits"] = spec
 	}
-	if spec := quotaOf(c.Resources.Requests); len(spec) > 0 {
+	if spec := quotaOf(c.Env.Resources.Requests); len(spec) > 0 {
 		resources["reservations"] = spec
 	}
-	if len(resources) == 0 {
+	if len(resources) > 0 {
+		deploy["resources"] = resources
+	}
+	if len(deploy) == 0 {
 		return nil
 	}
-	return map[string]any{"resources": resources}
+	return deploy
 }
 
 func quotaOf(spec *manifest.ResourceSpec) map[string]any {
