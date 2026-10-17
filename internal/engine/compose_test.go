@@ -495,6 +495,33 @@ func TestPodmanSocketHintMatchesRootfulOrRootless(t *testing.T) {
 	}
 }
 
+// docker-compose 在 ps、down 时换了一种措辞（路径后面紧跟句号）：同样要认出来。
+// 只认 up 的那种时，root 的 socket 停着，brickkit status 报 ENGINE_FAILED 却不给开启命令。
+func TestPodmanSocketHintOnTheDaemonWording(t *testing.T) {
+	cases := []struct {
+		name, socket, want string
+	}{
+		{"rootful", "/run/podman/podman.sock", "sudo systemctl enable --now podman.socket"},
+		{"rootless", "/run/user/1000/podman/podman.sock", "systemctl --user enable --now podman.socket"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := newRecorder()
+			rec.fail["ps"] = errors.New("exit 1")
+			rec.output["ps"] = "Cannot connect to the Docker daemon at unix://" + tc.socket + ". Is the docker daemon running?\n"
+
+			_, err := podmanWith(rec).Status(context.Background(), "p")
+
+			require.Error(t, err)
+			text := clierr.As(err).Format()
+			assert.Contains(t, text, tc.want)
+			if tc.name == "rootless" {
+				assert.NotContains(t, text, "sudo")
+			}
+		})
+	}
+}
+
 // Docker 自己的 socket 连不上是另一回事（daemon 没起），不该套用 Podman 的提示。
 func TestDockerSocketFailureGetsNoPodmanSocketHint(t *testing.T) {
 	rec := newRecorder()
@@ -503,6 +530,12 @@ func TestDockerSocketFailureGetsNoPodmanSocketHint(t *testing.T) {
 
 	err := dockerWith(rec).Up(context.Background(), UpRequest{File: "f.yaml", Project: "p"})
 
+	require.Error(t, err)
+	assert.NotContains(t, clierr.As(err).Format(), "podman.socket")
+
+	rec.fail["ps"] = errors.New("exit 1")
+	rec.output["ps"] = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\n"
+	_, err = dockerWith(rec).Status(context.Background(), "p")
 	require.Error(t, err)
 	assert.NotContains(t, clierr.As(err).Format(), "podman.socket")
 }

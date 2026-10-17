@@ -258,19 +258,24 @@ func (c *Compose) failure(args []string, out []byte, err error, lines int) error
 // podmanSocketCommand 认出"compose 连不上 Podman 的 API socket"，返回开启它的命令；不是这个失败时返回空串。
 //
 // `podman compose` 把调用转给 docker-compose，并让它连 Podman 的 socket；socket 默认不开。
-// 有根与无根是两个不同的 socket，开的命令也不同，所以按报错里的路径选：
+// docker-compose 连不上时有两种措辞，按子命令不同（实测 `up` 是前一种，`ps`、`down` 是后一种）：
+//
+//	failed to connect to the docker API at unix:///run/podman/podman.sock; check if ...
+//	Cannot connect to the Docker daemon at unix:///run/podman/podman.sock. Is the docker daemon running?
+//
+// 两种都认，路径从 `unix://` 后面取。有根与无根是两个不同的 socket，开的命令也不同，所以按路径选：
 // 有根是 /run/podman/podman.sock（系统级 systemd 单元），无根在 /run/user/<uid>/ 下（用户级单元）。
-// 只给无根的写法时，以 root 部署的人照着做也开不了自己要的那个。
+// 只给无根的写法时，以 root 部署的人照着做也开不了自己要的那个。Docker 自己的 socket 不是这里的事。
 func podmanSocketCommand(out string) string {
-	const marker = "failed to connect to the docker API at unix://"
-	i := strings.Index(out, marker)
-	if i < 0 {
+	if !containsAny(out, "failed to connect to the docker API at unix://", "Cannot connect to the Docker daemon at unix://") {
 		return ""
 	}
-	path := out[i+len(marker):]
-	if end := strings.IndexAny(path, " \n;:"); end >= 0 {
+	const scheme = "unix://"
+	path := out[strings.Index(out, scheme)+len(scheme):]
+	if end := strings.IndexFunc(path, func(r rune) bool { return !socketPathRune(r) }); end >= 0 {
 		path = path[:end]
 	}
+	path = strings.TrimSuffix(path, ".") // 后一种措辞里路径后面紧跟句号
 	if !strings.HasSuffix(path, "/podman/podman.sock") {
 		return ""
 	}
@@ -278,6 +283,12 @@ func podmanSocketCommand(out string) string {
 		return "sudo systemctl enable --now podman.socket"
 	}
 	return "systemctl --user enable --now podman.socket"
+}
+
+// socketPathRune 是 socket 路径里会出现的字符；路径到第一个别的字符为止。
+func socketPathRune(r rune) bool {
+	return r == '/' || r == '.' || r == '_' || r == '-' ||
+		'a' <= r && r <= 'z' || 'A' <= r && r <= 'Z' || '0' <= r && r <= '9'
 }
 
 // installHint 按缺失的二进制给出对应的安装建议——Podman 引擎缺 podman 时

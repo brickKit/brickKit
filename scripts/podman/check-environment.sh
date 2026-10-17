@@ -84,9 +84,19 @@ fi
 
 status=0
 NAME="brickkit-podman-check-$$"
+# A fresh log file per run, removed on exit. A fixed name in /tmp breaks the
+# documented order (first as yourself, then as root): the file left by the
+# first run belongs to you, and with fs.protected_regular=2 (Ubuntu's default)
+# not even root may write it — the redirect fails, `podman rm` never runs, and
+# the old log is reported as this run's failure.
+if ! LOG="$(mktemp "${TMPDIR:-/tmp}/brickkit-podman-check.XXXXXX")"; then
+  fail "Could not create a temporary log file."
+  exit 2
+fi
 cleanup() {
   podman rm -f "$NAME" "$NAME-server" >/dev/null 2>&1 || true
   podman network rm "$NAME" >/dev/null 2>&1 || true
+  rm -f "$LOG"
 }
 trap cleanup EXIT
 
@@ -149,15 +159,15 @@ if ! podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/
   exit 2
 fi
 
-if podman rm -f "$NAME" >/tmp/brickkit-podman-check.log 2>&1; then
+if podman rm -f "$NAME" >"$LOG" 2>&1; then
   pass "Container removed cleanly. This machine does not show the AppArmor teardown issue."
   echo "You don't need scripts/podman/fix-apparmor.sh."
 else
   status=1
   fail "Removing the container failed:"
-  tail -5 /tmp/brickkit-podman-check.log
+  tail -5 "$LOG"
   echo
-  if grep -qi "rootless netns" /tmp/brickkit-podman-check.log; then
+  if grep -qi "rootless netns" "$LOG"; then
     fail "This matches the known AppArmor/pasta signal issue."
     echo
     echo "Next step: read docs/en/10-troubleshooting/01-up-down-issues.md"
