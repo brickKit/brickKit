@@ -625,8 +625,9 @@ graph TD
 
 Build the images that are built locally: components without a `deployment.image`, and components in local install
 sources that write `deployment.build` (code being developed, whose image has to be built from it). Every other
-component with an `image` is pulled, not built — a local-source component that writes only an `image` too. Naming a
-component that writes no `build` is an error: there is nothing to build.
+component with an `image` is pulled, not built — a local-source component that writes only an `image` too, with a
+warning when a `Dockerfile` sits next to it unused. Naming a component that writes no `build` is an error: there is
+nothing to build.
 
 Without an argument, it builds every component built locally — or, in a component's directory, only that component.
 BrickKit never fetches git submodules: when the source has submodules that are empty directories, `build` warns before
@@ -666,7 +667,8 @@ Start the project in one go:
    `mode: debug` one you start from your IDE with it; a `mode: local` one is started by `up`, and the file is there for
    running its migration or another one-off command by hand;
 7. check images: locally built images must already exist (otherwise it points at `brickkit build`), pulled images must
-   be reachable;
+   be reachable; a pulled local-source component with a `Dockerfile` next to it gets a warning that the `Dockerfile`
+   isn't used;
 8. call the engine; database migrations run first (a one-shot container on Docker, a Job on Kubernetes), and a failure
    holds back the main service;
 9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Each process

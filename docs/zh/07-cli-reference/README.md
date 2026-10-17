@@ -565,7 +565,7 @@ graph TD
 ## `brickkit build`
 
 构建需要在本机构建的镜像：没有 `deployment.image` 的组件，以及本地安装源里写了 `deployment.build` 的组件（正在开发的代码，镜像必须从它构建）。
-其余写了 `image` 的组件都是拉取的，不构建——本地源里只写了 `image` 的组件也一样。点名一个没写 `build` 的组件会报错：没有东西可构建。
+其余写了 `image` 的组件都是拉取的，不构建——本地源里只写了 `image` 的组件也一样，旁边放着没用上的 `Dockerfile` 时给出警告。点名一个没写 `build` 的组件会报错：没有东西可构建。
 
 不带参数时构建所有需要本机构建的组件——在组件目录里则只构建这一个。BrickKit 从不拉取 git submodule：源码里有 submodule
 而它们是空目录时，`build` 在构建之前给出警告（见[构建与镜像](../02-project-guide/12-build-and-images.md)）。
@@ -598,7 +598,7 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 5. 解析配置、注入环境变量、合并资源配额，生成部署文件：`docker` / `podman` 生成 `.brickkit/generated/compose.yaml`，`k8s` 生成 Kubernetes 清单；
 6. 在本机跑进程的组件生成 `local-debug.<版本化服务名>.env`：`mode: debug` 的，你在 IDE 里拿它启动；`mode: local` 的由 `up`
    启动，这份文件留给你手动跑迁移或别的一次性命令；
-7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；
+7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；本地源里拉取的组件旁边放着 `Dockerfile` 时，警告它没被用到；
 8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
 9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。每个进程继承这个终端的环境，只有平台管的名字除外
    （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见
