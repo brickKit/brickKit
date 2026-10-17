@@ -963,7 +963,9 @@ market operated by BrickKit today; the market address points at an instance you 
 
 1. Check you're logged in (`.brickkit/credentials` or the install source's `authToken`); if not, it's an error;
 2. read and validate the `component.yaml` in the component directory;
-3. check the image reference is valid, and that every file `artifacts` declares is there;
+3. check the image reference is valid, and that every file `artifacts` declares is there; for an open-source version
+   (`--source-type git`, the default when the component directory has an `origin`), check that its tag is released —
+   `brickkit release` first: the market records the repository and that tag, and `add --repo` checks the tag out;
 4. run the component's `release.checks`, as `release` does: the first failure stops before anything reaches the market;
 5. create a draft version → upload the artifacts → move it to stable;
 6. set the visibility.
@@ -989,7 +991,7 @@ brickkit publish [flags]
 | `--visibility <public\|private>` | Visibility, default the market-side setting |
 | `--notes <text>` | Release notes for this version (Markdown, kept as written), stored as the market version's changelog; projects see them on `upgrade`. Optional |
 | `--notes-file <file>` | Read the release notes from this file instead (relative to the current directory); not together with `--notes` |
-| `--source-type <git\|registry>` | Source type: `git` (open source) or `registry` (closed source), inferred from the component directory's git remote by default |
+| `--source-type <git\|registry>` | Source type: `git` (open source; its tag must be released) or `registry` (closed source), inferred from the component directory's git remote by default |
 | `--git-url <address>` | Git repository address of an open-source component, default the component directory's origin |
 | `--sign` | Sign the component with cosign before publishing |
 | `--key <path>` | Path of the cosign private key, default `cosign.key` |

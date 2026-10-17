@@ -165,6 +165,7 @@ func publishBody(t *testing.T, componentID, version string, artifacts []any) map
 		"manifest":   manifestOf(t, componentID, version, artifacts),
 		"sourceType": model.SourceTypeGit,
 		"gitUrl":     "https://github.com/brickkit/demo.git",
+		"gitTag":     version,
 	}
 }
 
@@ -360,7 +361,7 @@ func TestListVersionsOfUnknownComponentReturns404(t *testing.T) {
 // ============================================================
 
 // CLI 的 manifestFromBody 从 data.manifest 取 Manifest，
-// 从 data.sourceType / data.gitUrl 判断开源还是闭源（--repo 依赖它）。
+// 从 data.sourceType / data.gitUrl / data.gitTag 判断开源还是闭源、克隆哪个 tag（--repo 依赖它）。
 func TestManifestEndpointMatchesCLIEnvelopeContract(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -379,6 +380,7 @@ func TestManifestEndpointMatchesCLIEnvelopeContract(t *testing.T) {
 			Status      string         `json:"status"`
 			SourceType  string         `json:"sourceType"`
 			GitURL      string         `json:"gitUrl"`
+			GitTag      string         `json:"gitTag"`
 			Manifest    map[string]any `json:"manifest"`
 		} `json:"data"`
 	}
@@ -390,6 +392,7 @@ func TestManifestEndpointMatchesCLIEnvelopeContract(t *testing.T) {
 	assert.Equal(t, model.VersionStable, envelope.Data.Status)
 	assert.Equal(t, model.SourceTypeGit, envelope.Data.SourceType)
 	assert.Equal(t, "https://github.com/brickkit/demo.git", envelope.Data.GitURL)
+	assert.Equal(t, "1.2.0", envelope.Data.GitTag, "--repo 克隆之后检出这个 tag")
 
 	// data.manifest 必须是完整的 component.yaml 结构（CLI 会 yaml.Marshal 后交给 Manifest 解析器）
 	require.NotEmpty(t, envelope.Data.Manifest)

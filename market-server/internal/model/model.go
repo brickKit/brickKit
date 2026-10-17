@@ -166,8 +166,10 @@ type PublishRequest struct {
 	Manifest   json.RawMessage `json:"manifest"`
 	SourceType string          `json:"sourceType"`
 	GitURL     string          `json:"gitUrl,omitempty"`
-	Changelog  string          `json:"changelog,omitempty"`
-	Visibility string          `json:"visibility,omitempty"`
+	// GitTag 是开源版本的源码所在的 tag（CLI 用组件在仓库里的位置算出，与 brickkit release 打的同名）。
+	GitTag     string `json:"gitTag,omitempty"`
+	Changelog  string `json:"changelog,omitempty"`
+	Visibility string `json:"visibility,omitempty"`
 	// Signature 是对 Manifest 规范化载荷的签名，可选。
 	Signature *Signature `json:"signature,omitempty"`
 	// Doc 是组件仓库根的 BRICKKIT.md 全文，可选，不超过 MaxDocBytes。
@@ -185,19 +187,21 @@ const MaxDocsTotalBytes = manifest.MaxDocsTotalBytes
 
 // Component 是组件记录。
 type Component struct {
-	ComponentID string    `json:"componentId"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Vendor      string    `json:"vendor,omitempty"`
-	Visibility  string    `json:"visibility"`
-	SourceType  string    `json:"sourceType"`
-	GitURL      string    `json:"gitUrl,omitempty"`
-	Status      string    `json:"status"`
-	OwnerID     string    `json:"ownerId"`
-	Tags        []string  `json:"tags,omitempty"`
-	Downloads   int64     `json:"downloads"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ComponentID string `json:"componentId"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Vendor      string `json:"vendor,omitempty"`
+	Visibility  string `json:"visibility"`
+	// SourceType 与 GitURL 是最近一次发布的版本的来源，只供浏览组件列表时看一眼；
+	// 安装一个版本时用的是那个版本自己记下的来源（Version.SourceType）。
+	SourceType string    `json:"sourceType"`
+	GitURL     string    `json:"gitUrl,omitempty"`
+	Status     string    `json:"status"`
+	OwnerID    string    `json:"ownerId"`
+	Tags       []string  `json:"tags,omitempty"`
+	Downloads  int64     `json:"downloads"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 // Version 是组件版本记录。
@@ -206,9 +210,14 @@ type Version struct {
 	Version     string          `json:"version"`
 	Status      string          `json:"status"`
 	Manifest    json.RawMessage `json:"manifest"`
-	Changelog   string          `json:"changelog,omitempty"`
-	PublishedAt time.Time       `json:"publishedAt"`
-	PublishedBy string          `json:"publishedBy"`
+	// SourceType、GitURL、GitTag 是这个版本的来源：开源（git）时源码在 GitURL 仓库的 GitTag 上。
+	// 按版本记：组件可以从某个版本起改为开源或闭源，换仓库也一样，旧版本的来源不跟着变。
+	SourceType  string    `json:"sourceType"`
+	GitURL      string    `json:"gitUrl,omitempty"`
+	GitTag      string    `json:"gitTag,omitempty"`
+	Changelog   string    `json:"changelog,omitempty"`
+	PublishedAt time.Time `json:"publishedAt"`
+	PublishedBy string    `json:"publishedBy"`
 	// Signature 是发布时提交的签名，未签名时为 nil。
 	Signature *Signature `json:"signature,omitempty"`
 	// Doc 是这个版本的 BRICKKIT.md，没有时为空。它只经文档端点给出，不进版本的 JSON。

@@ -175,7 +175,7 @@ func docLangsFromBody(body []byte) []string {
 	return envelope.Data.DocLanguages
 }
 
-// origin 读取该版本的来源信息（开源 git / 闭源 registry）。
+// origin 读取该版本的来源信息（开源 git / 闭源 registry、仓库地址、源码所在的 tag）。市场按版本记它们。
 //
 // 它总是直接问市场，不走 Manifest 缓存：缓存里存的是 component.yaml 本身，
 // 不含 sourceType / gitUrl。--repo 是低频操作，多一次请求换取信息准确。
@@ -204,6 +204,9 @@ func originFromBody(body []byte, sourceID string) *Origin {
 	}
 	if v, ok := data["gitUrl"].(string); ok {
 		o.GitURL = v
+	}
+	if v, ok := data["gitTag"].(string); ok {
+		o.Tag = v
 	}
 	return o
 }

@@ -345,8 +345,16 @@ func planClones(ctx context.Context, opts *Options, client *source.Client, proj 
 		if err != nil {
 			return nil, err
 		}
-		if !origin.IsOpenSource() {
+		switch {
+		case origin.Type == source.OriginLocal:
+			opts.Printf("%s\n", i18n.T(msgid.CliAddCloneSkippedLocal, ref.String()))
+			continue
+		case !origin.IsOpenSource():
 			opts.Printf("%s\n", i18n.T(msgid.CliAddCloneSkippedNoRepo, ref.String()))
+			continue
+		case origin.Tag == "":
+			// 不知道这个版本在哪个 tag 上：克隆下来停在默认分支，本地仓库就不是这个版本了
+			opts.Printf("%s\n", i18n.T(msgid.CliAddCloneSkippedNoTag, ref.String(), origin.GitURL))
 			continue
 		}
 		if err := workspace.ExistingSourceError(proj.Layout, ref.ID, ref.String()); err != nil {

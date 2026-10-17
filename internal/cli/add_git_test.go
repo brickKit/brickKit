@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/source/gittest"
 )
@@ -514,10 +516,40 @@ func TestAddRepoClosedSourceIsSaidAndSkipped(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "vendor/engine@1.0.0", "--repo", "--yes")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "vendor/engine@1.0.0 has no source repository")
-	assert.Contains(t, r.stdout, "closed source")
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliAddCloneSkippedNoRepo, "vendor/engine@1.0.0"))
 	assert.NoDirExists(t, filepath.Join(f.Dir, "components", "vendor", "engine"))
 	assert.Contains(t, f.refs(t), "vendor/engine@1.0.0", "组件照常装上")
+}
+
+// 市场上的开源组件：--repo 克隆它的仓库，检出市场为这个版本记下的 tag——不是默认分支上最新的代码。
+func TestAddRepoFromMarketChecksOutTheRecordedTag(t *testing.T) {
+	remote := gittest.NewRemote(t, "people-basic")
+	spec := comp{ID: "people/basic", Version: "1.0.0"}
+	remote.Tag("1.0.0", map[string]string{"component.yaml": spec.yamlText(), "VERSION": "one\n"})
+	remote.Tag("1.1.0", map[string]string{"component.yaml": comp{ID: "people/basic", Version: "1.1.0"}.yamlText(), "VERSION": "two\n"})
+	market := newMockMarket(t, &mockComponent{Spec: spec, SourceType: "git", GitURL: remote.URL(), GitTag: "1.0.0"})
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, "one\n", readFile(t, filepath.Join(f.Dir, "components", "people", "basic", "VERSION")))
+}
+
+// 市场开始记 tag 之前发布的开源版本：不知道该检出哪里，不克隆（克隆下来停在默认分支，就不是这个版本了）。
+func TestAddRepoFromMarketWithoutATagIsSaidAndSkipped(t *testing.T) {
+	remote := gittest.NewRemote(t, "people-basic")
+	spec := comp{ID: "people/basic", Version: "1.0.0"}
+	remote.Tag("1.0.0", map[string]string{"component.yaml": spec.yamlText()})
+	market := newMockMarket(t, &mockComponent{Spec: spec, SourceType: "git", GitURL: remote.URL()})
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliAddCloneSkippedNoTag, "people/basic@1.0.0", remote.URL()))
+	assert.NoDirExists(t, filepath.Join(f.Dir, "components", "people", "basic"))
+	assert.Contains(t, f.refs(t), "people/basic@1.0.0", "组件照常装上")
 }
 
 // add 把组件声明的产物（契约、文档）下载进 .brickkit/artifacts/<服务名>/，内容与组件仓库里的一致。

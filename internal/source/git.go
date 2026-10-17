@@ -290,8 +290,7 @@ func (s *gitSource) origin(ctx context.Context, componentID, version string) (*O
 		return nil, errNotFound
 	}
 	return &Origin{
-		SourceID: s.sourceID, Type: OriginGit, GitURL: v.repo.url,
-		Subpath: v.subpath, Tag: v.tag, CacheDir: v.repo.dir,
+		SourceID: s.sourceID, Type: OriginGit, GitURL: v.repo.url, Tag: v.tag, CacheDir: v.repo.dir,
 	}, nil
 }
 

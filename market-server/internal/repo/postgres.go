@@ -276,10 +276,10 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 	_, err = p.db.ExecContext(ctx, `
 		INSERT INTO component_versions
 			(component_id, version, status, manifest_json, changelog, signature_json,
-			 published_at, published_by, doc, doc_translations)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10)`,
+			 published_at, published_by, doc, doc_translations, source_type, git_url, git_tag)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,NULLIF($12,''),NULLIF($13,''))`,
 		v.ComponentID, v.Version, v.Status, []byte(v.Manifest), v.Changelog, signature,
-		publishedAt, v.PublishedBy, v.Doc, translations)
+		publishedAt, v.PublishedBy, v.Doc, translations, v.SourceType, v.GitURL, v.GitTag)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}
@@ -289,7 +289,8 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) (*model.Version, error) {
 	row := p.db.QueryRowContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       signature_json, published_at, COALESCE(published_by,''), COALESCE(doc,''), doc_translations
+		       signature_json, published_at, COALESCE(published_by,''), COALESCE(doc,''), doc_translations,
+		       COALESCE(source_type,''), COALESCE(git_url,''), COALESCE(git_tag,'')
 		FROM component_versions WHERE component_id = $1 AND version = $2`, componentID, version)
 	return scanVersion(row)
 }
@@ -298,7 +299,8 @@ func (p *Postgres) ListVersions(ctx context.Context, componentID string) ([]mode
 	rows, err := p.db.QueryContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
 		       signature_json, published_at, COALESCE(published_by,''),
-		       '', '{}'::jsonb -- 列表不带文档与译本：用不上，而它们可能是一行里最大的值
+		       '', '{}'::jsonb, -- 列表不带文档与译本：用不上，而它们可能是一行里最大的值
+		       COALESCE(source_type,''), COALESCE(git_url,''), COALESCE(git_tag,'')
 		FROM component_versions WHERE component_id = $1`, componentID)
 	if err != nil {
 		return nil, err
@@ -646,7 +648,8 @@ func scanVersion(s scanner) (*model.Version, error) {
 		translations []byte
 	)
 	err := s.Scan(&v.ComponentID, &v.Version, &v.Status, &manifest,
-		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy, &v.Doc, &translations)
+		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy, &v.Doc, &translations,
+		&v.SourceType, &v.GitURL, &v.GitTag)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

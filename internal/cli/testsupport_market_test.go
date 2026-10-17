@@ -56,6 +56,8 @@ type fakeMarket struct {
 	storedVersion  string
 	storedStatus   string
 	storedManifest any
+	// storedSource 是建版本时登记的来源（sourceType / gitUrl / gitTag），/manifest 原样给出。
+	storedSource map[string]string
 	// storedDoc 是建版本时一起发来的 BRICKKIT.md；空表示没带，GET /doc 回 404。
 	storedDoc string
 	// dropsDoc 模拟还不支持组件文档的旧市场：请求里的 doc 被忽略，/doc 一律 404。
@@ -81,9 +83,13 @@ func (m *fakeMarket) createVersion(w http.ResponseWriter, body []byte) {
 		Manifest any    `json:"manifest"`
 		Doc      string            `json:"doc"`
 		Tr       map[string]string `json:"docTranslations"`
+		Type     string            `json:"sourceType"`
+		URL      string            `json:"gitUrl"`
+		Tag      string            `json:"gitTag"`
 	}
 	_ = json.Unmarshal(body, &req)
 	m.storedVersion, m.storedStatus, m.storedManifest = req.Version, "draft", req.Manifest
+	m.storedSource = map[string]string{"sourceType": req.Type, "gitUrl": req.URL, "gitTag": req.Tag}
 	if !m.dropsDoc {
 		m.storedDoc = req.Doc
 	}
@@ -183,6 +189,9 @@ func (m *fakeMarket) handle(w http.ResponseWriter, r *http.Request) {
 		writeOK(w, http.StatusOK, m.versionList())
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/manifest"):
 		data := map[string]any{"manifest": m.storedManifest}
+		for k, v := range m.storedSource {
+			data[k] = v
+		}
 		var langs []string
 		for l := range m.storedTranslations {
 			langs = append(langs, l)

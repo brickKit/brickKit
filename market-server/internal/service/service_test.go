@@ -101,6 +101,7 @@ func publishRequest(t *testing.T, componentID, version string, artifacts []any) 
 		Manifest:   manifestOf(t, componentID, version, artifacts),
 		SourceType: model.SourceTypeGit,
 		GitURL:     "https://github.com/brickkit/demo.git",
+		GitTag:     version,
 	}
 }
 
@@ -720,6 +721,7 @@ func TestGetManifestReturnsSourceInfo(t *testing.T) {
 	assert.Equal(t, model.VersionStable, view.Status)
 	assert.Equal(t, model.SourceTypeGit, view.SourceType, "CLI 的 --repo 要靠它判断开源/闭源")
 	assert.Equal(t, "https://github.com/brickkit/demo.git", view.GitURL)
+	assert.Equal(t, "1.0.0", view.GitTag, "--repo 克隆之后检出这个 tag")
 
 	var manifest map[string]any
 	require.NoError(t, json.Unmarshal(view.Manifest, &manifest))

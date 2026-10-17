@@ -212,6 +212,9 @@ type marketMock struct {
 	// 为空时分别默认为 git 与由组件 ID 推导的仓库地址。
 	sourceType string
 	gitURL     string
+	// gitTag 是开源版本记下的 tag（空时就是版本号）；untagged 模拟市场开始记 tag 之前发布的版本
+	gitTag   string
+	untagged bool
 	// versionStatus 覆盖版本列表端点里某个版本的状态，键是 "<id>@<version>"。
 	// 未列出的版本一律是 stable。
 	versionStatus map[string]string
@@ -401,6 +404,12 @@ func (m *marketMock) writeManifest(w http.ResponseWriter, spec componentSpec) {
 	data := map[string]any{"manifest": doc, "sourceType": sourceType}
 	if gitURL != "" {
 		data["gitUrl"] = gitURL
+	}
+	if sourceType == OriginGit && !m.untagged {
+		data["gitTag"] = spec.Version
+		if m.gitTag != "" {
+			data["gitTag"] = m.gitTag
+		}
 	}
 	if m.signature != nil {
 		data["signature"] = m.signature

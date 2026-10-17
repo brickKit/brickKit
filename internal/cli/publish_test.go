@@ -137,6 +137,7 @@ func TestPublishSendsManifestAndSourceType(t *testing.T) {
 	f := newMarketProject(t, m, "")
 	loginTo(t, f, m)
 	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	releaseRepo(t, root, "1.2.0")
 
 	r := runIn(t, f.Dir, "publish", "--path", root,
 		"--notes", "新增人员状态字段", "--git-url", "https://github.com/brickkit/people-basic.git")
@@ -147,6 +148,7 @@ func TestPublishSendsManifestAndSourceType(t *testing.T) {
 		Status     string         `json:"status"`
 		SourceType string         `json:"sourceType"`
 		GitURL     string         `json:"gitUrl"`
+		GitTag     string         `json:"gitTag"`
 		Changelog  string         `json:"changelog"`
 		Manifest   map[string]any `json:"manifest"`
 	}
@@ -156,6 +158,7 @@ func TestPublishSendsManifestAndSourceType(t *testing.T) {
 	assert.Equal(t, "draft", req.Status, "先建 draft，产物齐了再转 stable")
 	assert.Equal(t, "git", req.SourceType)
 	assert.Equal(t, "https://github.com/brickkit/people-basic.git", req.GitURL)
+	assert.Equal(t, "1.2.0", req.GitTag, "市场记下这个版本的源码在哪个 tag 上")
 	assert.Equal(t, "新增人员状态字段", req.Changelog)
 	require.NotEmpty(t, req.Manifest)
 	assert.Equal(t, "brickkit/v1", req.Manifest["apiVersion"])
@@ -573,8 +576,7 @@ func TestPublishInfersGitOriginFromComponentRepo(t *testing.T) {
 	loginTo(t, f, m)
 
 	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
-	gitCmd(t, root, "init", "-q", "-b", "main")
-	gitCmd(t, root, "remote", "add", "origin", "https://github.com/brickkit/people-basic.git")
+	remote := releaseRepo(t, root, "1.2.0")
 
 	r := runIn(t, f.Dir, "publish", "--path", root)
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
@@ -582,12 +584,69 @@ func TestPublishInfersGitOriginFromComponentRepo(t *testing.T) {
 	var req struct {
 		SourceType string `json:"sourceType"`
 		GitURL     string `json:"gitUrl"`
+		GitTag     string `json:"gitTag"`
 	}
 	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
 	assert.Equal(t, "git", req.SourceType)
-	assert.Equal(t, "https://github.com/brickkit/people-basic.git", req.GitURL)
+	assert.Equal(t, remote, req.GitURL)
+	assert.Equal(t, "1.2.0", req.GitTag)
 	assert.Contains(t, r.stdout, "Source type: git")
-	assert.Contains(t, r.stdout, "Git repository: https://github.com/brickkit/people-basic.git")
+	assert.Contains(t, r.stdout, "Git repository: "+remote)
+	assert.Contains(t, r.stdout, "Git tag: 1.2.0")
+}
+
+// 组件在仓库子目录里（monorepo）：tag 带命名空间，与 brickkit release 打的、git 安装源读的同名。
+func TestPublishRecordsTheNamespacedTagOfASubdirectoryComponent(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	repo := t.TempDir()
+	writeTree(t, filepath.Join(repo, "packages", "basic"), comp{ID: "people/basic", Version: "1.2.0"}.files())
+	releaseRepo(t, repo, "people-basic/1.2.0")
+
+	r := runIn(t, f.Dir, "publish", "--path", filepath.Join(repo, "packages", "basic"))
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	var req struct {
+		GitTag string `json:"gitTag"`
+	}
+	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
+	assert.Equal(t, "people-basic/1.2.0", req.GitTag)
+}
+
+// 按开源发布、而 tag 还没发布：市场会记下一个不存在的 tag，add --repo 就检出不了——在联网之前停下。
+func TestPublishOpenSourceRequiresTheReleasedTag(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	releaseRepo(t, root, "1.1.0") // 发布过的是上一个版本
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliPublishErrorOpenSourceUnreleased, "people/basic@1.2.0", "1.2.0"))
+	assert.Contains(t, r.stderr, "brickkit release")
+	assert.Contains(t, r.stderr, "--source-type registry")
+	for _, c := range m.calls {
+		assert.False(t, c.Method == http.MethodPost && strings.HasSuffix(c.Path, "/versions"), "没有建版本：%v", c)
+	}
+}
+
+// --source-type 写错了，在本地就停下。
+func TestPublishRejectsAnUnknownSourceType(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root, "--source-type", "svn")
+
+	assert.Equal(t, clierr.ExitUsage, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliPublishErrorInvalidSourceTypeValue))
+	for _, c := range m.calls {
+		assert.False(t, c.Method == http.MethodPost && strings.HasSuffix(c.Path, "/versions"), "没有建版本：%v", c)
+	}
 }
 
 // 不是 Git 仓库（比如只有构建产物的闭源组件）→ 按 registry 走镜像分发。
@@ -818,6 +877,22 @@ func TestPublishRefusesOversizedDoc(t *testing.T) {
 			assert.Equal(t, []string{"POST /auth/login"}, m.requests(), "一个版本都不建")
 		})
 	}
+}
+
+// 续传时来源也要与 draft 里登记的一致：上次按闭源建的 draft，这次成了开源（目录变成了发布过的仓库），
+// 闷头续传会让市场一直说它是闭源的。
+func TestPublishRefusesToResumeWhenSourceChanged(t *testing.T) {
+	f, _, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	})
+	remote := releaseRepo(t, dir, "1.0.0")
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliPublishErrorSourceChangedSinceLastTime, "people/basic", "1.0.0"))
+	assert.Contains(t, r.stderr, "registry")
+	assert.Contains(t, r.stderr, "git "+remote+" @ 1.0.0")
 }
 
 // 续传时文档也要与 draft 里登记的一致：否则市场上留着上一次的文档，而没人知道。

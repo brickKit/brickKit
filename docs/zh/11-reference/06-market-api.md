@@ -117,7 +117,9 @@ Authorization: Bearer <令牌>
 | GET | `/api/v1/components/{scope}/{name}/versions/{version}/manifest` | 视可见性 | 这个版本的 Manifest，`brickkit add` 就从这里取 |
 | GET | `/api/v1/components/{scope}/{name}/versions/{version}/doc` | 视可见性 | 这个版本的 `BRICKKIT.md`，见下面"组件文档" |
 
-`/manifest` 的 `data` 里有：`manifest`（`component.yaml` 转成的 JSON）、`status`、`sourceType`（`git` 开源 / `registry` 闭源）、`gitUrl`（开源组件的仓库地址，`add --repo` 靠它克隆源码）、`signature`（发布时附带的签名，没签名时没有这个字段）。
+`/manifest` 的 `data` 里有：`manifest`（`component.yaml` 转成的 JSON）、`status`、`sourceType`（`git` 开源 / `registry` 闭源）、`gitUrl`（开源组件的仓库地址，`add --repo` 靠它克隆源码）、`gitTag`（这个版本的源码所在的 tag，`add --repo` 克隆之后检出它）、`signature`（发布时附带的签名，没签名时没有这个字段）。
+
+来源按版本记：组件可以从某个版本起改为开源或闭源、换仓库，之前的版本保留各自的来源。组件列表里组件的 `sourceType`、`gitUrl` 是它最近一次发布的版本的，只供浏览。市场开始记 tag 之前发布的版本没有 `gitTag`，`add --repo` 不克隆它：分辨不出哪个提交是这个版本。
 
 能不能取到某个版本：`draft` 只对所有者可见，`blocked` 返回 `COMPONENT_BLOCKED`，已删除的返回 `NOT_FOUND`，private 组件对没有授权的调用者返回 `FORBIDDEN`。`/doc` 的判断与 `/manifest` 一模一样。
 
@@ -142,6 +144,7 @@ Authorization: Bearer <令牌>
   "manifest": { "apiVersion": "brickkit/v1", "kind": "Component", "metadata": { "id": "people/basic", "version": "1.2.0" } },
   "sourceType": "git",
   "gitUrl": "https://github.com/example/people-basic",
+  "gitTag": "1.2.0",
   "changelog": "新增人员状态字段",
   "visibility": "public",
   "doc": "# people/basic\n\n怎么调用……\n",
@@ -160,8 +163,9 @@ Authorization: Bearer <令牌>
 | `version` | 是 | 必须与 `manifest.metadata.version` 一致 |
 | `status` | 否 | 不写时是 `draft` |
 | `manifest` | 是 | `component.yaml` 转成的 JSON，原样存下 |
-| `sourceType` | 是 | `git`（开源，必须同时给 `gitUrl`）或 `registry`（闭源） |
+| `sourceType` | 是 | `git`（开源，必须同时给 `gitUrl` 与 `gitTag`）或 `registry`（闭源，两者都不能给） |
 | `gitUrl` | 开源时 | 组件的 git 仓库地址 |
+| `gitTag` | 开源时 | 这个版本的源码所在的 tag：版本号，组件在仓库子目录里时是 `<scope>-<name>/<版本>`——就是 `brickkit release` 打的那个。`brickkit publish` 自己算出它，而且这个 tag 发布出去之后才肯按开源发布 |
 | `changelog` | 否 | 这个版本改了什么 |
 | `visibility` | 否 | `public` 或 `private`。写了就把组件设成这个可见性（已有的组件也会跟着改）；不写时新组件是 `public`，已有组件保持原样 |
 | `doc` | 否 | 组件仓库根目录 `BRICKKIT.md` 的全文，UTF-8，最大 256 KiB |

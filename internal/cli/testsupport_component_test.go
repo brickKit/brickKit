@@ -395,6 +395,22 @@ func gitCmd(t *testing.T, dir string, args ...string) {
 	require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
 }
 
+// releaseRepo 把组件目录做成一个已经 brickkit release 过的仓库：提交、推到一个本地 bare 远端（上游），
+// 打上版本 tag 并推送。tag 是 tag（组件在仓库根目录时就是版本号）。返回远端地址（origin）。
+func releaseRepo(t *testing.T, dir, tag string) string {
+	t.Helper()
+	remote := filepath.Join(t.TempDir(), "origin.git")
+	gitCmd(t, dir, "init", "-q", "--bare", remote)
+	gitCmd(t, dir, "init", "-q", "-b", "main")
+	gitCmd(t, dir, "add", "-A")
+	gitCmd(t, dir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "release")
+	gitCmd(t, dir, "remote", "add", "origin", remote)
+	gitCmd(t, dir, "push", "-q", "-u", "origin", "main")
+	gitCmd(t, dir, "tag", tag)
+	gitCmd(t, dir, "push", "-q", "origin", tag)
+	return remote
+}
+
 // ============================================================
 // 市场 Mock（只实现 CLI 用到的端点）
 // ============================================================
@@ -405,6 +421,8 @@ type mockComponent struct {
 	SourceType string
 	// GitURL 是开源组件的仓库地址（测试里指向本地 git 仓库）。
 	GitURL string
+	// GitTag 是市场为这个版本记下的源码 tag；空时不给（市场开始记 tag 之前发布的版本）。
+	GitTag string
 	// FailDownload 为 true 时，产物下载端点返回 500。
 	FailDownload bool
 	// Status 是该版本在市场上的状态。为空时视作 stable。
@@ -483,6 +501,9 @@ func (m *mockMarket) handle(w http.ResponseWriter, r *http.Request) {
 		data := map[string]any{"manifest": doc, "sourceType": c.SourceType}
 		if c.GitURL != "" {
 			data["gitUrl"] = c.GitURL
+		}
+		if c.GitTag != "" {
+			data["gitTag"] = c.GitTag
 		}
 		writeJSONBody(w, http.StatusOK, map[string]any{"success": true, "data": data})
 	case action == "artifacts":

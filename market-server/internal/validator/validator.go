@@ -116,7 +116,13 @@ func validateRequest(req model.PublishRequest, m *manifest.Manifest) []model.Pro
 		if strings.TrimSpace(req.GitURL) == "" {
 			p = append(p, model.Problem{Field: "gitUrl", Reason: "an open-source component (sourceType: git) must provide a Git repository URL"})
 		}
+		if strings.TrimSpace(req.GitTag) == "" {
+			p = append(p, model.Problem{Field: "gitTag", Reason: "an open-source component (sourceType: git) must name the tag that holds this version's source"})
+		}
 	case model.SourceTypeRegistry:
+		if req.GitURL != "" || req.GitTag != "" {
+			p = append(p, model.Problem{Field: "gitUrl", Reason: "a closed-source component (sourceType: registry) gives no Git repository URL or tag"})
+		}
 	default:
 		p = append(p, model.Problem{Field: "sourceType", Reason: "must be git or registry"})
 	}

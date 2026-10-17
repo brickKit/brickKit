@@ -157,13 +157,13 @@ type Origin struct {
 	Type string
 	// GitURL 是开源组件的仓库地址（OriginGit 时有值）。
 	GitURL string
-	// Subpath 是组件在仓库里的子目录（monorepo）；在仓库根目录时为空。
-	Subpath string
-	// Tag 是这个版本对应的 git tag（git 源才有）：clone 源码后检出它，本地仓库就是这个版本。
+	// Tag 是这个版本的源码所在的 git tag：clone 之后检出它，本地仓库就是这个版本。git 源按 tag 找到版本，
+	// 自然知道；市场源由发布时记下（brickkit publish 按组件在仓库里的位置算出）。开源而没有 tag 的
+	// （市场开始记 tag 之前发布的版本）不知道该检出哪里，不克隆。
 	Tag string
 	// CacheDir 是本机仓库缓存里这个仓库的 bare 副本（git 源才有）：--repo 从它克隆，离线也行。
 	CacheDir string
 }
 
-// IsOpenSource 判断该组件是否可以 clone 源码。
+// IsOpenSource 判断该组件有没有源码仓库可以 clone（能不能检出到这个版本另看 Tag）。
 func (o *Origin) IsOpenSource() bool { return o != nil && o.Type == OriginGit && o.GitURL != "" }

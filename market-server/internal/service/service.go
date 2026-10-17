@@ -141,6 +141,9 @@ func (s *Service) Publish(
 		Version:         m.Metadata.Version,
 		Status:          status,
 		Manifest:        req.Manifest,
+		SourceType:      req.SourceType,
+		GitURL:          req.GitURL,
+		GitTag:          req.GitTag,
 		Changelog:       req.Changelog,
 		PublishedAt:     s.now(),
 		PublishedBy:     id.Username,
@@ -325,8 +328,11 @@ type ManifestView struct {
 	Version     string          `json:"version"`
 	Status      string          `json:"status"`
 	Manifest    json.RawMessage `json:"manifest"`
-	SourceType  string          `json:"sourceType"`
-	GitURL      string          `json:"gitUrl,omitempty"`
+	// SourceType、GitURL、GitTag 是这个版本的来源（Version 上记的，不是组件上最近一次发布的）：
+	// add --repo 据此克隆，并检出 GitTag。
+	SourceType string `json:"sourceType"`
+	GitURL     string `json:"gitUrl,omitempty"`
+	GitTag     string `json:"gitTag,omitempty"`
 	// Signature 随 Manifest 一起返回：CLI 在 add 时只请求这一个端点，
 	// 签名不跟着回来，使用者就得再猜一次它在哪儿——或者干脆验不了。
 	Signature *model.Signature `json:"signature,omitempty"`
@@ -352,8 +358,9 @@ func (s *Service) GetManifest(
 		Version:      v.Version,
 		Status:       v.Status,
 		Manifest:     v.Manifest,
-		SourceType:   component.SourceType,
-		GitURL:       component.GitURL,
+		SourceType:   v.SourceType,
+		GitURL:       v.GitURL,
+		GitTag:       v.GitTag,
 		Signature:    v.Signature,
 		DocLanguages: v.DocLanguages(),
 	}, nil

@@ -55,6 +55,7 @@ func req(t *testing.T, manifest json.RawMessage, mutate ...func(*model.PublishRe
 		Manifest:   manifest,
 		SourceType: model.SourceTypeGit,
 		GitURL:     "https://github.com/brickkit/people-basic.git",
+		GitTag:     "1.2.0",
 	}
 	for _, m := range mutate {
 		m(&r)
@@ -65,6 +66,7 @@ func req(t *testing.T, manifest json.RawMessage, mutate ...func(*model.PublishRe
 func closedSource(r *model.PublishRequest) {
 	r.SourceType = model.SourceTypeRegistry
 	r.GitURL = ""
+	r.GitTag = ""
 }
 
 func requireValid(t *testing.T, r model.PublishRequest) *manifest.Manifest {
@@ -264,6 +266,19 @@ func TestValidateKeepsRequestRules(t *testing.T) {
 			r.GitURL = ""
 		}))
 		assert.Contains(t, fields(problemsOf(t, apiErr)), "gitUrl")
+	})
+	t.Run("open source names the tag of this version", func(t *testing.T) {
+		apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {
+			r.GitTag = ""
+		}))
+		assert.Contains(t, fields(problemsOf(t, apiErr)), "gitTag")
+	})
+	t.Run("closed source gives no repository", func(t *testing.T) {
+		apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {
+			r.SourceType = model.SourceTypeRegistry
+			r.GitURL = ""
+		}))
+		assert.Contains(t, fields(problemsOf(t, apiErr)), "gitUrl", "只留着 tag 也不行")
 	})
 	t.Run("version matches the manifest", func(t *testing.T) {
 		apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {

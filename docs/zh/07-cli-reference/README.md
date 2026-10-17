@@ -873,7 +873,8 @@ brickkit release --notes-file ../notes-0.3.0.md   # 带发版说明，打带注�
 
 1. 检查登录状态（`.brickkit/credentials` 或安装源的 `authToken`），未登录报错；
 2. 读取组件目录中的 `component.yaml` 并校验；
-3. 检查镜像引用是否有效，并确认 `artifacts` 声明的文件都在；
+3. 检查镜像引用是否有效，并确认 `artifacts` 声明的文件都在；按开源发布时（`--source-type git`，组件目录有 `origin` 时的缺省），
+   检查这个版本的 tag 已经发布——先 `brickkit release`：市场记下仓库与这个 tag，`add --repo` 克隆之后检出它；
 4. 跑组件的 `release.checks`，与 `release` 相同：第一条失败就停，市场里什么都不留；
 5. 建 draft 版本 → 上传产物 → 转 stable；
 6. 设置可见性。
@@ -896,7 +897,7 @@ brickkit publish [flags]
 | `--visibility <public\|private>` | 可见性，缺省沿用市场侧设置 |
 | `--notes <文字>` | 这个版本的发版说明（Markdown，原样保留），存成市场里这个版本的 changelog；使用它的项目 `upgrade` 时看得到。可不写 |
 | `--notes-file <文件>` | 改从这个文件读发版说明（相对当前目录）；不能与 `--notes` 同用 |
-| `--source-type <git\|registry>` | 来源类型：`git`（开源）或 `registry`（闭源），缺省按组件目录的 git remote 推断 |
+| `--source-type <git\|registry>` | 来源类型：`git`（开源，它的 tag 得已经发布）或 `registry`（闭源），缺省按组件目录的 git remote 推断 |
 | `--git-url <地址>` | 开源组件的 Git 仓库地址，缺省取组件目录的 origin |
 | `--sign` | 用 cosign 对组件签名后发布 |
 | `--key <路径>` | cosign 私钥路径，缺省 `cosign.key` |

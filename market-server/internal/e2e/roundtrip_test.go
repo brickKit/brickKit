@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -107,13 +108,33 @@ func withConfig(t *testing.T, dir string) {
 			"\nlocal:\n  runCommand: [./bin/server]\n")
 }
 
-// publish 在组件目录里登录并发布（凭据写在组件目录的 .brickkit/ 下）。
+// publish 像开源组件的作者那样发布：组件目录是一个推到远端的仓库，先 brickkit release 打 tag，
+// 再登录（凭据写在组件目录的 .brickkit/ 下）并 publish——市场记下仓库地址与 tag。返回 publish 的输出。
 func publish(t *testing.T, api, dir string) string {
 	t.Helper()
+	remote := filepath.Join(t.TempDir(), filepath.Base(dir)+".git")
+	git(t, dir, "init", "-q", "--bare", remote)
+	git(t, dir, "init", "-q", "-b", "main")
+	writeFile(t, filepath.Join(dir, ".gitignore"), ".brickkit/\n")
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "-q", "-m", "first version")
+	git(t, dir, "remote", "add", "origin", remote)
+	git(t, dir, "push", "-q", "-u", "origin", "main")
+	mustRun(t, dir, "release")
+
 	code, out := brickkit(t, dir, password+"\n", "login", "--market", api, "--username", publisher, "--password-stdin")
 	require.Equal(t, 0, code, "login\n%s", out)
-	return mustRun(t, dir, "publish", "--path", dir, "--market", api,
-		"--git-url", "https://git.example.com/"+filepath.Base(dir)+".git")
+	return mustRun(t, dir, "publish", "--path", dir, "--market", api)
+}
+
+// git 在 dir 里跑一条 git 命令，不读这台机器的 git 配置。
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=e2e", "-c", "user.email=e2e@example.com"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+	out, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
 }
 
 // consumer 用 brickkit init 建一个项目，并加上指向市场的安装源。返回项目目录。
@@ -138,6 +159,7 @@ func TestPublishAndAddBack(t *testing.T) {
 	mustRun(t, comp, "lint")
 	out := publish(t, api, comp)
 	assert.Contains(t, out, "BRICKKIT.md")
+	assert.Contains(t, out, "Git tag: 0.1.0", "开源版本记下它的源码所在的 tag")
 
 	proj := consumer(t, api, "shop")
 	mustRun(t, proj, "add", "people/basic@0.1.0", "--yes")
@@ -158,6 +180,26 @@ func TestPublishAndAddBack(t *testing.T) {
 	compose := readFile(t, filepath.Join(layout.GeneratedDir(), "compose.yaml"))
 	assert.Contains(t, compose, "people-basic-0-1-0", out)
 	assert.Contains(t, compose, fakeDigest, "部署的是发布时钉住的那个镜像")
+}
+
+// 开源组件 add --repo：克隆市场记下的仓库，检出这个版本的 tag——之后默认分支上再有提交也一样。
+func TestPublishAndAddBackWithRepo(t *testing.T) {
+	isolate(t)
+	api := startMarket(t)
+
+	comp := newComponent(t, "people/basic", "registry.example.com/people-basic:0.1.0")
+	publish(t, api, comp)
+	writeFile(t, filepath.Join(comp, "NEXT"), "work after 0.1.0\n")
+	git(t, comp, "add", "NEXT")
+	git(t, comp, "commit", "-q", "-m", "work after the release")
+	git(t, comp, "push", "-q")
+
+	proj := consumer(t, api, "shop")
+	mustRun(t, proj, "add", "people/basic@0.1.0", "--repo", "--yes")
+
+	clone := filepath.Join(proj, project.DirComponents, "people", "basic")
+	assert.FileExists(t, filepath.Join(clone, "component.yaml"))
+	assert.NoFileExists(t, filepath.Join(clone, "NEXT"), "检出的是 0.1.0 的 tag，不是默认分支上最新的提交")
 }
 
 // 外壳：成员与外壳各自发布，add 外壳时成员一起进来，部署文件里成员嵌在外壳条目下。
@@ -216,7 +258,7 @@ func TestRawPublishIsValidatedByTheMarket(t *testing.T) {
 		"futureField": true,
 	}
 	resp := postJSON(t, api+"/components/people/basic/versions", session.Data.Token, map[string]any{
-		"version": "0.1.0", "manifest": manifest, "sourceType": "git", "gitUrl": "https://git.example.com/p.git",
+		"version": "0.1.0", "manifest": manifest, "sourceType": "git", "gitUrl": "https://git.example.com/p.git", "gitTag": "0.1.0",
 	})
 
 	require.Equal(t, http.StatusBadRequest, resp.status, "%s", resp.body)

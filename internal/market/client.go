@@ -78,7 +78,9 @@ type PublishRequest struct {
 	Manifest   json.RawMessage `json:"manifest"`
 	SourceType string          `json:"sourceType"`
 	GitURL     string          `json:"gitUrl,omitempty"`
-	Changelog  string          `json:"changelog,omitempty"`
+	// GitTag 是开源版本的源码所在的 tag：市场按版本记下，add --repo 克隆之后检出它。
+	GitTag    string `json:"gitTag,omitempty"`
+	Changelog string `json:"changelog,omitempty"`
 	// Signature 是对 Manifest 规范化载荷的签名，未签名时为 nil。
 	Signature *security.Signature `json:"signature,omitempty"`
 	// Doc 是组件仓库根的 BRICKKIT.md 全文，没有时不发。它不在签名范围内：
@@ -130,28 +132,34 @@ func (c *Client) FindVersion(ctx context.Context, componentID, version string) (
 	return nil, nil
 }
 
-// FetchManifest 取市场上登记的那份 Manifest（原始 JSON）。
+// Registered 是市场上为一个版本登记的 Manifest（原始 JSON）与来源。
+type Registered struct {
+	Manifest   json.RawMessage `json:"manifest"`
+	SourceType string          `json:"sourceType"`
+	GitURL     string          `json:"gitUrl"`
+	GitTag     string          `json:"gitTag"`
+}
+
+// FetchRegistered 取市场上为这个版本登记的 Manifest 与来源。
 //
-// 续传之前要拿它与本地逐字节比对：draft 里登记的是**上一次**那份 Manifest，
+// 续传之前要拿它与本地逐一比对：draft 里登记的是**上一次**那份 Manifest 与来源，
 // 组件改过之后闷头续传，会把旧 Manifest 配上新产物发出去。
-func (c *Client) FetchManifest(ctx context.Context, componentID, version string) (json.RawMessage, error) {
+func (c *Client) FetchRegistered(ctx context.Context, componentID, version string) (*Registered, error) {
 	body, err := c.do(ctx, http.MethodGet,
 		versionPath(componentID, version)+"/manifest", nil, nil, i18n.T(msgid.MarketActionFetchManifest))
 	if err != nil {
 		return nil, err
 	}
-	var envelope struct {
-		Manifest json.RawMessage `json:"manifest"`
-	}
-	if err := decodeData(body, &envelope); err != nil {
+	var r Registered
+	if err := decodeData(body, &r); err != nil {
 		return nil, err
 	}
-	return envelope.Manifest, nil
+	return &r, nil
 }
 
 // FetchDoc 取市场上这个版本登记的 BRICKKIT.md；版本没带文档时 found 为 false。
 //
-// 续传之前与本地比对，理由同 FetchManifest：draft 里登记的是上一次那份。
+// 续传之前与本地比对，理由同 FetchRegistered：draft 里登记的是上一次那份。
 func (c *Client) FetchDoc(ctx context.Context, componentID, version string) (doc string, found bool, err error) {
 	body, err := c.do(ctx, http.MethodGet,
 		versionPath(componentID, version)+"/doc", nil, nil, i18n.T(msgid.MarketActionFetchDoc))

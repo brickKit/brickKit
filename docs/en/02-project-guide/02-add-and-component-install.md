@@ -184,6 +184,11 @@ from your working copy — the code you change is what `brickkit build` puts int
 
 `--repo-all` clones the source of every open-source component this add brings in (each at its default version).
 
+A component `--repo` can't check out at its version is installed as usual and named as not cloned: a closed-source
+component (a market version published with `sourceType: registry`) has no repository; one from a local install source
+already has its source on this machine; and a market version published before the market recorded tags doesn't say
+which commit is that version, so clone it yourself and check the version out.
+
 Wherever you run it inside the project — even in another component's directory — `add` works on the project, so the
 clone always lands in the project's own `components/`: component source lives in one place (see
 [Developing inside the project](04-focus-run.md#one-components)). The exception is a component directory with a

@@ -136,3 +136,12 @@ ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc TEXT;
 
 -- BRICKKIT.md 的译本（语言代码 → 全文）随版本存；这一列之前发布的版本没有译本。
 ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc_translations JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- 来源（开源 git / 闭源 registry、仓库地址、tag）随版本存：从前只记在组件上，每次发布都覆盖，
+-- 某个版本改成闭源，旧版本也跟着"变成"闭源；开源版本也不知道源码在哪个 tag 上。
+-- 这几列之前发布的版本按当时组件上记的来源补上（只补还空着的）；tag 当时没有记，补不出来。
+ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
+ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS git_url VARCHAR(512);
+ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS git_tag VARCHAR(256);
+UPDATE component_versions v SET source_type = c.source_type, git_url = c.git_url
+    FROM components c WHERE v.component_id = c.component_id AND v.source_type IS NULL;

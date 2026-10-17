@@ -23,6 +23,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
+	"github.com/brickkit/brickkit/internal/release"
 	"github.com/brickkit/brickkit/internal/security"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -91,6 +92,9 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 		ctx = context.Background()
 	}
 
+	if err := validateSourceType(f.sourceType); err != nil {
+		return err
+	}
 	if err := validateVisibility(f.visibility); err != nil {
 		return err
 	}
@@ -108,6 +112,11 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	pkg, err := loadPublishPackage(f)
 	if err != nil {
 		return err
+	}
+	if pkg.sourceType == sourceTypeGit {
+		if pkg.gitTag, err = releasedTag(opts, pkg.root); err != nil {
+			return err
+		}
 	}
 
 	opts.Printf("%s\n", i18n.T(msgid.CliPublishPublishing, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version))
@@ -153,6 +162,7 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	opts.Printf("%s\n", i18n.T(msgid.CliPublishSourceType, pkg.sourceType))
 	if pkg.gitURL != "" {
 		opts.Printf("%s\n", i18n.T(msgid.CliPublishGitRepository, pkg.gitURL))
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishGitTag, pkg.gitTag))
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliLoginMarketAddress, marketURL))
 	return nil
@@ -176,6 +186,8 @@ type publishPackage struct {
 	fileOrder  []string
 	sourceType string
 	gitURL     string
+	// gitTag 是开源版本的源码所在的 tag（releasedTag）；闭源时为空。
+	gitTag string
 	// warnings 是不阻断发布的提醒（如属性声明里拼错的键）。
 	warnings []*clierr.Error
 }
@@ -365,6 +377,7 @@ func uploadRelease(
 		Manifest:   pkg.document,
 		SourceType: pkg.sourceType,
 		GitURL:     pkg.gitURL,
+		GitTag:     pkg.gitTag,
 		Changelog:  f.notes,
 		Signature:  pkg.signature,
 		Doc:        pkg.doc,
@@ -444,11 +457,11 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 			)
 	}
 
-	remote, err := client.FetchManifest(ctx, id, version)
+	registered, err := client.FetchRegistered(ctx, id, version)
 	if err != nil {
 		return err
 	}
-	if !sameJSON(remote, pkg.document) {
+	if !sameJSON(registered.Manifest, pkg.document) {
 		return clierr.New(clierr.CodeConfigConflict,
 			i18n.T(msgid.CliPublishErrorWasCreatedLastTime, id, version)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishResumingCanOnlyUploadThe)).
@@ -456,6 +469,14 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
 				i18n.T(msgid.CliPublishIfYouReallyWantTo),
 			)
+	}
+
+	// 来源同理：draft 里登记的是上一次的开源 / 闭源、仓库与 tag
+	if registered.SourceType != pkg.sourceType || registered.GitURL != pkg.gitURL || registered.GitTag != pkg.gitTag {
+		return clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.CliPublishErrorSourceChangedSinceLastTime, id, version)).
+			WithDetail(i18n.T(msgid.CliPublishRegisteredSource), describeSource(registered.SourceType, registered.GitURL, registered.GitTag)).
+			WithDetail(i18n.T(msgid.CliPublishThisSource), describeSource(pkg.sourceType, pkg.gitURL, pkg.gitTag)).
+			WithHint(i18n.T(msgid.CliPublishUseAnotherVersionNumberChange))
 	}
 
 	remoteDoc, _, err := client.FetchDoc(ctx, id, version)
@@ -653,6 +674,34 @@ func resolveOrigin(root string, f publishFlags) (sourceType, gitURL string) {
 	return sourceType, gitURL
 }
 
+// releasedTag 是开源版本的源码所在的 tag：市场按版本记下它，add --repo 克隆之后检出它。所以它必须已经
+// 发布出去（brickkit release：tag 在远端、就在当前提交上，组件目录没有未提交的改动）——上传的 component.yaml
+// 与文档也就是 tag 里的那一份。tag 的名字与 release 打的、git 安装源读的是同一个函数算出来的。
+func releasedTag(opts *Options, root string) (string, error) {
+	target, err := release.PrepareAs(root, opts.display(root))
+	if err != nil {
+		return "", err
+	}
+	state, err := target.Check()
+	if err != nil {
+		return "", err
+	}
+	if state != release.Released {
+		return "", clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.CliPublishErrorOpenSourceUnreleased, target.Ref(), target.Tag)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishOpenSourceNamesItsTag)).
+			WithHint(i18n.T(msgid.CliPublishHintReleaseFirst), i18n.T(msgid.CliPublishHintPublishClosed))
+	}
+	return target.Tag, nil
+}
+
+// describeSource 是一个版本的来源给人看的写法：registry，或 git <仓库> @ <tag>。
+func describeSource(sourceType, gitURL, gitTag string) string {
+	if sourceType != sourceTypeGit {
+		return sourceType
+	}
+	return sourceType + " " + gitURL + " @ " + gitTag
+}
+
 // gitRemoteURL 读组件目录的 origin 地址；不是 Git 仓库时返回空字符串。
 func gitRemoteURL(root string) string {
 	cmd := exec.Command("git", "-C", root, "remote", "get-url", "origin")
@@ -661,6 +710,19 @@ func gitRemoteURL(root string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// validateSourceType 校验 --source-type 的取值：写错了在本地就停下，不等市场拒绝。
+func validateSourceType(sourceType string) error {
+	switch strings.TrimSpace(sourceType) {
+	case "", sourceTypeGit, sourceTypeRegistry:
+		return nil
+	default:
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliPublishErrorInvalidSourceTypeValue)).
+			WithDetail(i18n.T(msgid.CliPublishCurrentValue), sourceType).
+			WithDetailf(i18n.T(msgid.CliPublishAllowedValues), "%s | %s", sourceTypeGit, sourceTypeRegistry).
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliPublishSourceTypeGitOpenSource))
+	}
 }
 
 // validateVisibility 校验 --visibility 的取值。

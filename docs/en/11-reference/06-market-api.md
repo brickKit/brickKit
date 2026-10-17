@@ -117,7 +117,9 @@ A component is created by its first publish, and the publisher becomes its owner
 | GET | `/api/v1/components/{scope}/{name}/versions/{version}/manifest` | Depends on visibility | The version's Manifest; this is where `brickkit add` gets it |
 | GET | `/api/v1/components/{scope}/{name}/versions/{version}/doc` | Depends on visibility | The version's `BRICKKIT.md`; see [Component docs](#component-docs) |
 
-The `data` of `/manifest` holds `manifest` (the `component.yaml` as JSON), `status`, `sourceType` (`git` for open source, `registry` for closed source), `gitUrl` (the open-source repository, which `add --repo` clones) and `signature` (the signature supplied at publish time; absent when there is none).
+The `data` of `/manifest` holds `manifest` (the `component.yaml` as JSON), `status`, `sourceType` (`git` for open source, `registry` for closed source), `gitUrl` (the open-source repository, which `add --repo` clones), `gitTag` (the tag holding this version's source, which `add --repo` checks out) and `signature` (the signature supplied at publish time; absent when there is none).
+
+The source is recorded per version: a component can turn open or closed source, or move repository, from one version on, and the earlier versions keep theirs. The `sourceType` and `gitUrl` of a component in the component list are those of its most recently published version, for browsing only. A version published before the market recorded tags has no `gitTag`; `add --repo` then doesn't clone it, since it can't tell which commit is that version.
 
 Whether a caller gets a version: a `draft` is visible to its owner only, a `blocked` version answers `COMPONENT_BLOCKED`, a deleted one answers `NOT_FOUND`, and a private component answers `FORBIDDEN` to anyone without a grant. `/doc` applies exactly the same rules as `/manifest`.
 
@@ -142,6 +144,7 @@ The body of `POST /api/v1/components/{scope}/{name}/versions`:
   "manifest": { "apiVersion": "brickkit/v1", "kind": "Component", "metadata": { "id": "people/basic", "version": "1.2.0" } },
   "sourceType": "git",
   "gitUrl": "https://github.com/example/people-basic",
+  "gitTag": "1.2.0",
   "changelog": "Add a status field to people",
   "visibility": "public",
   "doc": "# people/basic\n\nHow to call it…\n",
@@ -160,8 +163,9 @@ The body of `POST /api/v1/components/{scope}/{name}/versions`:
 | `version` | Yes | Must equal `manifest.metadata.version` |
 | `status` | No | `draft` when omitted |
 | `manifest` | Yes | The `component.yaml` as JSON; stored as sent |
-| `sourceType` | Yes | `git` (open source; `gitUrl` is then required) or `registry` (closed source) |
+| `sourceType` | Yes | `git` (open source; `gitUrl` and `gitTag` are then required) or `registry` (closed source; neither may be given) |
 | `gitUrl` | For open source | The component's git repository |
+| `gitTag` | For open source | The tag holding this version's source: the version, or `<scope>-<name>/<version>` for a component in a subdirectory of its repository — the tag `brickkit release` makes. `brickkit publish` works it out, and publishes an open-source version only once that tag is released |
 | `changelog` | No | What changed in this version |
 | `visibility` | No | `public` or `private`. When given, the component is set to it, existing components included; when omitted, a new component is `public` and an existing one keeps its setting |
 | `doc` | No | The full text of `BRICKKIT.md` from the component's root: UTF-8, at most 256 KiB |

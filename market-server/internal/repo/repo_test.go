@@ -61,6 +61,7 @@ func runContract(t *testing.T, newRepo func(t *testing.T) repo.Repository) {
 		"版本列表与状态变更":            testVersionListAndStatus,
 		"版本签名的存取":              testVersionSignature,
 		"版本文档的存取":              testVersionDocRoundTrip,
+		"版本来源按版本存取":            testVersionSourceRoundTrip,
 		"产物按版本独立存储":            testArtifactsPerVersion,
 		"产物上传标记":               testArtifactUploadMark,
 		"访问策略":                 testAccessPolicies,
@@ -722,6 +723,31 @@ func testVersionDocRoundTrip(t *testing.T, r repo.Repository) {
 	require.NoError(t, err)
 	assert.Empty(t, got.Doc)
 	assert.Empty(t, got.DocTranslations)
+}
+
+// 来源随版本存：1.0.0 开源、2.0.0 改成闭源，1.0.0 读出来仍是开源，仓库与 tag 都在；列表里也一样。
+func testVersionSourceRoundTrip(t *testing.T, r repo.Repository) {
+	ctx := context.Background()
+	require.NoError(t, r.UpsertComponent(ctx, newComponent("people/basic")))
+
+	open := newVersion("people/basic", "1.0.0")
+	open.SourceType, open.GitURL, open.GitTag = model.SourceTypeGit, "https://github.com/brickkit/people-basic.git", "1.0.0"
+	closed := newVersion("people/basic", "2.0.0")
+	closed.SourceType = model.SourceTypeRegistry
+	require.NoError(t, r.CreateVersion(ctx, open))
+	require.NoError(t, r.CreateVersion(ctx, closed))
+
+	got, err := r.GetVersion(ctx, "people/basic", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, [3]string{model.SourceTypeGit, open.GitURL, "1.0.0"}, [3]string{got.SourceType, got.GitURL, got.GitTag})
+	got, err = r.GetVersion(ctx, "people/basic", "2.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, [3]string{model.SourceTypeRegistry, "", ""}, [3]string{got.SourceType, got.GitURL, got.GitTag})
+
+	list, err := r.ListVersions(ctx, "people/basic")
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	assert.Equal(t, "1.0.0", list[1].GitTag)
 }
 
 // 非管理员只看得到自己名下组件的条目、以及自己做过的操作；limit 在收窄之后才生效。

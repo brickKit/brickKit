@@ -29,7 +29,21 @@ func TestOriginFromMarketOpenSource(t *testing.T) {
 	assert.Equal(t, "brickkit-market", origin.SourceID)
 	assert.Equal(t, OriginGit, origin.Type)
 	assert.Equal(t, "https://github.com/brickkit/people-basic.git", origin.GitURL)
+	assert.Equal(t, "1.0.0", origin.Tag, "市场按版本记下源码所在的 tag：--repo 克隆之后检出它")
 	assert.True(t, origin.IsOpenSource())
+}
+
+// 组件在仓库子目录里：tag 带命名空间，市场原样给出发布时记下的那个。
+func TestOriginFromMarketCarriesTheRecordedTag(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	mock.gitTag = "people-basic/1.0.0"
+	c := newClient(t, newProject(t), cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	origin, err := c.Origin(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, "people-basic/1.0.0", origin.Tag)
 }
 
 // 市场返回 sourceType: registry → 闭源组件，没有仓库地址。

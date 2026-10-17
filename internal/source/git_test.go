@@ -192,7 +192,6 @@ func TestGitRepositorySourceFindsComponentsInSubdirectories(t *testing.T) {
 	origin, err := c.Origin(ctx, "test/probe-py", "0.2.0")
 	require.NoError(t, err)
 	assert.Equal(t, mono.URL(), origin.GitURL)
-	assert.Equal(t, "probes/py", origin.Subpath)
 	assert.Equal(t, "test-probe-py/0.2.0", origin.Tag)
 }
 
