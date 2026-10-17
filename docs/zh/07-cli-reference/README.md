@@ -564,8 +564,8 @@ graph TD
 
 ## `brickkit build`
 
-构建需要在本机构建的镜像：没有 `deployment.image` 的组件，以及本地安装源里的组件（正在开发的代码，镜像必须从它构建）。
-有 `image` 的 git / 市场组件是拉取的，不构建。
+构建需要在本机构建的镜像：没有 `deployment.image` 的组件，以及本地安装源里写了 `deployment.build` 的组件（正在开发的代码，镜像必须从它构建）。
+其余写了 `image` 的组件都是拉取的，不构建——本地源里只写了 `image` 的组件也一样。点名一个没写 `build` 的组件会报错：没有东西可构建。
 
 不带参数时构建所有需要本机构建的组件——在组件目录里则只构建这一个。BrickKit 从不拉取 git submodule：源码里有 submodule
 而它们是空目录时，`build` 在构建之前给出警告（见[构建与镜像](../02-project-guide/12-build-and-images.md)）。

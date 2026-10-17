@@ -23,8 +23,6 @@ func TestDepsWithoutArgumentsInAComponentDirectory(t *testing.T) {
 func TestBuildWithoutArgumentsInAComponentDirectory(t *testing.T) {
 	dir := focusFixture(t)
 	for _, rel := range [][]string{{"components", "erp", "portal"}, {"components", "erp", "worker"}} {
-		editFile(t, in(dir, append(rel, "component.yaml")...), "deployment:\n",
-			"deployment:\n  build: { context: ., dockerfile: Dockerfile }\n")
 		writeTree(t, in(dir, rel...), map[string]string{"Dockerfile": "FROM scratch\n"})
 	}
 	imgs := newFakeImages()

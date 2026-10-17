@@ -44,13 +44,13 @@ func TestUpBuildOnlyImageMissingPointsToBuild(t *testing.T) {
 	assert.Len(t, eng.ups, 1)
 }
 
-// 本地安装源的组件写了 image 也不从 registry 拉：本地源是正在开发的代码，拉来的镜像是另一份代码。
+// 本地安装源的组件写了 build（正在开发的代码）就不从 registry 拉，写了 image 也一样：拉来的镜像是另一份代码。
 func TestUpLocalSourceNeverPullsInstead(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
 		"brickkit.yaml":                     "project: shop\nsources:\n  - {name: dev, type: local, path: ./components}\ncomponents:\n  - {id: erp/api, version: 1.0.0}\n",
 		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
-		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0"}.yamlText(),
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0", Build: true}.yamlText(),
 	})
 	eng := newFakeEngine()
 	r := runWith(t, func(o *Options) { o.Engine = eng; o.Images = newFakeImages() }, dir, "up")
@@ -159,6 +159,35 @@ func TestAddShellMemberWithoutImageFails(t *testing.T) {
 	assert.NotContains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "erp/shell")
 }
 
+// 本地源里只写了 image 的组件（只有契约、没有源码：克隆来的契约仓库、离线放进来的 component.yaml）
+// 照样拉镜像——它没有源码可构建。旁边有 Dockerfile 时，build 说出它不会被用到。
+func TestLocalSourceImageOnlyComponentIsPulled(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml":                     "project: shop\nsources:\n  - {name: dev, type: local, path: ./components}\ncomponents:\n  - {id: erp/api, version: 1.0.0}\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0"}.yamlText(),
+		"components/erp/api/Dockerfile":     "FROM scratch\n",
+	})
+	images := newFakeImages()
+	eng := newFakeEngine()
+	run := func(args ...string) result {
+		return runWith(t, func(o *Options) { o.Engine = eng; o.Images = images }, dir, args...)
+	}
+
+	r := run("up")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Len(t, eng.ups, 1, "镜像从 registry 拉，照常启动")
+
+	r = run("build")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Empty(t, images.built())
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ManifestDockerfileUnused, "erp/api"))
+
+	r = run("lint")
+	assert.Contains(t, r.stdout, i18n.T(msgid.ManifestDockerfileUnused, "erp/api"))
+}
+
 // 本地源的组件写了 image：本机上那个 tag 可能是以前从 registry 拉下来的（组件那时还是 git 装的）。
 // 那不是本地代码构建的——up 不认，build 不跳过。
 func TestLocalSourceRejectsAPulledImageWithTheSameTag(t *testing.T) {
@@ -166,7 +195,7 @@ func TestLocalSourceRejectsAPulledImageWithTheSameTag(t *testing.T) {
 	writeTree(t, dir, map[string]string{
 		"brickkit.yaml":                     "project: shop\nsources:\n  - {name: dev, type: local, path: ./components}\ncomponents:\n  - {id: erp/api, version: 1.0.0}\n",
 		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
-		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0"}.yamlText(),
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0", Build: true}.yamlText(),
 		"components/erp/api/Dockerfile":     "FROM scratch\n",
 	})
 	images := newFakeImages("registry.example.com/erp-api:1.0.0") // 拉下来的：没有本地构建的标签

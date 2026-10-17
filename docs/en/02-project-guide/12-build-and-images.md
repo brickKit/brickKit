@@ -16,14 +16,22 @@ already exists.
 | --- | --- |
 | Its `component.yaml` names a `deployment.image`, and it comes from a Git source or a market | Pulled: the author already pushed the image to a registry, so you build nothing |
 | Its `component.yaml` names only `deployment.build` (no `image`) | Built locally: from an export of this version's Git tag |
-| From a local source (code being developed in `components/` or `shell/`) | Built locally: from your working copy — whether or not an `image` is named |
+| From a local source (code being developed in `components/` or `shell/`) and names `deployment.build` | Built locally: from your working copy — even when an `image` is named too |
+| From a local source and names only `deployment.image` | Pulled, like from any other source: there is no source to build |
 
-The last row is worth noting: once `add --repo` has cloned a component's source into `components/`, the component is
+The third row is worth noting: once `add --repo` has cloned a component's source into `components/`, the component is
 provided by the local source, and its image is built from your working copy rather than pulled from what the author
 published — because you cloned it to run the code in your hands.
 
-Naming a component whose image is normally pulled (`brickkit build demo/x`) builds a local image anyway — a way out when
-the registry can't be reached — and says so:
+The fourth row is a component that ships only an image: a repository holding just `component.yaml` and `BRICKKIT.md`
+(a closed-source component, or a wrapper around someone else's image) cloned with `add --repo`, or such a
+`component.yaml` copied into a local source on a machine without network access to Git. Only a component that writes
+`deployment.build` is ever built; BrickKit doesn't guess that a `Dockerfile` lying next to `component.yaml` is meant for
+it. When one is there and `build` isn't written, `brickkit lint` and `brickkit build` warn that it isn't used.
+
+Naming a component whose image is normally pulled (`brickkit build demo/x`) builds a local image anyway when it writes
+`deployment.build` — a way out when the registry can't be reached — and says so (a component with only an `image` has
+nothing to build, and `build` says that instead):
 
 ```text
 ℹ️  demo/x@1.0.0 normally pulls its image (registry.example.com/demo/x:1.0.0); building a local one because it was named

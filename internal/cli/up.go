@@ -118,7 +118,7 @@ type imageInfo struct {
 	image     string
 	ref       resolver.Ref
 	manifest  *manifest.Manifest
-	// needsLocal：没有 image 的版本、本地安装源给出的版本，镜像必须已经在本机（brickkit build）
+	// needsLocal：镜像要在本机构建的版本（manifest.BuiltLocally），镜像必须已经在本机（brickkit build）
 	needsLocal bool
 	// localSource：本地安装源给出的版本——本机镜像还必须是从本地代码构建的（io.brickkit.build=local）
 	localSource bool
@@ -338,7 +338,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	for i := range plan.images {
 		info := &plan.images[i]
 		info.localSource = client.IsLocal(ctx, info.ref.ID, info.ref.Version)
-		info.needsLocal = info.manifest.Deployment.Image == "" || info.localSource
+		info.needsLocal = info.manifest.BuiltLocally(info.localSource)
 	}
 	// plan.generated 只在 docker / podman 目标下才有值；k8s 目标下 mode: local 在部署文件
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
@@ -826,13 +826,18 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 		return e.WithHint(hints...)
 	}
 	if err := checkImages(ctx, opts, eng, pulled); err != nil {
-		// 拉不到时还有一条出路：从源码在本机构建
+		// 拉不到时还有一条出路：从源码在本机构建——组件写了 deployment.build 才有（只给镜像的组件没有源码可构建）
 		e := clierr.As(err)
 		for _, d := range e.Details {
-			if d.Key == i18n.T(msgid.LabelComponent) {
-				e = e.WithHint(i18n.T(msgid.CliUpHintBuildInstead, d.Value))
-				break
+			if d.Key != i18n.T(msgid.LabelComponent) {
+				continue
 			}
+			for _, info := range pulled {
+				if info.component == d.Value && info.manifest.BuildsFromSource() {
+					e = e.WithHint(i18n.T(msgid.CliUpHintBuildInstead, d.Value))
+				}
+			}
+			break
 		}
 		return e
 	}

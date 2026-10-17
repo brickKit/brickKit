@@ -41,6 +41,8 @@ type comp struct {
 	// Image 覆盖默认的 registry.example.com/<id>:<version>（digest 用例要用）；
 	// 写 "-" 表示只有 deployment.build、没有 image。
 	Image string
+	// Build 在 image 之外再写 deployment.build：本地源里正在开发的组件就是这样，镜像从工作区构建。
+	Build bool
 	// ConfigSchema 是 "键名:默认值" 的列表，如 "greeting:你好"（升级摘要要用）。
 	ConfigSchema []string
 	// CPU / Memory 是 deployment.resources.limits（配额变更要用）。
@@ -134,6 +136,9 @@ func (c comp) yamlText() string {
 		b.WriteString("  build:\n    dockerfile: Dockerfile\n")
 	} else {
 		fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
+		if c.Build {
+			b.WriteString("  build:\n    dockerfile: Dockerfile\n")
+		}
 	}
 	port := c.Port
 	if port == 0 {

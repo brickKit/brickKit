@@ -36,6 +36,8 @@ dependencies:
 deployment:
   type: container
   image: brickkit-demo/portal-user-frontend:1.0.0
+  build:
+    dockerfile: Dockerfile
   # 8080 而不是 80：容器以非 root 运行，1024 以下的端口需要特权
   port: 8080
   resources:

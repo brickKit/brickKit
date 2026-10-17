@@ -11,6 +11,8 @@ dependencies:
 deployment:
   type: container
   image: registry.example.com/erp-worker:1.0.0
+  build:
+    dockerfile: Dockerfile
   port: 8082
 healthCheck:
   type: tcp

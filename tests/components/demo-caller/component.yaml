@@ -57,6 +57,8 @@ migration:
 deployment:
   type: container
   image: brickkit-demo/caller:1.0.0
+  build:
+    dockerfile: Dockerfile
   port: 8080
   resources:
     # 只声明 requests，不声明 limits：

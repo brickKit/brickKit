@@ -110,7 +110,17 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 		tag := manifest.ImageRef(node.Manifest)
 		if !needsLocalBuild(ctx, client, node) {
 			if id == "" {
+				// 本地源里只写了 image、旁边却有 Dockerfile：不构建它，但要说出来——作者多半以为会
+				if dir, ok := proj.LocalRepo(ref.ID); ok && client.IsLocal(ctx, ref.ID, ref.Version) {
+					if w := manifest.UnusedDockerfileWarning(node.Manifest, dir); w != nil {
+						renderWarnings(opts, []*clierr.Error{w})
+					}
+				}
 				continue
+			}
+			if !node.Manifest.BuildsFromSource() {
+				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliBuildNothingToBuild, ref.String(), tag)).
+					WithHint(i18n.T(msgid.CliBuildHintImageIsPulled), i18n.T(msgid.ManifestHintDeclareBuild))
 			}
 			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路）
 			opts.Printf("%s\n", i18n.T(msgid.CliBuildNormallyPulled, ref.String(), tag))
@@ -168,9 +178,9 @@ func localImageUsable(ctx context.Context, images engine.Images, node *resolver.
 	return true, nil
 }
 
-// needsLocalBuild：没有 image 的版本、本地安装源给出的版本要在本机构建；其余的镜像是拉的。
+// needsLocalBuild：这个版本的镜像要在本机构建（manifest.BuiltLocally）；其余的镜像是拉的。
 func needsLocalBuild(ctx context.Context, client *source.Client, node *resolver.Node) bool {
-	return node.Manifest.Deployment.Image == "" || client.IsLocal(ctx, node.Ref.ID, node.Ref.Version)
+	return node.Manifest.BuiltLocally(client.IsLocal(ctx, node.Ref.ID, node.Ref.Version))
 }
 
 // buildOne 找到源码、构建一个版本。

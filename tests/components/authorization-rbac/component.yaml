@@ -90,6 +90,8 @@ migration:
 deployment:
   type: container
   image: brickkit-demo/authorization-rbac:1.0.0
+  build:
+    dockerfile: Dockerfile
   # HTTP 与 gRPC 共用这一个端口（h2c + Content-Type 分流，同 department/tree）
   port: 8080
   resources:

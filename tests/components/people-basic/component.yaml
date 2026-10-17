@@ -74,6 +74,8 @@ migration:
 deployment:
   type: container
   image: brickkit-demo/people-basic:1.0.0
+  build:
+    dockerfile: Dockerfile
   # 主端口（HTTP）：健康检查与 PEOPLE_BASIC_ENDPOINT 用它
   port: 8080
   # 额外端口（gRPC）：Python 的 grpcio 不能与 HTTP 共用端口。

@@ -24,7 +24,7 @@ func (g *gitOrgProject) runImages(dir string, images *fakeImages, args ...string
 	}, dir, args...)
 }
 
-// 本地源的组件、没有 image 的组件从源码构建；有 image 的 git 组件是拉的，不构建。
+// 本地源里写了 build 的组件、没有 image 的组件从源码构建；有 image 的 git 组件是拉的，不构建。
 // tag 与 metadata.version 一致。
 func TestBuildBuildsLocalAndBuildOnlyVersions(t *testing.T) {
 	g := newGitOrgProject(t)
@@ -34,7 +34,7 @@ func TestBuildBuildsLocalAndBuildOnlyVersions(t *testing.T) {
 	g.mustRun(dir, "add", "erp/builtonly@1.0.0")
 	g.mustRun(dir, "add", "erp/pulled@2.0.0")
 	writeTree(t, dir, map[string]string{
-		"components/erp/local/component.yaml": comp{ID: "erp/local", Version: "1.0.0", Port: 8081}.yamlText(),
+		"components/erp/local/component.yaml": comp{ID: "erp/local", Version: "1.0.0", Port: 8081, Build: true}.yamlText(),
 		"components/erp/local/Dockerfile":     "FROM scratch\n",
 	})
 	editFile(t, filepath.Join(dir, "brickkit.yaml"), "sources:\n", "sources:\n  - name: dev\n    type: local\n    path: ./components\n")
@@ -148,7 +148,7 @@ func TestBuildPinnedVersionNamesTheLocalRepoVersion(t *testing.T) {
 // 拉不到镜像时的出路就是 build。
 func TestBuildNamedComponentThatIsNormallyPulled(t *testing.T) {
 	g := newGitOrgProject(t)
-	g.release(comp{ID: "erp/pulled", Version: "2.0.0"}, map[string]string{"Dockerfile": "FROM scratch\n"})
+	g.release(comp{ID: "erp/pulled", Version: "2.0.0", Build: true}, map[string]string{"Dockerfile": "FROM scratch\n"})
 	dir := g.project()
 	g.mustRun(dir, "add", "erp/pulled@2.0.0")
 
@@ -166,14 +166,40 @@ func TestBuildNamedComponentThatIsNormallyPulled(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 }
 
-// 拉不到镜像时，up 的报错里也给出本机构建这条出路。
+// 只写了 image 的组件没有源码可构建：点名 build 时直接说清楚，不交给 docker 去报"找不到 Dockerfile"。
+func TestBuildNamedImageOnlyComponentHasNothingToBuild(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "vendor/engine", Version: "1.0.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "vendor/engine@1.0.0")
+
+	images := newFakeImages()
+	r := g.runImages(dir, images, "build", "vendor/engine")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Empty(t, images.built())
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliBuildNothingToBuild, "vendor/engine@1.0.0", "registry.example.com/vendor-engine:1.0.0"))
+}
+
+// 拉不到镜像时，up 的报错里也给出本机构建这条出路——只给写了 deployment.build 的组件：只给镜像的没有源码可构建。
 func TestUpPullFailureOffersBuild(t *testing.T) {
-	g, dir := pulledImagesProject(t)
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "people/basic", Version: "1.0.0", Port: 8081, Build: true})
+	g.release(comp{ID: "vendor/engine", Version: "1.0.0", Port: 8082})
+	dir := g.project()
+	g.mustRun(dir, "add", "people/basic@1.0.0")
+	g.mustRun(dir, "add", "vendor/engine@1.0.0")
+
 	eng := newFakeEngine()
 	eng.checkErr["registry.example.com/people-basic:1.0.0"] = clierr.New(clierr.CodeNetworkUnreachable, "registry unreachable")
 	r := g.upWith(dir, eng, newFakeImages())
 	require.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "brickkit build people/basic@1.0.0")
+
+	eng = newFakeEngine()
+	eng.checkErr["registry.example.com/vendor-engine:1.0.0"] = clierr.New(clierr.CodeNetworkUnreachable, "registry unreachable")
+	r = g.upWith(dir, eng, newFakeImages())
+	require.Equal(t, clierr.ExitError, r.code)
+	assert.NotContains(t, r.stderr, "brickkit build vendor/engine@1.0.0")
 }
 
 // 一次构建失败就停下，点名是哪个组件；已经构建好的留着。

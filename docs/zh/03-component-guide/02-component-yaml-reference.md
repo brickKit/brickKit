@@ -112,7 +112,7 @@ configSchema:
 | --- | --- |
 | `type` | 固定是 `container` |
 | `image` | 预构建镜像，使用方直接拉取 |
-| `build` | 本机构建：`context`（构建上下文）与 `dockerfile`，都相对仓库根，缺省是 `.` 与 `Dockerfile` |
+| `build` | 怎么从源码构建镜像：`context`（构建上下文）与 `dockerfile`，都相对仓库根，缺省是 `.` 与 `Dockerfile`。只有写了它的组件才会被构建 |
 | `port` | 主端口：健康检查打它，别人的 `*_ENDPOINT` 指向它 |
 | `extraPorts` | 额外端口（比如 gRPC）：`- name: grpc` / `port: 9090`，别人拿到 `…_GRPC_ENDPOINT` |
 | `protocol`、`extraPorts[].protocol` | 这个端口上说的协议：`http` / `grpc` / `tcp`，可选。见下面"端口协议" |
@@ -121,7 +121,8 @@ configSchema:
 | `labels` | 原样透传的标签（Docker 的 service labels、K8s 的 Pod annotations），平台不解释 |
 
 `image` 与 `build` 至少写一个。只写 `build`：使用方用 `brickkit build` 从你的 tag 构建。两个都写：你的 Git / 市场使用方拉镜像，
-把源码克隆下来开发的人从源码构建。
+把源码克隆下来开发的人从源码构建。只写 `image`：镜像总是拉取的，来自本地源也一样——不给代码也能分发组件，就靠它；
+旁边的 `Dockerfile` 不会被用到，`lint` 会警告。
 
 **配额只建议 `requests`。** 你知道自己稳态要多少；"最多能涨到多少"是部署方的判断，而且你写了 `limits.cpu`，使用方就去不掉它了。
 平台不给 `limits` 编默认值：编一个 512Mi，一个本来需要 600Mi 的健康组件就会被 OOM 杀掉。

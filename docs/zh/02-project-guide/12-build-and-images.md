@@ -14,12 +14,18 @@
 | --- | --- |
 | `component.yaml` 写了 `deployment.image`，来自 Git 源或市场 | 拉取：组件作者已经把镜像推到了镜像仓库，你不用构建 |
 | `component.yaml` 只写了 `deployment.build`（没有 `image`） | 本机构建：从这个版本的 Git tag 导出源码构建 |
-| 来自本地源（`components/`、`shell/` 里正在开发的代码） | 本机构建：从你的工作区构建——不管写没写 `image` |
+| 来自本地源（`components/`、`shell/` 里正在开发的代码），写了 `deployment.build` | 本机构建：从你的工作区构建——同时写了 `image` 也一样 |
+| 来自本地源，只写了 `deployment.image` | 拉取，与来自别的安装源一样：没有源码可构建 |
 
-最后一行值得注意：`add --repo` 把一个组件的源码克隆进 `components/` 之后，它就由本地源提供，镜像要从你的工作区构建，
+第三行值得注意：`add --repo` 把一个组件的源码克隆进 `components/` 之后，它就由本地源提供，镜像要从你的工作区构建，
 而不再是拉取作者发布的那个——因为你克隆它，就是要跑你手里的代码。
 
-点名一个镜像平常是拉取的组件（`brickkit build demo/x`），照样在本机构建一份——镜像仓库连不上时的出路——并说一声：
+第四行是只给镜像的组件：只放着 `component.yaml` 与 `BRICKKIT.md` 的仓库（闭源组件，或者包装别人镜像的组件）被 `add --repo`
+克隆下来，或者在连不上 Git 的机器上把这样一份 `component.yaml` 放进本地源。只有写了 `deployment.build` 的组件才会被构建；
+BrickKit 不猜 `component.yaml` 旁边的 `Dockerfile` 是给它用的。有 `Dockerfile` 而没写 `build` 时，`brickkit lint` 与 `brickkit build` 会警告它没被用到。
+
+点名一个镜像平常是拉取的组件（`brickkit build demo/x`），它写了 `deployment.build` 时照样在本机构建一份——镜像仓库连不上时的出路——并说一声
+（只写了 `image` 的组件没有东西可构建，`build` 会这样说）：
 
 ```text
 ℹ️  demo/x@1.0.0 的镜像平常是拉取的（registry.example.com/demo/x:1.0.0），按点名在本机构建一份

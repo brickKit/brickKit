@@ -65,6 +65,8 @@ migration:
 deployment:
   type: container
   image: brickkit-demo/department-tree:1.0.0
+  build:
+    dockerfile: Dockerfile
   # 单端口：HTTP 与 gRPC 共用。因此不需要 extraPorts
   port: 8080
   resources:

@@ -123,7 +123,7 @@ How to design config well — how finely to split it, how to name it, what shoul
 | --- | --- |
 | `type` | Always `container` |
 | `image` | A prebuilt image that users pull |
-| `build` | Built locally: `context` (the build context) and `dockerfile`, both relative to the repository root, `.` and `Dockerfile` by default |
+| `build` | How to build the image from source: `context` (the build context) and `dockerfile`, both relative to the repository root, `.` and `Dockerfile` by default. Only a component that writes it is ever built |
 | `port` | The main port: the health check hits it, and others' `*_ENDPOINT` points at it |
 | `extraPorts` | Extra ports (gRPC, say): `- name: grpc` / `port: 9090`; others get `…_GRPC_ENDPOINT` |
 | `protocol`, `extraPorts[].protocol` | What the port speaks: `http` / `grpc` / `tcp`, optional. See "Port protocol" below |
@@ -132,7 +132,9 @@ How to design config well — how finely to split it, how to name it, what shoul
 | `labels` | Labels passed through as-is (Docker service labels, Kubernetes Pod annotations); the platform doesn't interpret them |
 
 Write at least one of `image` and `build`. Only `build`: users build from your tag with `brickkit build`. Both: users of
-your Git or market release pull the image, while people who clone the source to develop build from source.
+your Git or market release pull the image, while people who clone the source to develop build from source. Only
+`image`: the image is always pulled, from a local source too — the way to ship a component without its code; a
+`Dockerfile` next to it isn't used, and `lint` warns about it.
 
 **Recommend `requests` only.** You know what you need at steady state; "how far it may grow" is the deployer's call, and
 if you write `limits.cpu`, users can't take it away. The platform invents no default `limits`: invent 512Mi, and a

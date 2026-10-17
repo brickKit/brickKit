@@ -137,6 +137,20 @@ The platform stays out of credentials because git already solves this well: SSH,
 platforms inject tokens — each has a mature answer. A separate mechanism in the CLI would be one more thing to maintain,
 and would never keep up with every hosting platform.
 
+## A component without its code
+
+A Git source doesn't need source code. A repository holding only `component.yaml` (with `deployment.image` and no
+`build`) and `BRICKKIT.md`, tagged by `brickkit release`, is a complete component: projects `add` it, `up` pulls the
+image, and `build` leaves it alone. That is how a closed-source component is distributed without a market, and how
+someone else's image (a database, a vendor's service) is wrapped as a component. Such repositories can sit together in
+one repository read through a `repo` install source.
+
+Access is two separate things: who can read the repository (the contract) is your Git hosting's permissions, and who can
+pull the image is your registry's — `docker login` on the machine for Docker and Podman, `k8s.imagePullSecrets` in the
+deploy file for Kubernetes (Secrets that already exist in the cluster). The code itself never leaves your hands. Cloning
+such a repository (`add --repo`) changes nothing: a component that writes only an `image` is pulled from a local source
+too.
+
 ## How components are discovered
 
 The platform has no registry and offers no search: where components are and which exist is a matter of convention and

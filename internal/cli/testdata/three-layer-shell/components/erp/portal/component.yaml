@@ -11,6 +11,8 @@ dependencies:
 deployment:
   type: container
   image: registry.example.com/erp-portal:1.0.0
+  build:
+    dockerfile: Dockerfile
   port: 8090
 healthCheck:
   type: http

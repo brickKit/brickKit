@@ -624,8 +624,9 @@ graph TD
 ## `brickkit build`
 
 Build the images that are built locally: components without a `deployment.image`, and components in local install
-sources (code being developed, whose image has to be built from it). A git or market component with an `image` is
-pulled, not built.
+sources that write `deployment.build` (code being developed, whose image has to be built from it). Every other
+component with an `image` is pulled, not built — a local-source component that writes only an `image` too. Naming a
+component that writes no `build` is an error: there is nothing to build.
 
 Without an argument, it builds every component built locally — or, in a component's directory, only that component.
 BrickKit never fetches git submodules: when the source has submodules that are empty directories, `build` warns before

@@ -1,6 +1,8 @@
 package manifest
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 
 	"gopkg.in/yaml.v3"
@@ -10,6 +12,23 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
+
+// UnusedDockerfileWarning：组件只写了 image、没写 build，目录里却有 Dockerfile。BrickKit 不会用它构建——
+// 只写 image 就是拉取现成镜像，来自本地源也一样——而作者多半以为会：改了代码、build、up，跑的还是 registry
+// 里那个镜像。dir 是 component.yaml 所在的目录。只是警告：有的仓库放着 Dockerfile 自用。
+func UnusedDockerfileWarning(m *Manifest, dir string) *clierr.Error {
+	if m == nil || m.Deployment.Image == "" || m.BuildsFromSource() {
+		return nil
+	}
+	dockerfile := filepath.Join(dir, "Dockerfile")
+	if _, err := os.Stat(dockerfile); err != nil {
+		return nil
+	}
+	return clierr.Warn(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestDockerfileUnused, m.Metadata.ID)).
+		WithDetail(i18n.T(msgid.LabelFile), dockerfile).
+		WithDetail("deployment.image", m.Deployment.Image).
+		WithHint(i18n.T(msgid.ManifestHintDeclareBuild))
+}
 
 // PropertyKeyWarnings 找出 configSchema.properties.<key> 声明里不认识的键。
 //

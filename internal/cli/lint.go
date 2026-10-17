@@ -418,6 +418,9 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 			// 它的块里本来只有组件 ID；检查一堆文件时得告诉人是哪一份
 			f.warnings = append(f.warnings, w.WithDetail(i18n.T(msgid.ManifestLabelOrigin), f.path))
 		}
+		if w := manifest.UnusedDockerfileWarning(m, filepath.Dir(path)); w != nil {
+			f.warnings = append(f.warnings, w)
+		}
 	}
 	// 与 Parse 成败无关：它只依赖 YAML 本身，语法错误时自己返回 nil
 	f.warnings = append(f.warnings, manifest.PropertyKeyWarnings(raw, f.path)...)
