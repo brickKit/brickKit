@@ -122,7 +122,8 @@ field (deploy entry > `component.yaml` > default), so a `limits.cpu` you write c
 `shell: { members: [erp/api@1.2.0, erp/auth@1.2.0] }` makes the component a shell. Those versions
 are a promise about what's inside the image: a project may only host exactly those versions in it,
 and a locally built shell image records them in a label that `up` checks. Change a member version →
-bump and rebuild the shell. Each member still needs its own image (its migration runs with it). At
+bump and rebuild the shell. Each member still needs its own image (its migration runs with it) — except when the shell runs on this machine and
+compiles the member from its local repository: then the member migrates from source (`local.migrationCommand`). At
 start the shell reads two variables:
 
 - `BRICKKIT_SERVED_MEMBERS`: the versioned service names hosted this run, comma-separated. Initialise

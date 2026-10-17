@@ -11,6 +11,7 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -127,8 +128,9 @@ func TestShellDryRunDockerAndK8s(t *testing.T) {
 }
 
 // 外壳以 mode: debug 跑在宿主机上（本地开发一开始就是这样）：成员跟着在宿主机上，
-// 外壳的本地 env 文件里有 JSON（PEM 逐字节不变），成员的迁移在容器起来之后单独跑完，
-// 外壳外面的容器经 extra_hosts 连到宿主机上的外壳。
+// 外壳的本地 env 文件里有 JSON（PEM 逐字节不变），外壳外面的容器经 extra_hosts 连到宿主机上的外壳。
+// erp/api 有本地仓库，外壳编进的是它工作区里的代码：迁移不从镜像跑，它拿到一份自己的 env 文件，
+// 提醒里点名外壳（它没写 local.migrationCommand）。
 func TestBareShellEndToEnd(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
 	pem := readFile(t, filepath.Join(dir, ".secrets", "api.pem"))
@@ -143,7 +145,9 @@ func TestBareShellEndToEnd(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	require.Len(t, eng.ups, 1)
-	assert.Equal(t, []string{"erp-api-1-0-0-migration"}, eng.ups[0].RunAfter, "成员迁移在容器起来之后单独跑")
+	assert.Empty(t, eng.ups[0].RunAfter, "成员从源码编进外壳：迁移不从镜像跑")
+	assert.Contains(t, r.stdout+r.stderr, "a mode: debug component's database migration won't run automatically")
+	assert.Contains(t, r.stdout+r.stderr, "erp/shell@1.0.0")
 	assert.NotContains(t, eng.ups[0].Services, "erp-shell-1-0-0", "裸进程外壳没有容器")
 
 	generated := filepath.Join(dir, ".brickkit", "generated")
@@ -158,6 +162,10 @@ func TestBareShellEndToEnd(t *testing.T) {
 	assert.Equal(t, pem, entries[0].Config["TLS_KEY"])
 	assert.Equal(t, "http://localhost:8081", entries[1].Config["ERP_API_ENDPOINT"],
 		"外壳里的成员互相调用：都在宿主机上")
+
+	memberEnv := envref.ParseDotEnv(readFile(t, filepath.Join(generated, "local-debug.erp-api-1-0-0.env")))
+	assert.Equal(t, pem, memberEnv["TLS_KEY"], "成员的 env 文件：它在外壳里拿到的那一份")
+	assert.NotContains(t, r.stdout, "start it in your IDE, listening on port 8081", "成员不是自己的进程，没有\"去 IDE 里启动\"可说")
 
 	compose := readFile(t, filepath.Join(generated, composeFileName))
 	var doc struct {
@@ -513,4 +521,42 @@ func TestSkipWaitForOnK8sIsReportedAsNoEffect(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout, "does not wait for")
 	assert.Contains(t, r.stdout+r.stderr, "erp/worker@1.0.0 has skipWaitFor, but Pods on Kubernetes don't wait for each other at start")
+}
+
+// 外壳以 mode: local 运行、成员 erp/api 有本地仓库并写了 local.migrationCommand：up 在外壳启动之前，
+// 在 erp/api 的仓库里、用它在外壳里拿到的那份环境从源码跑迁移；不再起镜像里的迁移容器（反馈 FRB-003）。
+func TestLocalShellRunsItsSourceMembersMigrationFirst(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	dir := copyFixture(t, "three-layer-shell")
+	deploy := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: local\n", 1)
+	api := filepath.Join(dir, "components", "erp", "api")
+	writeTree(t, dir, map[string]string{
+		"deploy.yaml":                       deploy,
+		"components/erp/api/component.yaml": readFile(t, filepath.Join(api, "component.yaml")) + "local:\n  migrationCommand: [go, run, ., migrate]\n",
+		"components/erp/api/go.mod":         "module example.com/api\n\ngo 1.22\n",
+		"components/erp/api/main.go":        "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n\tfmt.Println(\"api migrated, key bytes:\", len(os.Getenv(\"TLS_KEY\")) > 0)\n}\n",
+		"shell/erp/shell/go.mod":            "module example.com/shell\n\ngo 1.22\n",
+		"shell/erp/shell/main.go":           listenThenExitCleanly,
+	})
+
+	eng := newFakeEngine()
+	r := runWithEngine(t, eng, dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "erp/api@1.0.0  go run . migrate", "dry-run 列出从源码跑的成员迁移")
+	assert.NotContains(t, r.stdout, "/app/api migrate", "不再从镜像跑")
+
+	r = runWithEngine(t, eng, dir, "up")
+	out := r.stdout + r.stderr
+	require.Equal(t, clierr.ExitOK, r.code, out)
+	for _, up := range eng.ups {
+		assert.Empty(t, up.RunAfter)
+	}
+	migrated := strings.Index(out, "api migrated, key bytes: true")
+	listening := strings.Index(out, "erp-shell-1-0-0  listening on port")
+	require.GreaterOrEqual(t, migrated, 0, out)
+	require.Greater(t, listening, migrated, "成员的迁移在外壳启动之前：%s", out)
+	assert.Contains(t, out, "erp-api-1-0-0-migration")
 }

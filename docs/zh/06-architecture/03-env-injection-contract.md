@@ -131,7 +131,8 @@ Deployment 用 `secretKeyRef` 引用（见 [敏感值](../01-three-layers/07-sen
 
 组件的迁移容器拿到的环境与主服务一模一样（同一份内联变量、同一个 env 文件）。`mode: debug` 的组件没有容器，
 平台把它本该拿到的变量写进 `.brickkit/generated/local-debug.<服务名>.env`，供你在 IDE 里加载；依赖地址在这份文件里是本机可达的 `http://localhost:<端口>`。
-`mode: local` 的组件也有同样一份：`up` 自己用这些变量启动进程——组件写了 `local.migrationCommand` 时，也用同一套变量跑迁移——文件留给你手动跑别的一次性命令。
+`mode: local` 的组件也有同样一份：`up` 自己用这些变量启动进程——组件写了 `local.migrationCommand` 时，也用同一套变量跑迁移——文件留给你手动跑别的一次性命令。在本机运行的外壳从 `BRICKKIT_SERVED_MEMBERS_CONFIG` 拿到成员的值；代码来自本地仓库的成员
+另有一份自己的 `local-debug.<成员的服务名>.env`，值相同——它从源码运行的迁移就用这一套。
 
 ## `mode: local` 进程继承什么
 

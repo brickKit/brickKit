@@ -55,7 +55,8 @@ names the component's `local.migrationCommand` for you to run (without one, the 
 supervises the process in the foreground (`Ctrl+C` stops it), and it may go in `deploy.yaml`;
 `localPort` may be left out (a free port is picked); its variables are written to the same
 `local-debug.<…>.env`. Before starting it, `up` runs the component's `local.migrationCommand` (its migration
-from source) when declared, and a failure keeps it from starting (`MIGRATION_FAILED`); without one, no migration
+from source) when declared — for a shell, first those of the members it compiles in from their local repositories,
+whose images are then not used — and a failure keeps it from starting (`MIGRATION_FAILED`); without one, no migration
 runs. The
 process inherits your terminal's environment except the names the platform owns (`COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`,
 `BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG`, every `*_ENDPOINT`, the component's own

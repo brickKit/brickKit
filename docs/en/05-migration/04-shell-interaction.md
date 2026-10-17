@@ -4,7 +4,8 @@ A shell member's code runs in the shell's process, but its **migration doesn't r
 the member's own migration container as usual:
 
 - With **the member's own image**: every member must have its own image (`deployment.image` or `deployment.build`), even
-  one that always runs inside a shell.
+  one that always runs inside a shell — unless the shell runs as a process on this machine with the member's code from
+  source ([below](#when-the-shell-runs-as-a-process-on-this-machine)).
 - With **the member's own config**: exactly the environment variables it would get running on its own.
 - **The shell starts only once it finished successfully**: the moment the member's code is loaded, the table structure
   has to be in place.
@@ -55,5 +56,29 @@ When another version of the same member runs on its own outside the shell — as
 versions' migrations are chained by version number as usual (see
 [Migration order across versions](03-multi-version-chain.md)).
 
-When the shell runs as a process on this machine (`mode: debug` / `mode: local`), there's no container to wait for; `up`
-runs the members' migration containers once on their own, after starting the other containers.
+## When the shell runs as a process on this machine
+
+With the shell as `mode: local` or `mode: debug` (or the focus of a focus run), there is no shell container to wait for,
+and where a member's migration comes from follows where its code comes from:
+
+| The member | The shell process runs | The member's migration |
+| --- | --- | --- |
+| Has a local repository (under `components/`, or in a local source) | The code in that working copy | From source: the member's `local.migrationCommand`. No image needed |
+| Comes from Git or a market, with no local repository | The released version's code | Its migration container, with its own image, run once by `up` after the other containers |
+
+The member's image isn't used for a member from source: it was built from that version at some point, and the working
+copy compiled into the shell may have changed since — another image of the same name and version may even be on the
+machine. A migration that doesn't match the code is worse than none, because nothing reports it.
+
+A member from source migrates in its own directory, with the environment it gets inside the shell — the values of
+`BRICKKIT_SERVED_MEMBERS_CONFIG`, addresses reachable from this machine — which `up` also writes to
+`.brickkit/generated/local-debug.<member's service name>.env`:
+
+- **Shell `mode: local`**: before starting the shell, `up` runs its members' migrations in start order, then the shell's
+  own; each one's output is prefixed with `<service name>-migration`. One that fails ends the session with
+  `MIGRATION_FAILED`, and the shell doesn't start.
+- **Shell `mode: debug`**: you start the shell, so `up` runs nothing; its note names each member's command and env file.
+- **A member without `local.migrationCommand`**: its migration doesn't run, and `up` says so, naming the shell.
+
+See [When no migration container runs](01-migration-service.md#when-no-migration-container-runs) for the field and the
+notes.

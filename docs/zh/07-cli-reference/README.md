@@ -415,7 +415,8 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 3. 三层文件放在一起查：每个组件版本恰好一个部署条目、成员写在外壳下面、`$var:` 都有定义、`config/` 的文件对得上组件、没有升级遗留的重复键；
 4. 按 `configSchema` 查每个组件的配置：必填项有值、写下的键在 schema 里、外壳成员的值能 JSON 编码进外壳；以及外壳声明：`kind: shell`
    与 `shell` 块一致、放在外壳下面的成员确实编进了外壳——只查盘上有 Manifest 的组件，其余的列为未检查；
-5. 本地安装源目录下的每一份 `component.yaml`，不管有没有 `add` 过（`.archived/` 不查）。
+5. 本地安装源目录下的每一份 `component.yaml`，不管有没有 `add` 过（`.archived/` 不查），对静默不生效的写法给出警告：只写 `image`
+   却旁边放着 `Dockerfile`、带着代码有迁移却没写 `local.migrationCommand`、`configSchema` 配置项里拼错的键。
 
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明。
 
@@ -601,7 +602,7 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；本地源里拉取的组件旁边放着 `Dockerfile` 时，警告它没被用到；
 8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
 9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。启动任何一个之前先确认它们的端口空着（否则
-   `PORT_CONFLICT`），组件写了 `local.migrationCommand` 时先跑它再启动（失败就不启动：`MIGRATION_FAILED`）。每个进程继承这个终端的环境，只有平台管的名字除外
+   `PORT_CONFLICT`），组件写了 `local.migrationCommand` 时先跑它再启动——外壳还有从本地仓库编进去的成员的（失败就不启动：`MIGRATION_FAILED`）。每个进程继承这个终端的环境，只有平台管的名字除外
    （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见
    [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)。
 

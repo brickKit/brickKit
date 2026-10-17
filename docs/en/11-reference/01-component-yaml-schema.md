@@ -161,7 +161,7 @@ recognised automatically from the marker files in the source directory; a migrat
 | --- | --- | --- | --- |
 | `local.language` | string | | `go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby`; names the language when one directory holds marker files for several |
 | `local.runCommand` | list of strings | | Gives the start command directly; when the first item contains a path separator, it's relative to the component directory |
-| `local.migrationCommand` | list of strings | | `migration.command` run from source, written like `runCommand`; requires `migration`. Under `mode: local`, `up` runs it before starting the process, and a failure stops the process from starting. See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) |
+| `local.migrationCommand` | list of strings | | `migration.command` run from source, written like `runCommand`; requires `migration`. Under `mode: local`, `up` runs it before starting the process, and a failure stops the process from starting; so does a shell running on this machine for a member compiled in from its local repository. `lint` warns when a component that ships its code (`deployment.build`) has a `migration` without it. See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) |
 
 ## release
 

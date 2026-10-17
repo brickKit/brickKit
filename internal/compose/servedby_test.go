@@ -17,6 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
+	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
@@ -671,4 +672,67 @@ func TestBareShellExposedMemberWarns(t *testing.T) {
 	warnings := joinWarnings(b.generate().Warnings)
 	assert.Contains(t, warnings, "erp/bff@1.0.0")
 	assert.Contains(t, warnings, "8085")
+}
+
+// ---- 本机外壳里从源码运行的成员（反馈 FRB-003）----
+
+// sourceMemberBuilder 是 bareShellBuilder 加上 erp/a 的本地仓库：外壳以本机进程运行，编进去的是 erp/a
+// 工作区里的代码。mode 是外壳的 mode；migrationCommand 非空时 erp/a 声明了从源码运行的迁移。
+func sourceMemberBuilder(t *testing.T, mode string, migrationCommand ...string) *builder {
+	t.Helper()
+	a := withMigration(dependsOn(simple("erp/a", "1.0.0", 8081), "erp/db", "1.0.0"))
+	if len(migrationCommand) > 0 {
+		a.Local = &manifest.Local{MigrationCommand: migrationCommand}
+	}
+	b := newBuilder(t)
+	entry := projecttest.Entry{Mode: mode}
+	if mode == deployfile.ModeDebug {
+		entry.LocalPort = 18000
+	}
+	b.component(simple("erp/shell", "1.0.0", 8080), entry)
+	b.component(a, servedByEntry("erp/shell", "1.0.0"))
+	b.component(simple("erp/db", "1.0.0", 5432), projecttest.Entry{})
+	b.spec.Files["components/erp/a/component.yaml"] = "metadata:\n  id: erp/a\n  version: 1.0.0\n"
+	return b
+}
+
+// 成员代码从源码编进外壳，迁移也从源码跑：不生成镜像里的迁移容器（不进 RunAfter，也就不要成员的镜像），
+// 改为给它一份本机地址的 env 文件——迁移用它跑。镜像里的可能是另一份代码。
+func TestSourceMemberOfBareShellHasNoImageMigration(t *testing.T) {
+	result := sourceMemberBuilder(t, deployfile.ModeDebug).generate()
+
+	assert.Empty(t, result.RunAfter)
+	assert.NotContains(t, servicesOf(t, docOf(t, result)), "erp-a-1-0-0-migration")
+	require.Len(t, result.MemberEnvFiles, 1)
+	file := result.MemberEnvFiles[0]
+	assert.Equal(t, resolver.Ref{ID: "erp/a", Version: "1.0.0"}, file.Ref)
+	assert.Equal(t, resolver.Ref{ID: "erp/shell", Version: "1.0.0"}, file.Shell)
+	assert.Equal(t, "local-debug.erp-a-1-0-0.env", file.Name)
+	assert.Equal(t, "http://localhost:15432", sourceEnvFile(t, file.Content)["ERP_DB_ENDPOINT"],
+		"与外壳 JSON 里那一份相同：地址指向本机")
+
+	// 没写 local.migrationCommand：迁移不跑，提醒里点名外壳、不给镜像里的路径
+	warnings := joinWarnings(result.Warnings)
+	assert.Contains(t, warnings, "erp/shell@1.0.0")
+	assert.Contains(t, warnings, "local.migrationCommand")
+	assert.NotContains(t, warnings, "by hand on this machine: /app")
+}
+
+// 没有本地仓库的成员（来自 git / 市场）：外壳编进的是发布的那一版，迁移照旧用同版本的镜像。
+func TestReleasedMemberOfBareShellKeepsImageMigration(t *testing.T) {
+	result := bareShellBuilder(t).generate()
+
+	assert.Empty(t, result.MemberEnvFiles)
+	assert.Equal(t, []string{"erp-a-1-0-0-migration"}, result.RunAfter)
+}
+
+// 外壳 mode: local、成员写了 local.migrationCommand：up 自己在外壳之前跑它，不提醒；
+// 外壳 mode: debug：进程归使用者，提醒里给出这条命令与成员的 env 文件。
+func TestSourceMemberMigrationNote(t *testing.T) {
+	local := sourceMemberBuilder(t, deployfile.ModeLocal, "go", "run", ".", "migrate").generate()
+	assert.NotContains(t, joinWarnings(local.Warnings), "migration won't run automatically")
+
+	debug := joinWarnings(sourceMemberBuilder(t, deployfile.ModeDebug, "go", "run", ".", "migrate").generate().Warnings)
+	assert.Contains(t, debug, "go run . migrate")
+	assert.Contains(t, debug, "local-debug.erp-a-1-0-0.env")
 }

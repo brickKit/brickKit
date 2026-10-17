@@ -456,7 +456,7 @@ func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
 		Engine: compose.EngineDocker, Root: f.Dir, Lookup: envref.Lookup(f.Dir),
 	})
 	require.NoError(t, err)
-	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles, hostedMembers(proj, states))
+	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles, genResult.MemberEnvFiles, hostedMembers(proj, states))
 }
 
 // 本机进程运行的组件不跑迁移容器，提醒里要说出它真实的 mode：mode: local 的组件被说成
@@ -604,7 +604,7 @@ func main() {
 }
 `
 	opts, plans := localComponentPlansFor(t, f, main)
-	require.NotNil(t, plans[0].Migration)
+	require.Len(t, plans[0].Migrations, 1)
 	return opts, f.Layout, plans
 }
 
@@ -630,4 +630,26 @@ func TestLocalGracePeriodIsTheLongestDeclared(t *testing.T) {
 	assert.Equal(t, 25*time.Second, localGracePeriod([]localComponentPlan{
 		{StopGrace: 10 * time.Second}, {}, {StopGrace: 25 * time.Second},
 	}))
+}
+
+// 组件有迁移、带着自己的代码（写了 build），却没写 local.migrationCommand：lint 提醒作者——从源码运行它时
+// （mode: local、焦点运行、本机外壳里）迁移不会跑。只给契约、不给代码的组件没有源码可跑，不提醒。
+func TestLintWarnsWhenACodeCarryingComponentHasNoMigrationFromSource(t *testing.T) {
+	lint := func(c comp) string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml":                     "project: shop\nsources:\n  - {name: dev, type: local, path: ./components}\ncomponents:\n  - {id: erp/api, version: 1.0.0}\n",
+			"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
+			"components/erp/api/component.yaml": c.yamlText(),
+		})
+		r := runWithEngine(t, newFakeEngine(), dir, "lint")
+		return r.stdout + r.stderr
+	}
+	warning := i18n.T(msgid.ManifestLocalMigrationMissing, "erp/api")
+
+	assert.Contains(t, lint(comp{ID: "erp/api", Version: "1.0.0", Build: true, Migration: []string{"/app/api", "migrate"}}), warning)
+	assert.NotContains(t, lint(comp{ID: "erp/api", Version: "1.0.0", Build: true, Migration: []string{"/app/api", "migrate"},
+		LocalMigration: []string{"go", "run", ".", "migrate"}}), warning)
+	assert.NotContains(t, lint(comp{ID: "erp/api", Version: "1.0.0", Migration: []string{"/app/api", "migrate"}}), warning,
+		"只写 image：没有源码可跑")
 }

@@ -37,6 +37,9 @@ The rules:
 - A version that declares no migration is skipped, and the chain joins up across it.
 - **Different components' migrations aren't chained**: their chains run in parallel — even two components sharing one
   database each look after their own tables.
+- **A migration from source (`local.migrationCommand`) is outside the chain**: it runs after the containers. When a newer
+  version of the same component migrates in a container in the same `up`, `up` stops rather than run them newest first
+  (see [When no migration container runs](01-migration-service.md#when-no-migration-container-runs)).
 
 Why the lower version goes first: the old version's migration builds the structure it needs, and the new version's
 migration carries on from there. The other way round, the old version's migration might fail against a structure the new

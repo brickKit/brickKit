@@ -274,7 +274,8 @@ local:
   migrationCommand: ["go", "run", "./cmd/server", "migrate"]
 ```
 
-`mode: local` 时 `up` 在启动进程之前、用同一份环境跑它；`mode: debug` 时提醒使用者去跑它。不写的话，从源码跑你组件的人只能去
+`mode: local` 时 `up` 在启动进程之前、用同一份环境跑它——在本机运行、从本地仓库编进你的组件的外壳，启动之前也会跑；`mode: debug` 时提醒使用者去跑它。
+有 `migration` 和 `deployment.build`、却没写它时，`brickkit lint` 会警告。不写的话，从源码跑你组件的人只能去
 `BRICKKIT.md` 里找怎么迁移。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
 
 `mode: local` 下平台还会注入 `PORT`（它为这个进程选定的本机端口，优先用 `deployment.port`）：代码读 `PORT`、读不到再用自己的缺省端口，就不会和别的进程抢端口。

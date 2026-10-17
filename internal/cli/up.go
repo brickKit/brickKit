@@ -172,7 +172,8 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err := writeEnvFiles(plan.proj.Layout, plan.generated.EnvFiles); err != nil {
 		return err
 	}
-	if err := writeLocalEnvFiles(opts, plan.proj.Layout, plan.generated.LocalEnvFiles); err != nil {
+	localEnv := append(append([]compose.LocalEnvFile{}, plan.generated.LocalEnvFiles...), plan.generated.MemberEnvFiles...)
+	if err := writeLocalEnvFiles(opts, plan.proj.Layout, localEnv); err != nil {
 		return err
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, opts.display(path)))
@@ -349,15 +350,16 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
 	if plan.generated != nil {
 		plan.localComponents, err = collectLocalComponents(
-			proj, plan.graph, order, plan.generated.LocalEnvFiles, hostedMembers(proj, plan.states))
+			proj, plan.graph, order, plan.generated.LocalEnvFiles, plan.generated.MemberEnvFiles, hostedMembers(proj, plan.states))
 		if err != nil {
 			return nil, err
 		}
-		// 本机进程的迁移从源码跑（local.migrationCommand），同样在它启动之前、失败就不启动
+		// 从源码跑的迁移（local.migrationCommand：本机进程自己的、本机外壳里从源码运行的成员的），
+		// 同样在进程启动之前、失败就不启动
 		for _, l := range plan.localComponents {
-			if l.Migration != nil {
+			for _, m := range l.Migrations {
 				plan.migrations = append(plan.migrations, migrationInfo{
-					component: l.Ref.String(), command: strings.Join(l.Migration.Argv, " "),
+					component: m.Ref.String(), command: strings.Join(m.Command.Argv, " "),
 				})
 			}
 		}
@@ -577,11 +579,18 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 		}
 	}
 
+	// 本机外壳里从源码运行的成员：迁移从源码跑（local.migrationCommand），不用它的镜像
+	fromSource := map[resolver.Ref]bool{}
+	if p.generated != nil {
+		for _, f := range p.generated.MemberEnvFiles {
+			fromSource[f.Ref] = true
+		}
+	}
 	for _, step := range order.Steps {
 		ref := step.Ref
 		if noWorkload[ref] {
 			// 被外壳承载的成员没有主容器，但它的迁移照样用它自己的镜像跑
-			if _, hosted := p.states.HostOf(p.proj, ref); hosted {
+			if _, hosted := p.states.HostOf(p.proj, ref); hosted && !fromSource[ref] {
 				if node := p.graph.Node(ref); node != nil && node.Manifest != nil && node.Manifest.Migration != nil {
 					p.images = append(p.images, newImageInfo(node))
 					p.migrations = append(p.migrations, migrationInfo{
@@ -1032,7 +1041,8 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 				WithDetail(i18n.T(msgid.LabelPath), path).
 				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
-		if file.Mode == deployfile.ModeDebug {
+		// 外壳成员不是自己的进程，没有"去 IDE 里启动"可说：它的文件只给迁移与一次性命令用
+		if file.Mode == deployfile.ModeDebug && file.Shell.IsZero() {
 			debugFiles = append(debugFiles, file)
 		}
 	}

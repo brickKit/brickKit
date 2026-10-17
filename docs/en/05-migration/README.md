@@ -15,4 +15,4 @@ is prepared by whoever uses the component (created once); the tables are created
 | [01 The migration container](01-migration-service.md) | The one-shot migration container, how the main service waits for it, what happens when it fails |
 | [02 Environment passed through](02-env-passthrough.md) | The migration gets exactly the main service's config; the component builds its own connection string |
 | [03 Migration order across versions](03-multi-version-chain.md) | When two versions of one component share a database, their migrations run one after the other, by version |
-| [04 Migrations and shells](04-shell-interaction.md) | A shell member's migration runs on its own, with the member's own image |
+| [04 Migrations and shells](04-shell-interaction.md) | A shell member's migration runs on its own, with the member's own image — from source when the shell runs on this machine with the member's code from its local repository |

@@ -71,7 +71,8 @@ The process runs in the foreground; Ctrl+C stops it, and the containers keep run
 [Local debugging](03-local-debug-workflow.md). The focus keeps a `mode: debug` you wrote.
 
 A process on this machine has no migration container. When the focus component declares `local.migrationCommand`, `up`
-runs that migration from source before starting it, and a failure keeps it from starting; otherwise `up` says the
+runs that migration from source before starting it, and a failure keeps it from starting — for a focused shell, so do the
+members it compiles in from their local repositories; otherwise `up` says the
 migration won't run (see [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs)).
 
 ## Where the focus lives

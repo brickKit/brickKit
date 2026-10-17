@@ -61,7 +61,7 @@ device's budget, rather than the programming language alone.
 | --- | --- |
 | Works out which members this shell hosts this time, and encodes their config and ports into one JSON value for the shell | Reads the JSON, initialises the matching modules, listens on the members' ports |
 | Points the addresses of members at the shell | Hands each request to the right module inside the process |
-| Runs members' migrations separately, with each member's own image, before starting the shell | Doesn't run members' migrations inside the shell |
+| Runs members' migrations separately, with each member's own image (from source, when the shell runs on this machine with the member's code from its local repository), before starting the shell | Doesn't run members' migrations inside the shell |
 | Checks that the member versions compiled into the shell's image match the ones it hosts this time | States truthfully in `component.yaml` which members, at which versions, are compiled in |
 
 The platform doesn't understand how a shell loads modules or routes requests inside — that's the shell's own code. The

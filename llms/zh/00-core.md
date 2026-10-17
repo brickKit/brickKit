@@ -72,7 +72,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `brickkit.yaml` 是锁文件：用到的每个组件版本都写在这里。没声明的强依赖是错误（报错时给出 `add` 的写法），没声明的弱依赖就是不存在。
 - `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行部署的命令（`up`、`down`、`status`、`sync`、`build`）只读它、不读 `deploy.yaml`；`lint` 只要 `deploy.local.yaml` 存在就两份都查，不管开关；`graph` 与 `deps` 从不读 `deploy.local.yaml`，输出对谁都一样（`graph -f` 读它指定的那份）。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
 - `mode: debug` 只写在 `deploy.local.yaml`：那是"我正在自己机器上调它"这个个人事实，不进 Git。
-- `mode: local` 把组件作为这台机器上的进程、从源码跑起来（要装好它那门语言的工具链），由启动它的那次 `up` 在前台看护：会话结束它就停，崩一个整个会话收尾，没有东西会重启它。启动之前，`up` 先确认它的端口空着；组件写了 `local.migrationCommand`（从源码运行的迁移）时先跑它。团队可以把它写进 `deploy.yaml`，但它不是一直运行的部署——那是容器的事。
+- `mode: local` 把组件作为这台机器上的进程、从源码跑起来（要装好它那门语言的工具链），由启动它的那次 `up` 在前台看护：会话结束它就停，崩一个整个会话收尾，没有东西会重启它。启动之前，`up` 先确认它的端口空着；组件写了 `local.migrationCommand`（从源码运行的迁移）时先跑它——外壳还要先跑从本地仓库编进去的成员的。团队可以把它写进 `deploy.yaml`，但它不是一直运行的部署——那是容器的事。
 - `focus: <id>` 只写在 `deploy.local.yaml`——在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它，`up --all` 去掉它。写了它，就只启动这个组件（从源码跑）和它需要的组件；`sync` 不看它，`target: k8s` 下用不了。
 - 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
 - `$var:NAME` 从 `config/vars.yaml`（或部署文件的 `vars:`）取值；`${NAME}` 从进程环境与 `.env` 取值；`file://路径` 读文件；`$endpoint:<id>[/路径]` 是另一个组件的地址，按 `*_ENDPOINT` 的规则算（可以写在 `vars.yaml` 里；不进启动顺序，可以成环）。没有隐式的环境变量覆盖。
@@ -105,7 +105,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 外壳的 `component.yaml` 在 `shell.members` 里写明它编进了哪些成员的**精确版本**；项目托管的版本与之不符时报错，并给出三条出路。
 - 成员的配置经 `BRICKKIT_SERVED_MEMBERS_CONFIG`（CLI 提前求好值的 JSON）注入外壳；多行密钥（PEM）、引号、`$` 照样能 JSON 编码，不是合法 UTF-8 的值（二进制）大声失败。
 - 调用方的 `*_ENDPOINT` 由平台自动指到外壳的地址；外壳作者只负责进程内把请求分给对应成员。
-- 成员的迁移照常单独跑，用成员自己的镜像与配置，所以每个成员都必须有自己的镜像（`image` 或 `build`）。
+- 成员的迁移照常单独跑，用成员自己的镜像与配置，所以每个成员都必须有自己的镜像（`image` 或 `build`）。例外：外壳以本机进程运行、成员代码来自它的本地仓库时，这个成员从源码迁移（`local.migrationCommand`），不用它的镜像。
 - 外壳本身也是组件：有自己的 `configSchema` 和 `config/` 文件。
 
 ## §5 命令集（21 个 + version + lang + docs + completion）

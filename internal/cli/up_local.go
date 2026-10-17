@@ -125,10 +125,21 @@ type localComponentPlan struct {
 	// Ports 是这个进程要在宿主机上绑的全部端口：Port、它的 extraPorts，是外壳时还有它替成员监听的端口。
 	// 启动之前逐个确认空着（checkLocalPorts）。
 	Ports []localPort
-	// Migration 是 local.migrationCommand：启动这个进程之前、用同一份环境先跑它；nil = 组件没写。
-	Migration *runcmd.Command
+	// Migrations 是启动这个进程之前要从源码跑的迁移（local.migrationCommand），按顺序：是外壳时先跑它承载的、
+	// 从源码运行的成员的（按启动顺序），最后是它自己的。任何一条失败，进程都不启动。
+	Migrations []localMigration
 	// StopGrace 是这个组件声明的停机宽限期（0 = 没声明）。
 	StopGrace time.Duration
+}
+
+// localMigration 是一条从源码跑的迁移：组件目录里、用这个组件的那份环境跑它的 local.migrationCommand。
+type localMigration struct {
+	Ref resolver.Ref
+	// Name 是输出前缀：<服务名>-migration，与 compose 里迁移容器的名字一致。
+	Name     string
+	Command  runcmd.Command
+	Env      []string
+	Withhold func(name string) bool
 }
 
 // localPort 是本机进程要绑的一个宿主机端口。
@@ -171,10 +182,11 @@ func localGracePeriod(plans []localComponentPlan) time.Duration {
 
 // collectLocalComponents 按拓扑序收集全部 mode: local 组件，探测出各自的启动命令。
 //
-// hosted 是这次每个外壳承载的成员（hostedMembers）：以本机进程运行的外壳替它们监听端口。
+// hosted 是这次每个外壳承载的成员（hostedMembers）：以本机进程运行的外壳替它们监听端口。memberEnvFiles 是
+// 其中从源码运行的那些（compose.Result.MemberEnvFiles）：它们的迁移在外壳启动之前从源码跑。
 func collectLocalComponents(
-	proj *project.Project, graph *resolver.Graph,
-	order *resolver.Plan, localEnvFiles []compose.LocalEnvFile, hosted map[resolver.Ref][]resolver.Ref,
+	proj *project.Project, graph *resolver.Graph, order *resolver.Plan,
+	localEnvFiles, memberEnvFiles []compose.LocalEnvFile, hosted map[resolver.Ref][]resolver.Ref,
 ) ([]localComponentPlan, error) {
 	localMode := make(map[resolver.Ref]bool, len(proj.Decl.Components))
 	for _, c := range proj.Decl.Components {
@@ -191,6 +203,10 @@ func collectLocalComponents(
 	for _, f := range localEnvFiles {
 		portOf[f.Ref] = f.Port
 		fileOf[f.Ref] = f
+	}
+	memberFileOf := make(map[resolver.Ref]compose.LocalEnvFile, len(memberEnvFiles))
+	for _, f := range memberEnvFiles {
+		memberFileOf[f.Ref] = f
 	}
 
 	var out []localComponentPlan
@@ -225,26 +241,47 @@ func collectLocalComponents(
 		if err != nil {
 			return nil, err
 		}
-		var migration *runcmd.Command
+		// 外壳承载的成员：端口由外壳进程替它们监听；从源码运行的那些，迁移在外壳启动之前从源码跑
+		var members []*resolver.Node
+		var migrations []localMigration
+		hostedHere := map[resolver.Ref]bool{}
+		for _, member := range hosted[ref] {
+			hostedHere[member] = true
+		}
+		for _, ms := range order.Steps { // 按启动顺序：成员之间有依赖时，被依赖的先迁移
+			if !hostedHere[ms.Ref] {
+				continue
+			}
+			n := graph.Node(ms.Ref)
+			if n == nil || n.Manifest == nil {
+				continue
+			}
+			members = append(members, n)
+			if file, fromSource := memberFileOf[ms.Ref]; fromSource {
+				m, err := memberMigration(proj, n, ms.Service, file)
+				if err != nil {
+					return nil, err
+				}
+				if m != nil {
+					migrations = append(migrations, *m)
+				}
+			}
+		}
 		if node.Manifest.Local != nil && len(node.Manifest.Local.MigrationCommand) > 0 {
 			m := cmd.Sibling(node.Manifest.Local.MigrationCommand)
 			if err := m.CheckProgram(); err != nil {
 				return nil, migrationProgramMissingError(ref, err)
 			}
-			migration = &m
+			migrations = append(migrations, localMigration{
+				Ref: ref, Name: compose.MigrationService(step.Service), Command: m, Env: env, Withhold: platformOwned(node.Manifest),
+			})
 		}
 
-		var members []*resolver.Node
-		for _, member := range hosted[ref] {
-			if n := graph.Node(member); n != nil && n.Manifest != nil {
-				members = append(members, n)
-			}
-		}
 		out = append(out, localComponentPlan{
 			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Withhold: platformOwned(node.Manifest), Port: port,
-			Ports:     portsOf(step.Service, port, node.Manifest, members),
-			Migration: migration,
-			StopGrace: time.Duration(fileOf[ref].StopGracePeriodSeconds) * time.Second,
+			Ports:      portsOf(step.Service, port, node.Manifest, members),
+			Migrations: migrations,
+			StopGrace:  time.Duration(fileOf[ref].StopGracePeriodSeconds) * time.Second,
 		})
 	}
 	return out, nil
@@ -356,6 +393,34 @@ func programMissingError(ref resolver.Ref, err error) error {
 		WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
 }
 
+// memberMigration 是本机外壳里一个从源码运行的成员的迁移：在成员的本地仓库里、用它在外壳里拿到的那份环境
+// （file，地址指向本机）跑它的 local.migrationCommand。成员没写这个字段时返回 nil——迁移不跑，compose 已经提醒。
+func memberMigration(proj *project.Project, n *resolver.Node, service string, file compose.LocalEnvFile) (*localMigration, error) {
+	local := n.Manifest.Local
+	if n.Manifest.Migration == nil || local == nil || len(local.MigrationCommand) == 0 {
+		return nil, nil
+	}
+	dir, ok := proj.LocalRepo(n.Ref.ID)
+	if !ok {
+		return nil, nil // compose 只在找得到本地仓库时才把成员算作从源码运行
+	}
+	cmd, err := runcmd.Detect(dir, runcmd.Hints{Language: local.Language, RunCommand: local.MigrationCommand},
+		runcmd.Params{Port: file.Port})
+	if err != nil {
+		return nil, detectionError(n.Ref, err)
+	}
+	if err := cmd.CheckProgram(); err != nil {
+		return nil, migrationProgramMissingError(n.Ref, err)
+	}
+	env, err := buildLocalEnv(n.Ref, cmd.Language, file, file.Port, cmd.Env)
+	if err != nil {
+		return nil, err
+	}
+	return &localMigration{
+		Ref: n.Ref, Name: compose.MigrationService(service), Command: cmd, Env: env, Withhold: platformOwned(n.Manifest),
+	}, nil
+}
+
 // migrationProgramMissingError：local.migrationCommand 要的程序这台机器上没有。在启动任何东西之前报。
 func migrationProgramMissingError(ref resolver.Ref, err error) error {
 	reason := err.Error()
@@ -465,11 +530,10 @@ func runLocalComponents(
 
 	widest := 0
 	for _, p := range plans {
-		name := p.Service
-		if p.Migration != nil {
-			name = compose.MigrationService(p.Service)
+		widest = max(widest, len(p.Service))
+		for _, m := range p.Migrations {
+			widest = max(widest, len(m.Name))
 		}
-		widest = max(widest, len(name))
 	}
 	// 启动任何一个之前：端口被别的程序占着时，进程要么绑定失败退出，要么就绪探测连上的是那个程序、
 	// 报出一个假的"已监听"。所以先查，被占的一次列全，一个都不启动
@@ -491,8 +555,8 @@ func runLocalComponents(
 
 starting:
 	for _, p := range plans {
-		if p.Migration != nil {
-			switch outcome, err := runLocalMigration(ctx, sup, p); outcome {
+		for _, m := range p.Migrations {
+			switch outcome, err := runLocalMigration(ctx, sup, m); outcome {
 			case migrationFailed:
 				return err
 			case migrationCanceled:
@@ -543,18 +607,17 @@ const (
 	migrationInterrupted
 )
 
-// runLocalMigration 在启动 p 的进程之前跑它的 local.migrationCommand：同一个目录、同一份环境，
-// 输出带着 <服务名>-migration 的前缀（与 compose 里迁移容器的名字一致），等它退出。
-func runLocalMigration(ctx context.Context, sup *procsup.Supervisor, p localComponentPlan) (migrationOutcome, error) {
-	name := compose.MigrationService(p.Service)
-	sup.Printf("%s\n", i18n.T(msgid.CliUpRunningLocalMigration, name, strings.Join(p.Migration.Argv, " ")))
-	mig, err := sup.Start(procsup.Spec{Name: name, Argv: p.Migration.Argv, Dir: p.Migration.Dir, Env: p.Env, Withhold: p.Withhold})
+// runLocalMigration 在启动进程之前跑一条从源码的迁移：组件目录里、那个组件的环境，输出带着
+// <服务名>-migration 的前缀（与 compose 里迁移容器的名字一致），等它退出。
+func runLocalMigration(ctx context.Context, sup *procsup.Supervisor, m localMigration) (migrationOutcome, error) {
+	sup.Printf("%s\n", i18n.T(msgid.CliUpRunningLocalMigration, m.Name, strings.Join(m.Command.Argv, " ")))
+	mig, err := sup.Start(procsup.Spec{Name: m.Name, Argv: m.Command.Argv, Dir: m.Command.Dir, Env: m.Env, Withhold: m.Withhold})
 	if errors.Is(err, procsup.ErrStopped) {
 		return migrationInterrupted, nil
 	}
 	if err != nil {
 		return migrationFailed, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).
-			WithDetail(i18n.T(msgid.LabelComponent), name).WithCause(err).WithHint(i18n.T(msgid.CliUpHintCheckLocalMigrationCommand))
+			WithDetail(i18n.T(msgid.LabelComponent), m.Name).WithCause(err).WithHint(i18n.T(msgid.CliUpHintCheckLocalMigrationCommand))
 	}
 	select {
 	case <-mig.Done():
@@ -573,12 +636,12 @@ func runLocalMigration(ctx context.Context, sup *procsup.Supervisor, p localComp
 			how = i18n.T(msgid.CliUpKilledBySignal, exit.Signal)
 		}
 		return migrationFailed, clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
-			WithDetail(i18n.T(msgid.LabelComponent), p.Ref.String()).
-			WithDetail(i18n.T(msgid.LabelCommand), strings.Join(p.Migration.Argv, " ")).
+			WithDetail(i18n.T(msgid.LabelComponent), m.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelCommand), strings.Join(m.Command.Argv, " ")).
 			WithDetail(i18n.T(msgid.LabelReason), how).
-			WithHint(i18n.T(msgid.CliUpLocalMigrationBlocksProcess, name), i18n.T(msgid.CliUpLocalMigrationFixAndRerun))
+			WithHint(i18n.T(msgid.CliUpLocalMigrationBlocksProcess, m.Name), i18n.T(msgid.CliUpLocalMigrationFixAndRerun))
 	}
-	sup.Printf("%s\n", i18n.T(msgid.CliUpLocalMigrationDone, name))
+	sup.Printf("%s\n", i18n.T(msgid.CliUpLocalMigrationDone, m.Name))
 	return migrationDone, nil
 }
 

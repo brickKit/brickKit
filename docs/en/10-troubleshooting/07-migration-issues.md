@@ -64,7 +64,8 @@ migration-record table noting which steps have run.
 
 **Symptom**
 
-A component running on this machine with `mode: debug` or `mode: local` reports a missing table as soon as it starts.
+A component running on this machine with `mode: debug` or `mode: local` — or a member of a shell running that way — reports
+a missing table as soon as it starts.
 `up`'s output has:
 
 ```text
@@ -75,7 +76,9 @@ A component running on this machine with `mode: debug` or `mode: local` reports 
 
 A component running as a process on this machine has no container, so its migration container is skipped along with it;
 the migration runs from source only when the component declares `local.migrationCommand` (`up` runs it under
-`mode: local`, and names it under `mode: debug`). See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) and [Local debugging problems](02-local-debug-issues.md#the-process-on-this-machine-reports-relation-does-not-exist).
+`mode: local`, and names it under `mode: debug`). A shell member whose code the shell compiles in from its local
+repository follows the same rule rather than migrating from its image, and the note names the shell; see
+[Migrations and shells](../05-migration/04-shell-interaction.md#when-the-shell-runs-as-a-process-on-this-machine). See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) and [Local debugging problems](02-local-debug-issues.md#the-process-on-this-machine-reports-relation-does-not-exist).
 
 ## Two versions of one component, migrations in the wrong order
 
@@ -107,6 +110,11 @@ compatible:
   is empty or stopped at the previous version.
 - The migration-record table records "steps", not "version numbers": when the lower version runs again, each of its steps
   is already in the table, and nothing happens.
+
+When one of the versions migrates from source (`local.migrationCommand`) and a newer one in a container, `up` doesn't get
+that far: a migration from source runs after the containers, so they would run newest first, and `up` stops with
+`Error: the migration of … runs from source, after the containers, but the newer … migrates in a container first`.
+Don't run the newer version this time, or run the older one from its image.
 
 ## Several components share a database, and their migrations overwrite each other
 

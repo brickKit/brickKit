@@ -61,8 +61,8 @@ In order:
    check to pass.
 8. **Start the `mode: local` processes**, when there are any. First, every port they will bind is checked: one another
    program already holds stops `up` with `PORT_CONFLICT`, and none starts. Then, in start order, a component that declares
-   `local.migrationCommand` has its migration run from source — a failure keeps the process from starting, as in step 6 —
-   and the process starts; `up` stays in the foreground watching them until `Ctrl+C`. See
+   `local.migrationCommand` has its migration run from source — for a shell, first those of its members compiled in from
+   their local repositories — a failure keeps the process from starting, as in step 6 — and the process starts; `up` stays in the foreground watching them until `Ctrl+C`. See
    [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 
 `up` is idempotent: run it again with nothing changed, and the engine finds everything in place and touches nothing.

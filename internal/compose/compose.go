@@ -83,6 +83,9 @@ type Result struct {
 	SecretFiles []SecretFile
 	// LocalEnvFiles 是本机进程组件（mode: debug 与 mode: local）的环境变量文件。
 	LocalEnvFiles []LocalEnvFile
+	// MemberEnvFiles 是本机外壳承载的、从源码运行的成员的环境变量文件（LocalEnvFile.Shell 非零）：
+	// 它们的迁移从源码跑（local.migrationCommand），用的就是这份变量。
+	MemberEnvFiles []LocalEnvFile
 	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
 	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunAfter）。
 	RunAfter []string
@@ -131,13 +134,18 @@ func Generate(
 	if err != nil {
 		return nil, err
 	}
+	members, err := plan.memberEnvFiles(now)
+	if err != nil {
+		return nil, err
+	}
 	return &Result{
-		YAML:          append(header(proj, plan, now), body...),
-		EnvFiles:      plan.envFileList(),
-		SecretFiles:   plan.secretFileList(),
-		LocalEnvFiles: locals,
-		RunAfter:      plan.runAfter(),
-		Warnings:      plan.warnings,
+		MemberEnvFiles: members,
+		YAML:           append(header(proj, plan, now), body...),
+		EnvFiles:       plan.envFileList(),
+		SecretFiles:    plan.secretFileList(),
+		LocalEnvFiles:  locals,
+		RunAfter:       plan.runAfter(),
+		Warnings:       plan.warnings,
 	}, nil
 }
 
@@ -293,11 +301,13 @@ func newPlan(
 		}
 		// 被外壳承载的成员不生成自己的容器（外壳没跑时 HostOf 为假，成员回落成普通组件）
 		if shellRef, hosted := states.HostOf(proj, ref); hosted {
+			_, hasRepo := proj.LocalRepo(ref.ID)
+			fromSource := hasRepo && proj.DeployEntry(shellRef.ID, shellRef.Version).IsBareProcess()
 			p.served = append(p.served, servedComponent{
 				Ref: ref, Service: service, Manifest: node.Manifest,
-				Entry: entry, Shell: shellRef, Env: copyComponent(envByRef[ref]),
+				Entry: entry, Shell: shellRef, Env: copyComponent(envByRef[ref]), FromSource: fromSource,
 			})
-			if node.Manifest != nil && node.Manifest.Migration != nil {
+			if node.Manifest != nil && node.Manifest.Migration != nil && !fromSource {
 				p.memberMigrations = append(p.memberMigrations, componentPlan{
 					Ref: ref, Service: service, Manifest: node.Manifest, Entry: entry, Env: envByRef[ref],
 				})
@@ -322,6 +332,9 @@ func newPlan(
 	sort.Slice(p.memberMigrations, func(i, j int) bool { return p.memberMigrations[i].Service < p.memberMigrations[j].Service })
 
 	p.chainMigrations()
+	if err := p.sourceMigrationOrder(); err != nil {
+		return nil, err
+	}
 
 	if err := p.checkExposePorts(); err != nil {
 		return nil, err

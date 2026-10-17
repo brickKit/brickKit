@@ -205,7 +205,8 @@ built very carefully) and a unit of scaling (one member can't get extra replicas
 **Worth knowing**:
 - Members' migrations **are still run by the platform**: with the member's own image and config, and the shell starts only
   once they succeeded (see [Migrations and shells](../05-migration/04-shell-interaction.md)). So every member must have an
-  image of its own.
+  image of its own — except, with the shell running on this machine, a member compiled in from its local repository: it
+  migrates from source (`local.migrationCommand`).
 - For a shell image built on this machine, `brickkit build` records in a label which member versions it compiled in, and
   `up` compares that label with `shell.members` in the shell's `component.yaml`: a mismatch stops it (`IMAGE_STALE`),
   rather than a shell missing a member quietly starting. An image without the label (built by hand) only gets a warning

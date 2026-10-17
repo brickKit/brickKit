@@ -462,7 +462,9 @@ situation from the current directory:
    shell members' values can be JSON-encoded into the shell; and the shell declarations: `kind: shell` agrees with the
    `shell` block, members nested under a shell are really compiled into it — only for components whose manifest is on
    disk; the rest are listed as unchecked;
-5. every `component.yaml` under the local install source directories, added or not (`.archived/` excluded).
+5. every `component.yaml` under the local install source directories, added or not (`.archived/` excluded), with
+   warnings for what silently won't work: a `Dockerfile` next to an image-only one, a migration without
+   `local.migrationCommand` in one that ships its code, misspelled keys in `configSchema` items.
 
 If `brickkit.yaml` itself fails, nothing after it can be trusted; the rest is skipped, and it says so.
 
@@ -673,7 +675,8 @@ Start the project in one go:
    holds back the main service;
 9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Before
    starting any, `up` checks their ports are free (`PORT_CONFLICT` otherwise), and runs a component's
-   `local.migrationCommand` before starting it (a failure keeps it from starting: `MIGRATION_FAILED`). Each process
+   `local.migrationCommand` before starting it — for a shell, also those of the members it compiles in from their local
+   repositories (a failure keeps it from starting: `MIGRATION_FAILED`). Each process
    inherits this terminal's environment except the names the platform owns (the reserved names, every `*_ENDPOINT`, the
    component's own `configSchema` keys), which come only from the platform; see
    [What a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits).

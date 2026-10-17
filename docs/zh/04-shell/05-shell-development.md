@@ -220,7 +220,8 @@ Kubernetes 上每个被承载的成员有一个同名的 Service，选中外壳�
 ```
 
 所以外壳不必知道怎么迁移每个成员；而每个成员**都必须有自己的镜像**（`deployment.image` 或 `deployment.build`），哪怕它平时总在外壳里跑。
-详见 [与外壳的交互](../05-migration/04-shell-interaction.md)。
+例外是以本机进程运行的外壳：它从成员本地仓库编进代码的那些成员，在外壳启动之前用成员的 `local.migrationCommand` 从源码迁移。
+详见[与外壳的交互](../05-migration/04-shell-interaction.md#外壳以本机进程运行时)。
 
 ## 本地联调
 
@@ -230,3 +231,6 @@ Kubernetes 上每个被承载的成员有一个同名的 Service，选中外壳�
 外壳以本机进程运行时，它加载的是成员**本地仓库里的代码**（`components/` 下克隆的那份）。所以 `up` 核对一条链：外壳这次承载的成员版本
 等于外壳 `component.yaml` 声明编进的版本；成员有本地仓库时，仓库 `component.yaml` 里的版本也必须就是它，而且它得是这个成员的默认版本。
 对不上就报错，并提示 `brickkit upgrade <成员>@<仓库版本>` 或者把仓库切到对应的 tag——而不是让你调试一份和声明不符的代码。
+
+这些成员的迁移跟着它们的代码走：在外壳启动之前，用各成员的 `local.migrationCommand` 从源码跑，而不是用成员的镜像——镜像里的可能是另一份代码。
+没写这个字段的成员不迁移，`up` 会提醒，见[与外壳的交互](../05-migration/04-shell-interaction.md#外壳以本机进程运行时)。

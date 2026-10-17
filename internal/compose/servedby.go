@@ -28,6 +28,10 @@ type servedComponent struct {
 	Shell    resolver.Ref
 	// Env 是它独立运行时的那份环境：经由外壳的 JSON 交给外壳进程，本地调试的地址改写同样作用于它。
 	Env inject.Component
+	// FromSource：外壳以本机进程运行（mode: local / debug），而成员有本地仓库——外壳进程编进的是成员
+	// 工作区里的代码（internal/cli 的 checkLocalRepos 按同一条件核对版本）。代码从源码跑，迁移也只从源码跑
+	// （local.migrationCommand）：不生成镜像里的迁移容器，也就不要成员的镜像。
+	FromSource bool
 }
 
 // applyShellGroups 把每个外壳分组合并进外壳自己的环境变量/labels，并

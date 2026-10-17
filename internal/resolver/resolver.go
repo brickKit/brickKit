@@ -36,6 +36,9 @@ type Ref struct {
 
 func (r Ref) String() string { return r.ID + "@" + r.Version }
 
+// IsZero 报告这是不是零值（"没有这个引用"）。
+func (r Ref) IsZero() bool { return r == Ref{} }
+
 // Provider 提供组件 Manifest。生产环境由 internal/source 实现。
 type Provider interface {
 	Manifest(ctx context.Context, id, version string) (*manifest.Manifest, error)

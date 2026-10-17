@@ -238,8 +238,9 @@ the member's own config, and starts the shell only once it succeeded:
 ```
 
 So the shell needn't know how to migrate each member; and every member **must have its own image** (`deployment.image` or
-`deployment.build`), even if it always runs in a shell. More in
-[Migrations and shells](../05-migration/04-shell-interaction.md).
+`deployment.build`), even if it always runs in a shell. The exception is a shell running as a process on this machine: a
+member whose code it compiles from the member's local repository migrates from source, with the member's
+`local.migrationCommand`, before the shell starts. More in [Migrations and shells](../05-migration/04-shell-interaction.md#when-the-shell-runs-as-a-process-on-this-machine).
 
 ## Developing it locally
 
@@ -253,3 +254,8 @@ A shell running as a process on this machine loads the members' **code in their 
 `component.yaml` must be exactly that one too, and it must be the member's default version. When they don't match it fails,
 suggesting `brickkit upgrade <member>@<repository version>` or checking out the matching tag in the repository — rather
 than letting you debug code that doesn't match the declaration.
+
+Those members' migrations follow their code: they run from source, with each member's `local.migrationCommand`, before
+the shell starts, rather than from the members' images — which may hold other code. A member without that field doesn't
+migrate, and `up` says so; see
+[Migrations and shells](../05-migration/04-shell-interaction.md#when-the-shell-runs-as-a-process-on-this-machine).

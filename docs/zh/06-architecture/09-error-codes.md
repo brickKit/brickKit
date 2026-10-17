@@ -117,6 +117,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：找不到 cosign` | `publish --sign` 需要 cosign 但没装 | 安装 cosign（只有发布方需要） |
 | `错误：可信公钥不可用` | `installer.publicKeys` 指向的公钥文件有问题 | 检查文件路径与内容 |
 | `探测不出 <…> 该怎么启动` | `mode: local` 的组件认不出启动命令 | 在 `component.yaml` 的 `local` 里写 `language` 或 `runCommand` |
+| `错误：<…> 的迁移从源码运行、排在容器之后，但更新的 <…> 先在容器里迁移` | 从源码运行的迁移（`local.migrationCommand`）会排在更新版本的迁移容器之后：从新往旧跑 | 这次不跑更新的那个版本（`mode: disable`），或者这一版改用镜像跑 |
 | `从本地仓库运行的代码与这次运行的版本对不上` | 本机进程运行的组件（`mode: local` 或焦点），本地仓库的版本不是 `brickkit.yaml` 里的版本——或者根本没有本地仓库 | `brickkit upgrade <组件>@<仓库版本>`，或把仓库切到对应 tag；没有仓库时 `brickkit add <组件> --repo` |
 | `这个项目已经有一个本地会话在跑（PID <…>）——先停掉它，或者切到那个终端` | 另一个终端的 `up` 正看护着 `mode: local` 进程 | 在那个终端里 `Ctrl+C` |
 
@@ -185,7 +186,11 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：<…> 里的组件 ID 与目录名对不上` | 本地源里 `<scope>/<name>/` 与 `metadata.id` 不一致 | 改目录名或 ID |
 | `错误：artifacts 声明的文件不存在` | 发布时 `artifacts.files` 指向的文件不在 | 补上文件或改声明 |
 
-警告：`警告：configSchema 里有配置项声明的键不会生效`——`configSchema` 某一项里写了拼错的键（如 `defualt`）。
+警告，由 `brickkit lint` 给出（第一条 `build` 与 `up` 也会给）：
+
+- `<…> 只写了 deployment.image：它的镜像总是拉取的，来自本地源也一样，旁边的 Dockerfile 不会被用到`——要从这份源码构建，就写上 `deployment.build`。
+- `<…> 有迁移、也带着自己的代码，却没写 local.migrationCommand：从源码运行它时（mode: local、焦点运行、在本机运行的外壳里），迁移不会跑`——写明怎么从源码跑迁移。
+- `警告：configSchema 里有配置项声明的键不会生效`——`configSchema` 某一项里写了拼错的键（如 `defualt`）。
 
 ### DEPENDENCY_MISSING
 

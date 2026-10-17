@@ -63,7 +63,7 @@ demo-caller-1-0-0  已监听端口 8080
 这个进程在前台跑；Ctrl+C 停掉它，容器照常运行。要打断点，就在 `deploy.local.yaml` 里给焦点写上 `mode: debug`，再从 IDE 里启动它——
 见[本地调试工作流](03-local-debug-workflow.md)。你写的 `mode: debug` 焦点会保留。
 
-本机进程没有迁移容器。焦点组件写了 `local.migrationCommand` 时，`up` 在启动它之前从源码跑这条迁移，失败就不启动；没写时
+本机进程没有迁移容器。焦点组件写了 `local.migrationCommand` 时，`up` 在启动它之前从源码跑这条迁移，失败就不启动——焦点是外壳时，从本地仓库编进去的成员也一样；没写时
 `up` 提示迁移不会执行（见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)）。
 
 ## 焦点记在哪里

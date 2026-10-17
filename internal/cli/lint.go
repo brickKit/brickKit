@@ -421,6 +421,9 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 		if w := manifest.UnusedDockerfileWarning(m, filepath.Dir(path)); w != nil {
 			f.warnings = append(f.warnings, w)
 		}
+		if w := manifest.LocalMigrationMissingWarning(m); w != nil {
+			f.warnings = append(f.warnings, w.WithDetail(i18n.T(msgid.LabelFile), f.path))
+		}
 	}
 	// 与 Parse 成败无关：它只依赖 YAML 本身，语法错误时自己返回 nil
 	f.warnings = append(f.warnings, manifest.PropertyKeyWarnings(raw, f.path)...)

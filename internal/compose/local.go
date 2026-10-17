@@ -80,6 +80,9 @@ type LocalEnvFile struct {
 	// Content 对它宽松（留着占位符，看得出漏了哪个）；mode: local 真正启动进程时
 	// 对它严格（见 internal/cli/up_local.go 的 buildLocalEnv）。
 	Unresolved map[string]string
+	// Shell 非零时，这是本机外壳承载的一个从源码运行的成员（Result.MemberEnvFiles）：它不是自己的进程，
+	// 变量是它在外壳里拿到的那一份，文件给它的迁移（local.migrationCommand）与一次性命令用；Mode 是外壳的 mode。
+	Shell resolver.Ref
 }
 
 // hostGateway 返回 extra_hosts 里指向宿主机的魔法值。
@@ -106,6 +109,8 @@ type localComponent struct {
 	Env      inject.Component
 	// Port 是它在宿主机上监听的端口（localPort 或自动分配）。
 	Port int
+	// Shell 非零时它是本机外壳承载的、从源码运行的成员（见 LocalEnvFile.Shell），Entry 是外壳的条目。
+	Shell resolver.Ref
 }
 
 // ============================================================
@@ -684,6 +689,26 @@ func (p *plan) localEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	return out, nil
 }
 
+// memberEnvFiles 是本机外壳承载的、从源码运行的成员的环境变量文件：变量是成员在外壳里拿到的那一份
+// （地址已经指向本机，见 rewriteEndpointsForLocalDependencies），给它从源码跑的迁移与一次性命令用。
+func (p *plan) memberEnvFiles(now time.Time) ([]LocalEnvFile, error) {
+	var out []LocalEnvFile
+	for _, s := range p.served {
+		if !s.FromSource || s.Manifest == nil {
+			continue
+		}
+		file, err := p.localEnvFile(localComponent{
+			Ref: s.Ref, Service: s.Service, Manifest: s.Manifest, Env: s.Env, Shell: s.Shell,
+			Entry: p.proj.DeployEntry(s.Shell.ID, s.Shell.Version), Port: s.Manifest.Deployment.Port,
+		}, now)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, file)
+	}
+	return out, nil
+}
+
 // localValue 是裸进程（mode: debug / local）"这条变量取什么值"的唯一判定处：
 // IDE 与 brickkit 自己拉起的进程都不做变量替换，所以一切引用在这里就求值；
 // existingSecret 在宿主机上没有对应物，跳过（表现成"没配"，而不是注入空串）。
@@ -733,6 +758,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 
 	return LocalEnvFile{
 		Ref:                    l.Ref,
+		Shell:                  l.Shell,
 		Mode:                   l.Entry.Mode,
 		Name:                   "local-debug." + l.Service + ".env",
 		Port:                   l.Port,
@@ -815,14 +841,20 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 // renderEnvFile 渲染 .env 文件内容。
 // vars 已经全部求过值（localValue）。
 func renderEnvFile(l localComponent, vars []inject.Var, now time.Time) []byte {
-	// 开头的说明按 mode 分：debug 的文件是给 IDE 读的，local 的进程由 brickkit 拉起、不读它
-	header := msgid.ComposeEnvHeader
-	if l.Entry.Mode == deployfile.ModeLocal {
-		header = msgid.ComposeEnvHeaderLocal
-	}
+	// 开头的说明按 mode 分：debug 的文件是给 IDE 读的，local 的进程由 brickkit 拉起、不读它；
+	// 外壳成员不是自己的进程，文件只给它的迁移与一次性命令用
 	var b bytes.Buffer
-	b.Write(yamlcomment.Banner(i18n.T(header,
-		l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
+	switch {
+	case !l.Shell.IsZero():
+		b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeaderMember,
+			l.Ref.ID, l.Ref.Version, l.Shell.String(), l.Entry.Mode, now.UTC().Format(time.RFC3339))))
+	case l.Entry.Mode == deployfile.ModeLocal:
+		b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeaderLocal,
+			l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
+	default:
+		b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeader,
+			l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
+	}
 
 	for _, v := range vars {
 		fmt.Fprintf(&b, "%s=%s\n", v.Name, shellQuote(v.Value.Text))
@@ -881,10 +913,11 @@ func needsShellQuoting(r rune) bool {
 	return true
 }
 
-// localMigrationWarnings 提醒本机进程组件（mode: debug / mode: local）的迁移不会以容器运行，说出它真实的 mode。
+// localMigrationWarnings 提醒从源码运行的组件的迁移不会自动执行，说出它真实的 mode。
 //
-// local 组件不生成容器，它的迁移容器也就一并没了。不说这一句，
-// 开发者会对着一句 "relation does not exist" 找半天。
+// 代码从源码跑的组件，迁移也只从源码跑（local.migrationCommand）：本机进程组件（mode: debug / mode: local）
+// 不生成容器，迁移容器一并没了；本机外壳承载、代码来自本地仓库的成员同样不跑镜像里的迁移——镜像里的
+// 可能是另一份代码。不说这一句，开发者会对着一句 "relation does not exist" 找半天。
 //
 //	写了 local.migrationCommand、mode: local   up 在启动进程之前自己跑它，不提醒
 //	写了、mode: debug                         进程归使用者启动：告诉他从源码跑哪条命令、用哪份环境
@@ -893,34 +926,91 @@ func needsShellQuoting(r rune) bool {
 func (p *plan) localMigrationWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, l := range p.locals {
-		if l.Manifest == nil || l.Manifest.Migration == nil {
+		if w := sourceMigrationWarning(l.Ref, l.Service, l.Manifest, l.Entry.Mode, resolver.Ref{}); w != nil {
+			out = append(out, w)
+		}
+	}
+	for _, s := range p.served {
+		if !s.FromSource {
 			continue
 		}
-		var fromSource []string
-		if l.Manifest.Local != nil {
-			fromSource = l.Manifest.Local.MigrationCommand
+		mode := p.proj.DeployEntry(s.Shell.ID, s.Shell.Version).Mode
+		if w := sourceMigrationWarning(s.Ref, s.Service, s.Manifest, mode, s.Shell); w != nil {
+			out = append(out, w)
 		}
-		if len(fromSource) > 0 && l.Entry.Mode == deployfile.ModeLocal {
-			continue
-		}
-		w := clierr.Warn(clierr.CodeMigrationSkipped,
-			i18n.T(msgid.ComposeLocalMigrationSkipped, l.Entry.Mode)).
-			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalMigrationReasonDetail, l.Entry.Mode))
-		if len(fromSource) > 0 {
-			w = w.WithHint(
-				i18n.T(msgid.ComposeHintRunMigrationByHand, strings.Join(fromSource, " ")),
-				i18n.T(msgid.ComposeHintUseLocalDebugEnv, l.Service),
-			)
-		} else {
-			w = w.WithHint(
-				i18n.T(msgid.ComposeHintMigrationOnlyInImage, strings.Join(l.Manifest.Migration.Command, " ")),
-				i18n.T(msgid.ComposeHintDeclareLocalMigration),
-			)
-		}
-		out = append(out, w)
 	}
 	return out
+}
+
+// sourceMigrationWarning 是一个从源码运行的组件"迁移不会自动执行"的提醒；不需要提醒时返回 nil。
+// shell 非零时组件是那个本机外壳承载的成员，mode 是外壳的。
+func sourceMigrationWarning(ref resolver.Ref, service string, m *manifest.Manifest, mode string, shellRef resolver.Ref) *clierr.Error {
+	if m == nil || m.Migration == nil {
+		return nil
+	}
+	var fromSource []string
+	if m.Local != nil {
+		fromSource = m.Local.MigrationCommand
+	}
+	if len(fromSource) > 0 && mode == deployfile.ModeLocal {
+		return nil
+	}
+	w := clierr.Warn(clierr.CodeMigrationSkipped, i18n.T(msgid.ComposeLocalMigrationSkipped, mode)).
+		WithDetail(i18n.T(msgid.LabelComponent), refText(ref))
+	if shellRef.IsZero() {
+		w = w.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalMigrationReasonDetail, mode))
+	} else {
+		w = w.WithDetail(i18n.T(msgid.LabelShell), refText(shellRef)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeMemberMigrationReasonDetail, mode))
+	}
+	if len(fromSource) > 0 {
+		return w.WithHint(
+			i18n.T(msgid.ComposeHintRunMigrationByHand, strings.Join(fromSource, " ")),
+			i18n.T(msgid.ComposeHintUseLocalDebugEnv, service),
+		)
+	}
+	return w.WithHint(
+		i18n.T(msgid.ComposeHintMigrationOnlyInImage, strings.Join(m.Migration.Command, " ")),
+		i18n.T(msgid.ComposeHintDeclareLocalMigration),
+	)
+}
+
+// sourceMigrationOrder 守住"同一组件的迁移按版本号由低到高跑"：从源码跑的迁移（mode: local 进程、本机外壳里
+// 从源码运行的成员，写了 local.migrationCommand）在引擎跑完容器之后才跑，进不了 chainMigrations 的版本链。
+// 同一组件更高的版本这次在容器里迁移，它就会先于源码这一版跑——迁移顺序反了，表结构跟着乱。
+// 低版本在容器里不要紧：容器先跑，源码后跑，正是由低到高。
+func (p *plan) sourceMigrationOrder() error {
+	type source struct {
+		ref resolver.Ref
+		m   *manifest.Manifest
+	}
+	var sources []source
+	for _, l := range p.locals {
+		if l.Entry.Mode == deployfile.ModeLocal {
+			sources = append(sources, source{l.Ref, l.Manifest})
+		}
+	}
+	for _, s := range p.served {
+		if s.FromSource && p.proj.DeployEntry(s.Shell.ID, s.Shell.Version).Mode == deployfile.ModeLocal {
+			sources = append(sources, source{s.Ref, s.Manifest})
+		}
+	}
+	for _, src := range sources {
+		if src.m == nil || src.m.Migration == nil || src.m.Local == nil || len(src.m.Local.MigrationCommand) == 0 {
+			continue
+		}
+		for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
+			if c.Ref.ID != src.ref.ID || c.Manifest == nil || c.Manifest.Migration == nil ||
+				manifest.CompareVersions(c.Ref.Version, src.ref.Version) <= 0 {
+				continue
+			}
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ComposeSourceMigrationOutOfOrder, src.ref.String(), c.Ref.String())).
+				WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeSourceMigrationOutOfOrderReason)).
+				WithHint(i18n.T(msgid.ComposeHintStopNewerThisTime, c.Ref.String()),
+					i18n.T(msgid.ComposeHintRunOlderInContainer, src.ref.String()))
+		}
+	}
+	return nil
 }
 
 // ============================================================

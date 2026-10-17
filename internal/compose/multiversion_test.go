@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
@@ -196,4 +198,26 @@ func TestDifferentComponentsMigrationsStayParallel(t *testing.T) {
 
 	assert.NotContains(t, serviceOf(t, doc, "demo-hello-1-0-0-migration"), "depends_on")
 	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0-migration"), "depends_on")
+}
+
+// 从源码跑的迁移在引擎跑完容器之后才跑，进不了版本链：同一组件更高的版本这次在容器里迁移，
+// 顺序就反了——生成时就报错，不静默跑反。低版本在容器里不要紧：容器先跑，正是由低到高。
+func TestSourceMigrationMustNotRunAfterANewerContainerMigration(t *testing.T) {
+	build := func(local, container string) error {
+		b := newBuilder(t)
+		src := withMigration(withDatabase(simple("demo/hello", local, 8080)))
+		src.Local = &manifest.Local{MigrationCommand: []string{"go", "run", ".", "migrate"}}
+		b.component(src, projecttest.Entry{Mode: deployfile.ModeLocal})
+		b.component(withMigration(withDatabase(simple("demo/hello", container, 8080))), projecttest.Entry{})
+		b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "demo/hello", container), projecttest.Entry{})
+		_, err := b.build(compose.Options{})
+		return err
+	}
+
+	err := build("1.0.0", "2.0.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "demo/hello@1.0.0")
+	assert.Contains(t, err.Error(), "demo/hello@2.0.0")
+
+	assert.NoError(t, build("2.0.0", "1.0.0"))
 }

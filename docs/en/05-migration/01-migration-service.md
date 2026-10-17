@@ -102,12 +102,20 @@ records overwrite each other.
 
 ## When no migration container runs
 
-A component running as a process on this machine (`mode: local`, `mode: debug`, or the focus component of a focus run)
-has no container, so it has no migration container either. Its `migration.command` can't simply run on your machine
-instead: it runs inside the component's image (`/app/stock migrate` is a path in the image), and the source you run may
-hold newer migrations than the image. The migration has to run from source, and only the component knows how — the
-platform doesn't guess it. So the component declares it in `local.migrationCommand`, written like `local.runCommand`
-(an argv; a program with a path separator is relative to the component's directory):
+**The rule: a migration runs where the code runs.** Code from an image migrates with that image's
+`migration.command`; code from source migrates from source. Two kinds of component run from source:
+
+- a component running as a process on this machine: `mode: local`, `mode: debug`, or the focus component of a focus run;
+- a shell member whose code a shell running as such a process compiles in from the member's local repository (see
+  [Migrations and shells](04-shell-interaction.md#when-the-shell-runs-as-a-process-on-this-machine)).
+
+Neither has a migration container. Nor can its `migration.command` simply run on your machine instead: it runs inside the
+component's image (`/app/stock migrate` is a path in the image), and the source you run may hold newer migrations than
+the image — the image may even hold other code of the same version. The migration has to run from source, and only the
+component knows how; the platform doesn't guess it. So the component declares it in `local.migrationCommand`, written
+like `local.runCommand` (an argv; a program with a path separator is relative to the component's directory). It requires
+a `migration`, and `brickkit lint` warns when a component that ships its code (`deployment.build`) has a `migration`
+without it:
 
 ```yaml
 migration:
@@ -116,14 +124,16 @@ local:
   migrationCommand: ["go", "run", ".", "migrate"]  # from source
 ```
 
-**`mode: local`.** `up` runs it in the component's directory, with the same environment variables as the process, after
-the containers have started and before the process starts; its output lines are prefixed with
-`<service name>-migration`. If it fails, the process isn't started and the session ends with `MIGRATION_FAILED` — the
-same rule as a migration container holding back its main service. `up --dry-run` lists it among the migrations that run
-before startup. It runs on every `up`, like the container, so it has to be idempotent too.
+**`mode: local`** (for a member: its shell is `mode: local`). `up` runs it in the component's directory, after the
+containers have started and before the process starts — a shell's members' first, in start order, then the shell's own.
+It gets the same environment variables as the process; a member gets the ones it receives inside the shell, which `up`
+also writes to `local-debug.<member's service name>.env`. Its output lines are prefixed with `<service name>-migration`.
+If it fails, the process isn't started and the session ends with `MIGRATION_FAILED` — the same rule as a migration
+container holding back its main service. `up --dry-run` lists it among the migrations that run before startup. It runs
+on every `up`, like the container, so it has to be idempotent too.
 
 **`mode: debug`.** You start the process yourself, so `up` runs nothing and reminds you instead, naming the command and
-the environment file:
+the environment file (for a member, the note also names its shell):
 
 ```text
 ⚠️ Note: a mode: debug component's database migration won't run automatically
@@ -137,8 +147,8 @@ the environment file:
 In the component's directory: `set -a && source <project>/.brickkit/generated/local-debug.<service name>.env && set +a`,
 then the command.
 
-**Without `local.migrationCommand`**, the migration doesn't run in either mode, and `up` says why it has no command to
-give you:
+**Without `local.migrationCommand`**, the migration doesn't run in either mode — the image isn't used instead — and `up`
+says why it has no command to give you:
 
 ```text
 ⚠️ Note: a mode: local component's database migration won't run automatically
@@ -151,3 +161,9 @@ give you:
 
 How to run it from source is then in the component's `BRICKKIT.md`; if the component is yours, declare
 `local.migrationCommand`.
+
+**Its place in the order.** A migration from source runs after the engine has run the containers, so it isn't part of
+the [version chain](03-multi-version-chain.md). When a **newer** version of the same component migrates in a container
+this time, the two would run newest first; `up` stops before anything starts (`CONFIG_INVALID`), naming both versions —
+don't run the newer one this time, or run this one from its image. An older version in a container is fine: it runs
+first.

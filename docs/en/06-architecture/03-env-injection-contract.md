@@ -154,7 +154,9 @@ file). A `mode: debug` component has no container; the platform writes the varia
 `.brickkit/generated/local-debug.<service name>.env` for you to load in your IDE; in that file, dependency addresses are
 `http://localhost:<port>`, reachable from this machine. A `mode: local` component gets the same file: `up` starts that
 process with these variables itself — and runs its `local.migrationCommand`, when declared, with the same ones — and the
-file is there for running a one-off command by hand.
+file is there for running a one-off command by hand. A shell running on this machine gets its members' values in
+`BRICKKIT_SERVED_MEMBERS_CONFIG`; a member whose code comes from its local repository also gets a file of its own,
+`local-debug.<member's service name>.env`, with the same values — its migration from source runs with them.
 
 ## What a `mode: local` process inherits
 

@@ -62,3 +62,6 @@ R47	本地源里只写 image 的组件旁边有 Dockerfile：up 拉镜像启动�
 R48	mode: local 的端口被别的程序占着：up 启动任何进程之前报 PORT_CONFLICT 并列出被占的端口，不报假的"已监听"	.	./internal/cli	TestRunLocalComponentsRefusesATakenPortBeforeStartingAnything
 R49	mode: local 的组件写了 local.migrationCommand：up 在进程启动前从源码跑迁移，失败就不启动进程	.	./internal/cli	TestRunLocalComponentsDoesNotStartAfterAFailedMigration
 R50	本机进程组件没写 local.migrationCommand：迁移提醒不把镜像里的路径当成本机命令给出	.	./internal/cli	TestLocalMigrationNoteDoesNotOfferTheImagePath
+R51	外壳以本机进程运行、成员代码来自本地仓库：成员迁移在外壳启动前从源码跑（local.migrationCommand），不用成员镜像	.	./internal/cli	TestLocalShellRunsItsSourceMembersMigrationFirst
+R52	从源码跑的迁移会排在同组件更新版本的容器迁移之后时，up 在启动前报错，不从新往旧跑	.	./internal/compose	TestSourceMigrationMustNotRunAfterANewerContainerMigration
+R53	带着代码、有迁移却没写 local.migrationCommand 的组件：lint 警告从源码运行时迁移不会跑	.	./internal/cli	TestLintWarnsWhenACodeCarryingComponentHasNoMigrationFromSource

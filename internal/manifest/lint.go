@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -28,6 +29,19 @@ func UnusedDockerfileWarning(m *Manifest, dir string) *clierr.Error {
 		WithDetail(i18n.T(msgid.LabelFile), dockerfile).
 		WithDetail("deployment.image", m.Deployment.Image).
 		WithHint(i18n.T(msgid.ManifestHintDeclareBuild))
+}
+
+// LocalMigrationMissingWarning：组件有迁移、带着自己的代码（写了 deployment.build），却没写 local.migrationCommand。
+// 从源码运行它时——mode: local、焦点运行、本机外壳承载它——迁移一概不跑（migration.command 是镜像里的路径，
+// 平台也不猜源码里的写法），使用方要等到启动报"表不存在"才知道。作者在这里就该听到。
+// 只给契约、不给代码的组件（只写 image）没有源码可跑，不提醒。
+func LocalMigrationMissingWarning(m *Manifest) *clierr.Error {
+	if m == nil || m.Migration == nil || !m.BuildsFromSource() || (m.Local != nil && len(m.Local.MigrationCommand) > 0) {
+		return nil
+	}
+	return clierr.Warn(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestLocalMigrationMissing, m.Metadata.ID)).
+		WithDetail("migration.command", strings.Join(m.Migration.Command, " ")).
+		WithHint(i18n.T(msgid.ManifestHintDeclareLocalMigration))
 }
 
 // PropertyKeyWarnings 找出 configSchema.properties.<key> 声明里不认识的键。
