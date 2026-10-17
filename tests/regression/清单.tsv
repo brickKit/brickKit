@@ -65,3 +65,4 @@ R50	本机进程组件没写 local.migrationCommand：迁移提醒不把镜像�
 R51	外壳以本机进程运行、成员代码来自本地仓库：成员迁移在外壳启动前从源码跑（local.migrationCommand），不用成员镜像	.	./internal/cli	TestLocalShellRunsItsSourceMembersMigrationFirst
 R52	从源码跑的迁移会排在同组件更新版本的容器迁移之后时，up 在启动前报错，不从新往旧跑	.	./internal/compose	TestSourceMigrationMustNotRunAfterANewerContainerMigration
 R53	带着代码、有迁移却没写 local.migrationCommand 的组件：lint 警告从源码运行时迁移不会跑	.	./internal/cli	TestLintWarnsWhenACodeCarryingComponentHasNoMigrationFromSource
+R54	K8s 上调用外壳成员：注入的每个地址都有同名、开着那个端口的 Service（成员地址用成员自己的名字）	.	./internal/k8s	TestEveryInjectedAddressHasAServiceWithThatPort

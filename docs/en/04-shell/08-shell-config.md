@@ -46,7 +46,7 @@ A shell's `configSchema` can't use the platform's reserved names either, `BRICKK
 
 How members call each other inside the shell — through their own ports, through in-process function calls, or over an
 internal message bus — the platform stays out of it. The address the platform gives
-(`SHOP_STOCK_ENDPOINT=http://shop-shell-0-1-0:8082`) always works: the shell really does listen on that port for
+(`SHOP_STOCK_ENDPOINT=http://shop-stock-0-1-0:8082`) always works: the shell really does listen on that port for
 `shop/stock`. A shell author who wants to save that network hop can have the shell recognise "this address points at one
 of my own modules" and make an in-process call instead — that's the shell's own optimisation, which the platform doesn't
 understand and doesn't need to.

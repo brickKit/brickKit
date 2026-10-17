@@ -96,7 +96,7 @@ Don't load every component's documentation at once: read only the components the
 - Members are listed under the shell's entry in the deploy file (`members`) — the only place membership is written. The shell's line in `brickkit.yaml` carries `kind: shell`, maintained by the CLI.
 - The shell's `component.yaml` lists, in `shell.members`, the **exact versions** it compiles in. If the project hosts a different version, the CLI stops with three ways out.
 - Members' configuration reaches the shell as `BRICKKIT_SERVED_MEMBERS_CONFIG`, a JSON value the CLI evaluates in advance; multi-line secrets (PEM), quotes and `$` encode fine, and a value that isn't valid UTF-8 (binary) fails loudly.
-- Callers' `*_ENDPOINT` addresses are pointed at the shell by the platform; the shell author only routes each request to the right member inside the process.
+- Callers' `*_ENDPOINT` addresses still name the member (`http://<member service name>:<member port>`), unchanged by hosting; the platform makes that name reach the shell (network aliases on Docker / Podman, a member Service selecting the shell's Pod on Kubernetes, `extra_hosts` when the shell runs on this machine). The shell author only routes each request to the right member inside the process.
 - Members' migrations still run on their own, with each member's own image and config — so every member needs its own image (`image` or `build`). The exception: when the shell runs as a process on this machine and a member's code comes from its local repository, that member migrates from source (`local.migrationCommand`), never from its image.
 - A shell is a component too: it has its own `configSchema` and its own `config/` file.
 

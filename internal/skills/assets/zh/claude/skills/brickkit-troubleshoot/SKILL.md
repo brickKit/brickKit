@@ -225,7 +225,7 @@ docker / podman 用就留着，否则删掉。
 
 **连不上依赖**：地址是 `http://<版本化服务名>:<端口>`，服务名是组件 ID 的 `/`、`.` 换成 `-` 再加精确版本
 （`people/basic` + `1.0.0` → `people-basic-1-0-0`）；变量名不带版本（`PEOPLE_BASIC_ENDPOINT`）。依赖在外壳里
-时地址指向外壳。
+时地址不变，它的名字解析到外壳（K8s 上经成员的 Service）。
 
 **只想看生成结果不启动**：`brickkit up --dry-run`。**看依赖怎么连的**：`brickkit deps` 或 `brickkit graph`。
 

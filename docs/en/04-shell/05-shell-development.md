@@ -184,18 +184,21 @@ have the shell gather its members' metrics on one endpoint of its own, each metr
 
 ## How addresses are pointed at it
 
-Callers don't know the other end is a shell. The platform connects the addresses for it in two places:
+Callers don't know the other end is a shell. They address a member by its own name, as if it ran on its own, and the
+platform makes that name reach the shell:
 
-**The addresses others get point at the shell.** `shop/order`, outside the shell, depends on `shop/stock` and gets:
+**Addresses name the member, never the shell.** `shop/order`, outside the shell, depends on `shop/stock` and gets:
 
 ```text
-      - SHOP_STOCK_ENDPOINT=http://shop-shell-0-1-0:8082
+      - SHOP_STOCK_ENDPOINT=http://shop-stock-0-1-0:8082
 ```
 
-The same holds between members inside the shell: the `SHOP_STOCK_ENDPOINT` that `shop/cart` gets in the JSON is also
-`http://shop-shell-0-1-0:8082`. The port is the member's own port — exactly where the shell listens for it.
+— exactly the address it would get with `shop/stock` running on its own, so moving a member into or out of a shell
+changes no caller's address. The same holds between members inside the shell (the `SHOP_STOCK_ENDPOINT` that `shop/cart`
+gets in the JSON) and for `$endpoint:` references. The port is the member's own port — exactly where the shell listens for
+it.
 
-**Members' service names resolve to the shell too.** On Docker the shell's container carries every member's service name
+**The member's name resolves to the shell.** On Docker and Podman the shell's container carries every member's service name
 as a network alias:
 
 ```yaml
@@ -206,9 +209,11 @@ as a network alias:
           - shop-stock-0-1-0
 ```
 
-On Kubernetes each hosted member gets a Service of its own name that selects the shell's Pod. Either way, whatever
-addresses a member by its service name — another container, a seed script, a cross-component test — reaches the shell
-without a change.
+On Kubernetes each hosted member gets a Service of its own name that selects the shell's Pod and opens the member's own
+ports — the shell's own Service opens only the shell's port, which is why an address never names the shell. When the
+shell runs as a process on this machine, a container calling a member resolves the member's name to the host with
+`extra_hosts`, and a process on this machine gets `localhost`. Whatever addresses a member by its service name — another
+container, a seed script, a cross-component test — reaches the shell without a change.
 
 **How requests are routed inside the process is the shell's own business.** Which module a request gets once it reaches
 one of the shell's ports, whether to split further by path or host name — the platform stays out of it. The platform only

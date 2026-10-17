@@ -91,7 +91,8 @@ addresses comes with it:
 
 - **It follows the version.** The address holds the versioned service name; after `brickkit upgrade` no address needs
   changing.
-- **It follows how things run.** When the target is hosted by a shell, it points at the shell; when the referring
+- **It follows how things run.** When the target is hosted by a shell, it still names the target, and that name reaches
+  the shell; when the referring
   component runs on this machine (`mode: local` / `debug`, a focus run), it becomes an address reachable from here; a
   component referring to itself gets its own address (to hand its callback URL to an outside system, say). The members
   of one shell all get exactly the same value.

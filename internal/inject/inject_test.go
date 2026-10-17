@@ -967,9 +967,10 @@ func TestBuildReservedEndpointSuffixStillBlocked(t *testing.T) {
 	assert.NotContains(t, envOf(t, result, "people/basic"), "NOTIFIER_ENDPOINT")
 }
 
-// 依赖一个被外壳承载的成员：地址指向外壳（网络拓扑层由 CLI 重写），
-// 端口仍是成员自己的端口——外壳进程在那个端口上替它监听。
-func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {
+// 依赖一个被外壳承载的成员：地址是成员自己的服务名与端口——外壳进程在那个端口上替它监听，成员的名字在
+// 每种目标下都解析到外壳（Docker 的网络别名、K8s 的成员 Service、裸进程外壳的 extra_hosts）。指向外壳的
+// 名字在 K8s 上不通：外壳的 Service 只开外壳的端口（反馈 FRB-004）。
+func TestEndpointOfHostedMemberIsTheMembersOwnName(t *testing.T) {
 	a := simple("erp/a", "1.0.0", 8081)
 	a.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9091}}
 	b := newBuilder(t)
@@ -978,8 +979,8 @@ func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {
 	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), entry{})
 
 	env := envOf(t, b.build(), "erp/caller")
-	assert.Equal(t, "http://erp-shell-1-0-0:8081", env["ERP_A_ENDPOINT"])
-	assert.Equal(t, "http://erp-shell-1-0-0:9091", env["ERP_A_GRPC_ENDPOINT"])
+	assert.Equal(t, "http://erp-a-1-0-0:8081", env["ERP_A_ENDPOINT"])
+	assert.Equal(t, "http://erp-a-1-0-0:9091", env["ERP_A_GRPC_ENDPOINT"])
 }
 
 // 成员以裸进程运行或外壳这次没跑：地址指向成员自己。

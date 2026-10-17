@@ -85,15 +85,15 @@ func TestShellDryRunDockerAndK8s(t *testing.T) {
 		assert.Equal(t, "registry.example.com/erp-api:1.0.0", migration.Image, "用成员自己的镜像")
 		assert.Contains(t, doc.Services["erp-shell-1-0-0"].DependsOn, "erp-api-1-0-0-migration")
 		assert.Contains(t, doc.Services["erp-portal-1-0-0"].Environment,
-			"ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081", "外壳外面的依赖方拿到外壳的地址")
+			"ERP_API_ENDPOINT=http://erp-api-1-0-0:8081", "外壳外面的依赖方拿到成员自己的名字：外壳容器挂着这个别名")
 
 		entries := shellJSONFromEnvFile(t, readFile(t, filepath.Join(generated, "env", "erp-shell-1-0-0.env")))
 		require.Len(t, entries, 2)
 		assert.Equal(t, "erp/api", entries[0].ComponentID)
 		assert.Equal(t, pem, entries[0].Config["TLS_KEY"], "PEM 经过 env 文件与 JSON 两层编码后逐字节不变")
 		assert.Equal(t, "erp/worker", entries[1].ComponentID)
-		assert.Equal(t, "http://erp-shell-1-0-0:8081", entries[1].Config["ERP_API_ENDPOINT"],
-			"外壳里的成员互相依赖时同样指向外壳")
+		assert.Equal(t, "http://erp-api-1-0-0:8081", entries[1].Config["ERP_API_ENDPOINT"],
+			"外壳里的成员互相依赖时同样用成员的名字")
 	})
 
 	t.Run("k8s", func(t *testing.T) {
@@ -176,8 +176,8 @@ func TestBareShellEndToEnd(t *testing.T) {
 	}
 	require.NoError(t, yaml.Unmarshal([]byte(compose), &doc))
 	portal := doc.Services["erp-portal-1-0-0"]
-	assert.Contains(t, portal.Environment, "ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081")
-	assert.Contains(t, portal.ExtraHosts, "erp-shell-1-0-0:host-gateway")
+	assert.Contains(t, portal.Environment, "ERP_API_ENDPOINT=http://erp-api-1-0-0:8081")
+	assert.Contains(t, portal.ExtraHosts, "erp-api-1-0-0:host-gateway", "成员的名字解析到宿主机：外壳进程在那里替它监听")
 	assert.NotContains(t, compose, "BEGIN KEY")
 }
 
@@ -409,7 +409,7 @@ func TestShellHostsDeclaredVersionWhileDefaultRunsStandalone(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte(readFile(t, filepath.Join(generated, composeFileName))), &doc))
 	assert.Contains(t, doc.Services, "erp-api-1-1-0", "默认版本独立运行")
 	assert.NotContains(t, doc.Services, "erp-api-1-0-0", "1.0.0 在外壳里")
-	assert.Contains(t, doc.Services["erp-portal-1-0-0"].Environment, "ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081")
+	assert.Contains(t, doc.Services["erp-portal-1-0-0"].Environment, "ERP_API_ENDPOINT=http://erp-api-1-0-0:8081")
 	assert.Contains(t, doc.Services["erp-api-1-1-0-migration"].DependsOn, "erp-api-1-0-0-migration", "同一个库的两个版本迁移串行")
 
 	entries := shellJSONFromEnvFile(t, readFile(t, filepath.Join(generated, "env", "erp-shell-1-0-0.env")))

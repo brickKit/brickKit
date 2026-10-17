@@ -187,9 +187,10 @@ fed in, worth practising on purpose in this cell.
 ### 6. All in shells × Docker
 
 **What it is**: as many components as possible compiled into a few shells; one Compose service per shell, and members
-generate no service container of their own. A caller's `*_ENDPOINT` for a member points at the shell:
-`http://<shell service name>:<the member's own port>`. The members' versioned service names are also kept as network
-aliases of the shell's container, so caller code — which reads the variable anyway — doesn't change.
+generate no service container of their own. A caller's `*_ENDPOINT` for a member is the member's own address,
+`http://<member's service name>:<its own port>` — the same as when it runs on its own — and that name reaches the shell:
+a network alias of the shell's container (on K8s, a Service selecting the shell's Pod). Caller code doesn't change, and
+neither does the address when a member moves into or out of a shell.
 
 **When**: when the memory sum of cell 2 really doesn't work out — not before. Before doing it, try cheaper things first:
 give the expensive components a lighter runtime (compiling JVM components into GraalVM native images drops the memory floor

@@ -74,7 +74,7 @@ func TestReferencedComponentFollowsItsReferrers(t *testing.T) {
 	assert.NotContains(t, services, "infra-authz-2-0-1", "唯一引用它的组件关掉了：它不是顶层，跟着不跑")
 }
 
-// 额外端口按名字取；目标被外壳承载时指向外壳，端口仍是它自己的（与 *_ENDPOINT 同一条规则）。
+// 额外端口按名字取；目标被外壳承载时主机名仍是它自己的服务名（外壳挂着这个别名），端口是它自己的（与 *_ENDPOINT 同一条规则）。
 func TestEndpointRefToExtraPortOfHostedMember(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell", "1.0.0", 9000), projecttest.Entry{})
@@ -84,8 +84,8 @@ func TestEndpointRefToExtraPortOfHostedMember(t *testing.T) {
 	})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-sales-1-0-0"))
-	assert.Equal(t, "http://infra-shell-1-0-0:8223", env["AUTHZ_URL"])
-	assert.Equal(t, "http://infra-shell-1-0-0:9223", env["AUTHZ_GRPC"])
+	assert.Equal(t, "http://infra-authz-2-0-1:8223", env["AUTHZ_URL"])
+	assert.Equal(t, "http://infra-authz-2-0-1:9223", env["AUTHZ_GRPC"])
 }
 
 // 引用方是本机进程：地址换成宿主机上映射出来的端口；指向自己的引用换成它自己在宿主机上监听的端口

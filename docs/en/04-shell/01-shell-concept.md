@@ -16,7 +16,7 @@ Deployed on their own                      Deployed in a shell
 ```
 
 The shell listens for each member on **the member's own port**. So nothing changes for callers: `shop/order` still calls
-`SHOP_STOCK_ENDPOINT`, only that address now points at the shell (see
+`SHOP_STOCK_ENDPOINT`, and even the address is the same — `shop/stock`'s own name, which now reaches the shell (see
 [Writing a shell](05-shell-development.md#how-addresses-are-pointed-at-it)).
 
 ## A shell hosts several members; a member is in one shell at a time
@@ -60,7 +60,7 @@ device's budget, rather than the programming language alone.
 | The platform | The shell's author |
 | --- | --- |
 | Works out which members this shell hosts this time, and encodes their config and ports into one JSON value for the shell | Reads the JSON, initialises the matching modules, listens on the members' ports |
-| Points the addresses of members at the shell | Hands each request to the right module inside the process |
+| Makes members' own names reach the shell (network aliases, member Services) | Hands each request to the right module inside the process |
 | Runs members' migrations separately, with each member's own image (from source, when the shell runs on this machine with the member's code from its local repository), before starting the shell | Doesn't run members' migrations inside the shell |
 | Checks that the member versions compiled into the shell's image match the ones it hosts this time | States truthfully in `component.yaml` which members, at which versions, are compiled in |
 

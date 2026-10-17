@@ -226,12 +226,7 @@ func buildComponent(
 			// 弱依赖没启动 → 完全不注入；强依赖没启动时这个组件自己也不会启动
 			continue
 		}
-		// 被外壳承载的成员没有自己的容器：地址指向外壳，端口仍是成员自己的
-		host := dep
-		if shell, hosted := states.HostOf(p, dep); hosted {
-			host = shell
-		}
-		builder.addEndpoints(dep, host, graph.Node(dep))
+		builder.addEndpoints(dep, graph.Node(dep))
 	}
 
 	// 3. 组件自身配置：config/ 目录 + vars + schema 默认值
@@ -285,8 +280,8 @@ func buildComponent(
 	return component, warnings, missing, nil
 }
 
-// resolveEndpointRef 把配置里的 $endpoint: 算成地址：与 *_ENDPOINT 同一条规则（被外壳承载的指向外壳、端口是它自己的），
-// 后面接上写下的路径。present 为假表示被引用的组件这次不跑。fill 把算好的值、Target、Port、Path 填进变量。
+// resolveEndpointRef 把配置里的 $endpoint: 算成地址：与 *_ENDPOINT 同一条规则（主机名是被引用组件自己的服务名，
+// 被外壳承载时也一样，见 addEndpoints），后面接上写下的路径。present 为假表示被引用的组件这次不跑。fill 把算好的值、Target、Port、Path 填进变量。
 func resolveEndpointRef(
 	p *project.Project, graph *resolver.Graph, states *cascade.Result, owner resolver.Ref, r configdir.Resolved,
 ) (fill func(Var) Var, present bool, err error) {
@@ -312,11 +307,7 @@ func resolveEndpointRef(
 	if extra, ok := m.ExtraPortNamed(e.Port); ok {
 		port = extra.Port
 	}
-	host := target
-	if shell, hosted := states.HostOf(p, target); hosted {
-		host = shell
-	}
-	address := endpoint(manifest.ServiceName(host.ID, host.Version), port)
+	address := endpoint(manifest.ServiceName(target.ID, target.Version), port)
 	return func(v Var) Var {
 		v.Value = Literal(address + e.Path)
 		v.Target, v.Port, v.Path = target, e.Port, e.Path
@@ -391,13 +382,17 @@ type envBuilder struct {
 
 func (b *envBuilder) set(v Var) { b.vars[v.Name] = v }
 
-// addEndpoints 注入依赖组件的主端口与额外端口地址。变量名按依赖 ref 算，主机名用 host
-// （依赖本身，或承载它的外壳），端口始终是依赖自己声明的端口。
-func (b *envBuilder) addEndpoints(ref, host resolver.Ref, node *resolver.Node) {
+// addEndpoints 注入依赖组件的主端口与额外端口地址：主机名是依赖自己的版本化服务名，端口是它自己声明的端口。
+//
+// 被外壳承载的成员也一样，不换成外壳的名字：成员的名字在每种目标下都解析到外壳——Docker / Podman 上外壳
+// 容器挂着成员服务名的网络别名，K8s 上每个成员有一个同名、选中外壳 Pod、端口是它自己的 Service，外壳以本机
+// 进程运行时调用方容器的 extra_hosts 把成员的名字指到宿主机。外壳自己的 Service 只开外壳的端口，指向外壳名字
+// 的成员地址在 K8s 上是不通的。地址也就与成员这次在不在外壳里无关：并进、拆出外壳，调用方拿到的地址不变。
+func (b *envBuilder) addEndpoints(ref resolver.Ref, node *resolver.Node) {
 	if node == nil || node.Manifest == nil {
 		return
 	}
-	service := manifest.ServiceName(host.ID, host.Version)
+	service := manifest.ServiceName(ref.ID, ref.Version)
 
 	b.set(Var{
 		Name:   manifest.EndpointEnvVar(ref.ID),

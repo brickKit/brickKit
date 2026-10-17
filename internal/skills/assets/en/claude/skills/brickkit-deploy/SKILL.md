@@ -137,7 +137,7 @@ changed code without a version bump needs `--force`. A shell image built with st
 (`up` / `build` / `lint` warn when a `Dockerfile` sits next to it unused).
 
 **8. Shells are chosen in the deploy file.** Nest member entries under the shell entry and they run
-inside it (no own container; their `*_ENDPOINT` points at the shell; their own labels / health
+inside it (no own container; their `*_ENDPOINT` keeps the member's own name, which reaches the shell; their own labels / health
 check don't apply, while their `expose` is opened by the shell — a mapping on the shell's container on
 Docker, an Ingress to the member's Service on K8s). The hosted version must be the one the shell's `component.yaml` compiles
 in; otherwise `up` stops with three ways out: upgrade the shell to one that compiles that version;

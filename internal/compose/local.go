@@ -526,28 +526,23 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 		}
 	}
 
-	for _, dep := range p.workloadDependencies(c.Ref) {
-		// 依赖被外壳承载时，地址里的主机名是外壳的服务名（inject 改写过）；外壳是裸进程时要解析到宿主机
-		host := dep
-		if s, onHost := p.hostMember(dep); onHost {
-			host = s.Shell
-		}
-		service := manifest.ServiceName(host.ID, host.Version)
-		if _, isLocal := p.localPort[service]; isLocal {
+	// 地址里的主机名是依赖自己的服务名（inject 的 addEndpoints），被外壳承载的成员也是：外壳是裸进程时，
+	// 成员的名字同样要解析到宿主机——外壳进程在那里替它监听
+	onHost := func(ref resolver.Ref) {
+		service := manifest.ServiceName(ref.ID, ref.Version)
+		_, isLocal := p.localPort[service]
+		_, isHostMember := p.hostMember(ref)
+		if isLocal || isHostMember {
 			add(service + ":" + hostGateway(p.engine))
 		}
+	}
+	for _, dep := range p.workloadDependencies(c.Ref) {
+		onHost(dep)
 	}
 	// 配置用 $endpoint: 引用的组件不进启动顺序（不在 workloadDependencies 里），可它在宿主机上跑时，
 	// 这个容器同样要能把它的服务名解析到宿主机
 	for _, target := range p.referencedTargets(c.Ref) {
-		host := target
-		if s, onHost := p.hostMember(target); onHost {
-			host = s.Shell
-		}
-		service := manifest.ServiceName(host.ID, host.Version)
-		if _, isLocal := p.localPort[service]; isLocal {
-			add(service + ":" + hostGateway(p.engine))
-		}
+		onHost(target)
 	}
 	if p.usesHostMachineResource(c) {
 		add(hostMachineAlias + ":" + hostGateway(p.engine))

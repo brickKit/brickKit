@@ -144,7 +144,7 @@ stderr is captured, so the line is there), or go by what the `❌` block says. S
 **Can't reach a dependency**: the address is `http://<versioned-service-name>:<port>` everywhere;
 the service name is the id with `/` and `.` → `-` plus the exact version (`erp/api` + `1.0.0` →
 `erp-api-1-0-0`), the variable name carries no version (`ERP_API_ENDPOINT`). A member hosted in a
-shell is reached at the shell's address. **To see the generated files** without starting anything:
+shell keeps its own address; its name resolves to the shell (on K8s, through the member's Service). **To see the generated files** without starting anything:
 `brickkit up --dry-run`. **To see the graph**: `brickkit graph` or `brickkit deps`.
 
 ## Where to dig deeper

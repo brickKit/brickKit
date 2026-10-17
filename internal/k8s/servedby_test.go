@@ -5,11 +5,14 @@ package k8s_test
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -449,4 +452,48 @@ func TestServedByServiceCarriesAppProtocol(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, ports, 2)
 	assert.Equal(t, "grpc", ports[1].(map[string]any)["appProtocol"])
+}
+
+// ---- 地址与 Service 对得上（反馈 FRB-004）----
+
+// 生成的每一个服务地址（Deployment 的环境变量、Secret 里的值，连同外壳 JSON 里成员的配置）都要有一个
+// 同名 Service，而且开着那个端口——不然就是一个 Pod 全健康、调用却超时的部署。被外壳承载的成员：
+// 地址是成员自己的名字，由选中外壳 Pod 的成员 Service 接住；外壳的 Service 只开外壳的端口。
+func TestEveryInjectedAddressHasAServiceWithThatPort(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9091}}
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(a, servedByEntry("erp/shell", "1.0.0"))
+	b.component(dependsOn(simple("erp/b", "1.0.0", 8082), "erp/a", "1.0.0"), servedByEntry("erp/shell", "1.0.0"))
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), projecttest.Entry{})
+
+	result := b.generate()
+	servicePorts := map[string][]int{}
+	for _, f := range result.Files {
+		if !strings.HasPrefix(f.Path, "services/") {
+			continue
+		}
+		var doc map[string]any
+		require.NoError(t, yaml.Unmarshal(f.YAML, &doc))
+		name := dig(t, doc, "metadata", "name").(string)
+		for _, p := range dig(t, doc, "spec", "ports").([]any) {
+			servicePorts[name] = append(servicePorts[name], p.(map[string]any)["port"].(int))
+		}
+	}
+
+	address := regexp.MustCompile(`http://([a-z0-9-]+):([0-9]+)`)
+	checked := 0
+	for _, f := range result.Files {
+		if !strings.HasPrefix(f.Path, "deployments/") && !strings.HasPrefix(f.Path, "secrets/") {
+			continue
+		}
+		for _, m := range address.FindAllStringSubmatch(string(f.YAML), -1) {
+			port, err := strconv.Atoi(m[2])
+			require.NoError(t, err)
+			assert.Contains(t, servicePorts[m[1]], port, "%s 里的地址 %s：没有开着这个端口的同名 Service", f.Path, m[0])
+			checked++
+		}
+	}
+	require.GreaterOrEqual(t, checked, 3, "调用方的主端口、额外端口，外壳里 erp/b 调 erp/a：至少这几个地址")
 }

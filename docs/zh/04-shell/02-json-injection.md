@@ -22,7 +22,7 @@
     "httpPort": 8081,
     "extraPorts": [],
     "config": {
-      "SHOP_STOCK_ENDPOINT": "http://shop-shell-0-1-0:8082"
+      "SHOP_STOCK_ENDPOINT": "http://shop-stock-0-1-0:8082"
     }
   },
   {

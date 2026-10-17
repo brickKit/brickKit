@@ -112,9 +112,9 @@ but the request is refused (connection refused), or returns 404.
 
 **Cause**
 
-The platform only makes sure a request **reaches the right port of the shell**: the address callers get is
-`http://<shell service name>:<the member's port>`, and the member's own service name resolves to the shell's container
-too. Which module a request goes to once it reaches the shell is the shell's code's business. The common mistakes:
+The platform only makes sure a request **reaches the right port of the shell**: the address callers get is the
+member's own `http://<member service name>:<the member's port>`, and that name resolves to the shell (a network alias of
+the shell's container; on K8s, the member's Service selecting the shell's Pod). Which module a request goes to once it reaches the shell is the shell's code's business. The common mistakes:
 
 - The shell doesn't listen on this member's `httpPort` (connection refused). The shell opens only its own port, say,
   meaning to route requests to modules by path, but never listens on the members' ports.

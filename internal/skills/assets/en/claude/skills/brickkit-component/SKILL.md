@@ -139,7 +139,7 @@ start the shell reads two variables:
   ```json
   [{"componentId": "erp/api", "version": "1.2.0", "httpPort": 8080,
     "extraPorts": [{"name": "grpc", "port": 9090}],
-    "config": {"DB_HOST": "db.internal", "ERP_AUTH_ENDPOINT": "http://erp-shell-1-0-0:8081"}}]
+    "config": {"DB_HOST": "db.internal", "ERP_AUTH_ENDPOINT": "http://erp-auth-1-0-0:8081"}}]
   ```
 
 **Compiled in ≠ hosted.** `shell.members` is what the image contains, and lists at least one member —
@@ -216,8 +216,8 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 ```
 
 The service name is the id and the exact version joined by `-`, with `/` and `.` → `-`. A dependency
-hosted in a shell is reached at the shell's address, on the port the dependency itself declares — the
-caller neither knows nor needs to. `COMPONENT_ID` and `COMPONENT_VERSION` are always injected.
+hosted in a shell keeps its own address — its service name, on the port it declares — and that name
+reaches the shell; the caller neither knows nor needs to. `COMPONENT_ID` and `COMPONENT_VERSION` are always injected.
 `deployment.port` (required) serves the health check and `_ENDPOINT`. `deployment.type` is always
 `container`, frontends included (an nginx container, `port: 80`).
 

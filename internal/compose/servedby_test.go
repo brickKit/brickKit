@@ -495,7 +495,7 @@ func TestShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 }
 
 // 多版本兼容：外壳承载 erp/a@1.0.0，另一个组件依赖的 erp/a@2.0.0 以普通组件独立部署。
-// 依赖 1.0.0 的拿到外壳地址，依赖 2.0.0 的拿到 2.0.0 自己的地址；外壳的 JSON 里只有 1.0.0；
+// 依赖哪个版本就拿到那个版本自己的地址（1.0.0 的名字是外壳容器的网络别名）；外壳的 JSON 里只有 1.0.0；
 // 两个版本的迁移按版本号串行（同一个库，不能并发迁移）。
 func TestComposeHostsOneVersionAndRunsTheOtherStandalone(t *testing.T) {
 	b := newBuilder(t)
@@ -510,7 +510,7 @@ func TestComposeHostsOneVersionAndRunsTheOtherStandalone(t *testing.T) {
 	services := servicesOf(t, doc)
 	assert.NotContains(t, services, "erp-a-1-0-0")
 	assert.Contains(t, services, "erp-a-2-0-0", "2.0.0 独立部署")
-	assert.Equal(t, "http://erp-shell-1-0-0:8081", envOf(t, serviceOf(t, doc, "erp-old-1-0-0"))["ERP_A_ENDPOINT"])
+	assert.Equal(t, "http://erp-a-1-0-0:8081", envOf(t, serviceOf(t, doc, "erp-old-1-0-0"))["ERP_A_ENDPOINT"])
 	assert.Equal(t, "http://erp-a-2-0-0:8081", envOf(t, serviceOf(t, doc, "erp-new-1-0-0"))["ERP_A_ENDPOINT"])
 
 	jsonText := shellEnvFile(t, result, "erp-shell-1-0-0")
@@ -571,14 +571,14 @@ func TestBareShellMemberMigrationKeepsContainerAddresses(t *testing.T) {
 	assert.NotContains(t, servicesOf(t, doc), "erp-shell-1-0-0", "裸进程外壳没有容器")
 }
 
-// 容器调用裸进程外壳里的成员：地址是 外壳服务名:成员端口，外壳服务名经 extra_hosts 解析到宿主机。
+// 容器调用裸进程外壳里的成员：地址是 成员服务名:成员端口，成员服务名经 extra_hosts 解析到宿主机（外壳进程在那里监听）。
 func TestContainerCallsMemberOfBareShell(t *testing.T) {
 	b := bareShellBuilder(t)
 	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), projecttest.Entry{})
 
 	caller := serviceOf(t, docOf(t, b.generate()), "erp-caller-1-0-0")
-	assert.Equal(t, "http://erp-shell-1-0-0:8081", envOf(t, caller)["ERP_A_ENDPOINT"])
-	assert.Contains(t, extraHostsOf(t, caller), "erp-shell-1-0-0:host-gateway")
+	assert.Equal(t, "http://erp-a-1-0-0:8081", envOf(t, caller)["ERP_A_ENDPOINT"])
+	assert.Contains(t, extraHostsOf(t, caller), "erp-a-1-0-0:host-gateway")
 }
 
 // 另一个裸进程调用裸进程外壳里的成员：直接 localhost:成员端口。

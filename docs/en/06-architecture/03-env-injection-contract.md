@@ -39,11 +39,11 @@ into `-`, all lowercase, followed by the exact version with its dots turned into
 Name and component ID can be derived from each other: seeing `PEOPLE_BASIC_ENDPOINT`, you know it points at
 `people/basic`. That's why an ID can appear only once in one component's `dependencies`.
 
-In a few special cases the address keeps this format but points elsewhere:
+In a few special cases the address keeps this format, but what it reaches is different:
 
-| This time the dependency | The address callers get points at |
+| This time the dependency | The address callers get |
 | --- | --- |
-| Is hosted by a shell | The shell: `http://<shell service name>:<the member's own port>` (the shell listens on that port for the member) |
+| Is hosted by a shell | Unchanged: its own `http://<its service name>:<its port>`, a name that reaches the shell — a network alias of the shell's container, on K8s a Service selecting the shell's Pod, and with the shell running on this machine an `extra_hosts` entry to the host. The shell listens on that port for the member |
 | Runs as a process on this machine (`mode: debug` / `mode: local`) | The port becomes its port on this machine; inside containers the service name resolves to the host |
 
 **When an optional dependency isn't running, the variable doesn't exist at all** — it isn't an empty string. A component
