@@ -296,7 +296,7 @@ why already.
 
 | Title | Situation | What to do |
 | --- | --- | --- |
-| `Error: <…> failed to run` | `docker compose` / `podman compose` returned a failure | Read the "Output" in the error |
+| `Error: <…> failed to run` | `docker compose` / `podman compose` returned a failure | Read the "Output" in the error. Two Podman failures get a hint of their own — `podman.socket` not on, AppArmor blocking network teardown — see [up / down problems](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) |
 | `Error: kubectl failed to run` | `kubectl` returned a failure | As above |
 | `Error: some components did not start properly` | The engine finished, but some components aren't healthy | Read that component's logs as the hint says |
 | `<…> local component(s) crashed` | A `mode: local` process exited unexpectedly | Read the last lines of output in the crash summary |

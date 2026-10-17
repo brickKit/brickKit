@@ -412,6 +412,46 @@ func TestGenericPermissionDeniedGetsNoApparmorHint(t *testing.T) {
 		"这条提示只匹配那一句具体的 kill network process 特征串，不是任何 permission denied")
 }
 
+// socket 没开时，提示要给出开它的命令，而且有根、无根各是各的：
+// 以 root 部署的人照着 systemctl --user 做，开的不是自己要的那个 socket。
+func TestPodmanSocketHintMatchesRootfulOrRootless(t *testing.T) {
+	cases := []struct {
+		name, socket, want, notWant string
+	}{
+		{"rootful", "/run/podman/podman.sock", "sudo systemctl enable --now podman.socket", "--user"},
+		{"rootless", "/run/user/1000/podman/podman.sock", "systemctl --user enable --now podman.socket", "sudo"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := newRecorder()
+			rec.fail["up"] = errors.New("exit 1")
+			rec.output["up"] = "failed to connect to the docker API at unix://" + tc.socket +
+				"; check if the path is correct and if the daemon is running: dial unix " + tc.socket +
+				": connect: no such file or directory\n"
+
+			err := podmanWith(rec).Up(context.Background(), UpRequest{File: "f.yaml", Project: "p"})
+
+			require.Error(t, err)
+			text := clierr.As(err).Format()
+			assert.Contains(t, text, tc.want)
+			assert.NotContains(t, text, tc.notWant)
+			assert.Contains(t, text, "10-troubleshooting/01-up-down-issues.md")
+		})
+	}
+}
+
+// Docker 自己的 socket 连不上是另一回事（daemon 没起），不该套用 Podman 的提示。
+func TestDockerSocketFailureGetsNoPodmanSocketHint(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["up"] = errors.New("exit 1")
+	rec.output["up"] = "failed to connect to the docker API at unix:///var/run/docker.sock; check if the daemon is running\n"
+
+	err := dockerWith(rec).Up(context.Background(), UpRequest{File: "f.yaml", Project: "p"})
+
+	require.Error(t, err)
+	assert.NotContains(t, clierr.As(err).Format(), "podman.socket")
+}
+
 // compose 的输出是一长串进度行，**真正的原因在最后**。
 //
 // 取第一行会得到 "Network xxx Creating" 这种毫无信息量的句子，

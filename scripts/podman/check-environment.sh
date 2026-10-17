@@ -1,16 +1,24 @@
 #!/bin/bash
-# Diagnose whether this machine's rootless Podman setup can cleanly stop and
-# remove containers. It does NOT change anything — it only reads state and,
-# to get a real answer, runs one throwaway container and removes it again.
+# Diagnose whether this machine's Podman setup can run a BrickKit project.
+# It does NOT change anything — it only reads state and, to get real answers,
+# runs a few throwaway containers (and one throwaway network) and removes them.
 #
-# Background: on Ubuntu, AppArmor's default policy can block the `pasta`
-# helper process (rootless Podman's userspace network translator) from
-# receiving the SIGTERM that `podman rm` sends it during teardown. `up` and
-# normal traffic work fine; only stopping/removing fails. See the companion
-# doc for the full story:
+# It checks, in order:
+#   - a snap-redirected $XDG_DATA_HOME (rootless; breaks Podman after upgrades)
+#   - podman.socket, which `podman compose` talks through: the user unit when
+#     run as a normal user, the system unit when run as root
+#   - containers on one network can reach each other. Rootful Podman on a host
+#     that also runs Docker fails this silently: Docker sets the FORWARD policy
+#     to DROP, and that drop is final for Podman's bridge too
+#   - containers stop and remove cleanly. On Ubuntu, AppArmor's default policy
+#     can block the `pasta` helper (rootless Podman's userspace network) from
+#     receiving the SIGTERM that `podman rm` sends it during teardown
+#
+# Run it as the user that will run `brickkit up`: as root to check rootful
+# Podman, as yourself to check rootless Podman. The full story:
 #   docs/en/10-troubleshooting/01-up-down-issues.md
 #
-# Exit code: 0 = looks healthy, 1 = the known issue was reproduced,
+# Exit code: 0 = looks healthy, 1 = a known issue was reproduced,
 # 2 = could not run the check at all (podman missing, etc).
 
 set -u
@@ -55,24 +63,86 @@ pass "'podman info' runs cleanly."
 # `podman compose` shells out to the same docker-compose binary Docker
 # uses, which talks to Podman over a Docker-API-compatible socket. It's
 # not on by default — without it, `podman compose up`/`down` fail before
-# anything else (AppArmor included) gets a chance to matter.
-if systemctl --user is-active --quiet podman.socket 2>/dev/null; then
+# anything else (AppArmor included) gets a chance to matter. Rootful and
+# rootless Podman each have their own socket: root's is the system unit,
+# a normal user's is the user unit.
+if [[ $EUID -eq 0 ]]; then
+  socket_active() { systemctl is-active --quiet podman.socket 2>/dev/null; }
+  socket_fix="systemctl enable --now podman.socket"
+  echo "Running as root: checking rootful Podman."
+else
+  socket_active() { systemctl --user is-active --quiet podman.socket 2>/dev/null; }
+  socket_fix="systemctl --user enable --now podman.socket"
+  echo "Running as $(id -un): checking rootless Podman (run as root to check rootful Podman)."
+fi
+if socket_active; then
   pass "podman.socket is active (needed for 'podman compose')."
 else
   warn "podman.socket is not active — 'podman compose' will fail to connect."
-  warn "Fix: systemctl --user enable --now podman.socket"
+  warn "Fix: $socket_fix"
 fi
 
-# --- The actual reproduction test -------------------------------------------
+status=0
+NAME="brickkit-podman-check-$$"
+cleanup() {
+  podman rm -f "$NAME" "$NAME-server" >/dev/null 2>&1 || true
+  podman network rm "$NAME" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+# --- Container-to-container traffic -------------------------------------------
+# A deployment can come up all healthy while no call between containers gets
+# through: health checks only look at the container itself. Rootful Podman
+# routes bridge traffic through the host's FORWARD hook; Docker sets that
+# hook's policy to DROP, and with nftables a drop on any chain of a hook is
+# final — netavark accepting the traffic in its own table doesn't save it.
+# Rootless Podman uses pasta and never touches the host's FORWARD hook.
+echo
+echo "Checking that two containers on one network can reach each other..."
+if ! podman network create "$NAME" >/dev/null 2>&1 ||
+   ! podman run -d --name "$NAME-server" --network "$NAME" alpine:latest nc -lk -p 8080 -e echo ok >/dev/null 2>&1; then
+  fail "Could not even start a test container — investigate 'podman run' directly."
+  exit 2
+fi
+reached=""
+for _ in 1 2 3; do
+  if [[ "$(podman run --rm --network "$NAME" alpine:latest nc -w 3 "$NAME-server" 8080 2>/dev/null)" == ok ]]; then
+    reached=yes
+    break
+  fi
+  sleep 1
+done
+podman rm -f "$NAME-server" >/dev/null 2>&1 || true
+podman network rm "$NAME" >/dev/null 2>&1 || true
+if [[ -n "$reached" ]]; then
+  pass "Containers on one network reach each other."
+else
+  status=1
+  fail "A container could not reach another container on the same network."
+  if [[ $EUID -eq 0 ]] && iptables -S FORWARD 2>/dev/null | grep -q '^-P FORWARD DROP'; then
+    if iptables -S DOCKER-USER >/dev/null 2>&1; then
+      fail "This matches rootful Podman next to Docker: the FORWARD policy is DROP and Docker's DOCKER-USER chain exists."
+      echo
+      echo "Let Podman's bridges through in Docker's chain (persisting the rules is up to this host's setup):"
+      echo "  iptables -I DOCKER-USER -i podman+ -j ACCEPT"
+      echo "  iptables -I DOCKER-USER -o podman+ -j ACCEPT"
+      echo "or don't run rootful Podman and Docker on the same machine. Rootless Podman isn't affected."
+    else
+      warn "The FORWARD policy is DROP, but there is no DOCKER-USER chain: some other firewall drops forwarded traffic."
+      echo "Allow forwarding for Podman's bridges (podman0, podman1, ...) in that firewall."
+    fi
+  else
+    warn "This doesn't match the known signature (rootful Podman with a FORWARD policy of DROP)."
+  fi
+  echo "Details: docs/en/10-troubleshooting/01-up-down-issues.md"
+fi
+
+# --- Container teardown --------------------------------------------------------
 # Reading config files can't tell you whether the AppArmor denial actually
 # fires — it depends on the loaded kernel policy, not just what's on disk.
 # The only reliable check is to actually create and tear down a container.
 echo
 echo "Running a real create+remove cycle to check teardown reliability..."
-NAME="brickkit-podman-check-$$"
-
-cleanup() { podman rm -f "$NAME" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
 
 if ! podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/null 2>&1; then
   fail "Could not even start a test container — investigate 'podman run' directly."
@@ -80,11 +150,10 @@ if ! podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/
 fi
 
 if podman rm -f "$NAME" >/tmp/brickkit-podman-check.log 2>&1; then
-  pass "Container removed cleanly. This machine does not show the known issue."
-  echo
-  echo "Nothing to do — you don't need scripts/podman/fix-apparmor.sh."
-  exit 0
+  pass "Container removed cleanly. This machine does not show the AppArmor teardown issue."
+  echo "You don't need scripts/podman/fix-apparmor.sh."
 else
+  status=1
   fail "Removing the container failed:"
   tail -5 /tmp/brickkit-podman-check.log
   echo
@@ -97,5 +166,10 @@ else
     warn "This doesn't match the known signature (no 'rootless netns' in the error)."
     echo "This looks like a different problem — the fix script below is unlikely to help."
   fi
-  exit 1
 fi
+
+echo
+if [[ $status -eq 0 ]]; then
+  echo "Nothing to do."
+fi
+exit $status

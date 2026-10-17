@@ -237,6 +237,105 @@ cluster can't be taken back, so `up` checks first and stops when they don't matc
 `kubectl config use-context <the one in the deploy file>`, or use the deploy file naming the current cluster (`-f`).
 There's no command-line flag to switch clusters for one run: one deploy file per cluster.
 
+## Podman: run the environment check first
+
+With the deploy target `podman`, the problems in the next few sections all come from the host's environment; none is a
+BrickKit or Podman bug. When you hit any of them, or the first time you use Podman on a machine, run:
+
+```bash
+scripts/podman/check-environment.sh
+```
+
+**Run it as the user that runs `brickkit up`.** Podman runs in two ways, and their environment problems differ:
+
+- **Rootless** (run as a normal user): a helper process called `pasta` connects containers to the network in user space,
+  without going through the host's firewall forwarding.
+- **Rootful** (run as root): containers hang off a bridge on the host (netavark names them `podman0`, `podman1`, … by
+  default), and traffic between containers goes through the host's forwarding chain.
+
+Run as a normal user, it checks rootless Podman; run as root, rootful. It's essentially read-only; to get real answers it
+starts a few throwaway test containers and one test network — you can't tell from configuration files alone, since what
+gets blocked depends on the policy and firewall rules currently loaded in the kernel. It checks, in order: whether
+`$XDG_DATA_HOME` is redirected by snap, whether `podman.socket` is on, whether two containers on one network can reach each
+other, and whether a container can be removed cleanly. Exit code `0` is fine, `1` means one of the known problems below
+reproduced, `2` means the check itself couldn't run (Podman not installed, say).
+
+**Two further prerequisites**
+
+- **A terminal opened from a snap-packaged application** (VS Code installed as a snap, say) redirects `$XDG_DATA_HOME` to a
+  versioned path, and after a Podman upgrade Podman reports `database configuration mismatch`. `check-environment.sh`
+  flags it; the fix is setting `export XDG_DATA_HOME="$HOME/.local/share"` and `export XDG_CONFIG_HOME="$HOME/.config"` in
+  your shell's start-up file.
+- **`podman compose` should use Docker's own Compose V2 plugin.** `podman compose` has no compose implementation of its
+  own; it only forwards to an external program it finds. Run `podman compose version`: `Executing external compose
+  provider ".../docker-compose"` means that route; when it shows the separate `podman-compose` project, working with
+  BrickKit hasn't been verified. What's verified is rootless Podman and Docker installed on the same machine, with it
+  forwarding to Docker's Compose plugin; rootful Podman next to Docker leaves containers unable to reach each other, see
+  [the section below](#all-healthy-on-podman-yet-calls-between-containers-time-out).
+
+## `up` fails on Podman: `failed to connect to the docker API`
+
+**Symptom**
+
+The deploy target is `podman`, and `up` (or `down`, `status`) fails straight away, with this in the engine's output:
+
+```text
+failed to connect to the docker API at unix:///run/user/1000/podman/podman.sock; check if the path is correct and if the daemon is running
+```
+
+Run as root, the path is `unix:///run/podman/podman.sock`.
+
+**Cause**
+
+`podman compose` hands the call to Docker's Compose plugin, which talks to Podman through Podman's API socket. That socket
+isn't on by default. Rootless and rootful Podman each have their own: the rootless one lives under `/run/user/<uid>/` and is
+a user-level systemd unit; the rootful one is `/run/podman/podman.sock`, a system-level unit. Turning on the wrong one
+leaves the error unchanged.
+
+**Fix**
+
+BrickKit recognises this error and adds the matching command, picked by the path in the error, to its suggestions:
+
+```bash
+systemctl --user enable --now podman.socket        # rootless
+sudo systemctl enable --now podman.socket          # rootful
+```
+
+## All healthy on Podman, yet calls between containers time out
+
+**Symptom**
+
+The deploy target is `podman`, run as root (rootful), and Docker is installed on the same machine. `up` succeeds, every
+component is healthy, `status` is all green, yet every call between containers times out, and so do calls from a container
+to a port mapped on the host; calls from a container to a process on the host (a `mode: local` component) work. Nothing
+reports an error: a health check only looks at the component itself, not at whether it can reach anything else.
+
+**Cause**
+
+When Docker starts, it sets the default policy of the host firewall's `FORWARD` chain to `DROP` and lets through only the
+traffic on its own bridges. Traffic between rootful Podman's containers goes through that same forwarding chain, so it's
+dropped. netavark accepting it in its own rule table doesn't help: at the same forwarding step, a drop anywhere is final.
+
+Rootless Podman isn't affected: `pasta` forwards its traffic in user space, never through the host's `FORWARD` chain.
+
+Run as root, `check-environment.sh` actually tries two containers reaching each other; when that fails while the `FORWARD`
+policy is `DROP` and Docker's `DOCKER-USER` chain exists, it recognises this problem.
+
+**Fix** (any one)
+
+1. **Let Podman's bridges through in Docker's `DOCKER-USER` chain.** Docker keeps that chain for exactly this, your own
+   rules:
+
+   ```bash
+   sudo iptables -I DOCKER-USER -i podman+ -j ACCEPT
+   sudo iptables -I DOCKER-USER -o podman+ -j ACCEPT
+   ```
+
+   The rules are lost on reboot; persist them the way this host manages its firewall (BrickKit doesn't touch the host's
+   firewall).
+2. **Use rootless Podman**, running `brickkit up` as a normal user.
+3. **Don't run rootful Podman and Docker on the same machine.**
+
 ## `down` fails on Podman: `permission denied`
 
 **Symptom**
@@ -252,7 +351,7 @@ Error: removing container ...: 1 error occurred:
 BrickKit recognises this signature and adds a line to the error's suggestions:
 
 ```text
-This is a known Ubuntu/Debian AppArmor gap blocking rootless Podman's network teardown (containers/podman#27372), not a BrickKit or Podman bug — see docs/en/10-troubleshooting/01-up-down-issues.md for the fix
+This is a known Ubuntu/Debian AppArmor gap blocking rootless Podman's network teardown (containers/podman#27372), not a BrickKit or Podman bug — the fix: brickkit docs 10-troubleshooting/01-up-down-issues (online: …)
 ```
 
 On an affected machine it reproduces **every** time; it isn't intermittent. The container itself is usually already gone
@@ -261,21 +360,14 @@ mistake for "it didn't stop at all this time".
 
 **Cause**
 
-Podman running without root connects containers to the network through a helper process called `pasta`. When stopping a
-container, Podman sends `pasta` a `SIGTERM` so it tears the network down cleanly. Ubuntu's / Debian's default AppArmor
-policy blocks that signal. It's a gap in how the distribution packages its security policy; Podman upstream has exactly the
-same report ([containers/podman#27372](https://github.com/containers/podman/issues/27372)), and Debian has tracked the
-same error ([Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)).
+Rootless Podman connects containers to the network through `pasta`. When stopping a container, Podman sends `pasta` a
+`SIGTERM` so it tears the network down cleanly. Ubuntu's / Debian's default AppArmor policy blocks that signal. It's a gap in
+how the distribution packages its security policy; Podman upstream has exactly the same report
+([containers/podman#27372](https://github.com/containers/podman/issues/27372)), and Debian has tracked the same error
+([Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)).
 
-**First, check whether you're affected**
-
-```bash
-scripts/podman/check-environment.sh
-```
-
-It's essentially read-only; to get a real answer it starts a throwaway test container — you can't tell from configuration
-files alone, since whether it's blocked depends on the policy currently loaded in the kernel. Exit code `0` is fine, `1`
-means the problem reproduced, `2` means the check itself couldn't run (Podman not installed, say).
+**First, check whether you're affected**: run `scripts/podman/check-environment.sh` as a normal user (see
+[above](#podman-run-the-environment-check-first)); it actually removes a test container.
 
 **The fix**
 
@@ -298,24 +390,7 @@ to fix the problem when used together:
 The script also handles three things unrelated to this signal that likewise make `up` fail or hang: configuring default
 image registries in `registries.conf` (otherwise pulling an image without a registry prefix, like `alpine:3`, fails, or pops
 up an interactive choice that hangs a non-interactive `up`); setting `policy.json` (otherwise Podman refuses to pull any
-image); enabling `podman.socket` (`podman compose` talks to Podman through it, and without it reports `failed to connect to
-the docker API`). When only the socket is missing, run just:
-
-```bash
-systemctl --user enable --now podman.socket
-```
-
-**Two further prerequisites**
-
-- **A terminal opened from a snap-packaged application** (VS Code installed as a snap, say) redirects `$XDG_DATA_HOME` to a
-  versioned path, and after a Podman upgrade Podman reports `database configuration mismatch`. `check-environment.sh`
-  flags it; the fix is setting `export XDG_DATA_HOME="$HOME/.local/share"` and `export XDG_CONFIG_HOME="$HOME/.config"` in
-  your shell's start-up file.
-- **`podman compose` should use Docker's own Compose V2 plugin.** `podman compose` has no compose implementation of its
-  own; it only forwards to an external program it finds. What's verified is Docker and Podman installed on the same
-  machine, with it forwarding to Docker's Compose plugin. Run `podman compose version`: `Executing external compose
-  provider ".../docker-compose"` means that route; when it shows the separate `podman-compose` project, working with BrickKit
-  hasn't been verified.
+image); enabling the rootless `podman.socket` (see [above](#up-fails-on-podman-failed-to-connect-to-the-docker-api)).
 
 ## `down` can't stop a `mode: local` component
 

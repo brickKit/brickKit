@@ -187,6 +187,7 @@ const (
 	EngineHintInstallDocker                                    ID = "engine.hint.install_docker"
 	EngineHintInstallPodman                                    ID = "engine.hint.install_podman"
 	EnginePodmanDownBlockedByAppArmor                          ID = "engine.podman_down_blocked_by_app_armor"
+	EnginePodmanSocketInactive                                 ID = "engine.podman_socket_inactive"
 	EngineExecFailed                                           ID = "engine.exec_failed"
 	EngineStatusParseFailed                                    ID = "engine.status_parse_failed"
 	EngineHintComposeV2                                        ID = "engine.hint.compose_v2"

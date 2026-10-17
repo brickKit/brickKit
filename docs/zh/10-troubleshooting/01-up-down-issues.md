@@ -210,6 +210,92 @@ docker compose -p brickkit-my-shop logs -f demo-caller-1-0-0
 
 `kubectl config use-context <部署文件里写的那个>`，或者改用写着当前集群的那份部署文件（`-f`）。命令行上没有临时换集群的参数：一个集群一份部署文件。
 
+## Podman：先跑一遍环境检查
+
+部署目标是 `podman` 时，下面几节的问题都出在主机环境上，不是 BrickKit 或 Podman 的 bug。遇到其中任何一个，或者第一次在一台机器上用 Podman，
+先跑：
+
+```bash
+scripts/podman/check-environment.sh
+```
+
+**用跑 `brickkit up` 的那个用户跑它。** Podman 有两种运行方式，环境问题各不相同：
+
+- **无根**（rootless，普通用户运行）：容器的网络由一个叫 `pasta` 的辅助进程在用户空间里接上，不经过宿主机的防火墙转发。
+- **有根**（rootful，以 root 运行）：容器挂在宿主机的网桥上（netavark 默认叫 `podman0`、`podman1`……），容器之间的流量经过宿主机的转发链。
+
+以普通用户跑检查的是无根，以 root 跑检查的是有根。它基本只读；为了拿到真实的答案，会起几个用完即删的测试容器和一个测试网络——光看配置文件判断不了，
+拦不拦取决于内核里当前加载的策略和防火墙规则。它依次检查：`$XDG_DATA_HOME` 有没有被 snap 重定向、`podman.socket` 开没开、
+同一个网络里的两个容器能不能互相访问、容器能不能干净地删掉。退出码 `0` 是正常，`1` 是复现了下面某个已知问题，`2` 是检查本身跑不起来（比如没装 Podman）。
+
+**另外两个前提**
+
+- **从 snap 打包的应用里开的终端**（比如 snap 安装的 VS Code）会把 `$XDG_DATA_HOME` 重定向到一个带版本号的路径，Podman 升级后报
+  `database configuration mismatch`。`check-environment.sh` 会标出它；修法是在 shell 的启动文件里设
+  `export XDG_DATA_HOME="$HOME/.local/share"` 与 `export XDG_CONFIG_HOME="$HOME/.config"`。
+- **`podman compose` 要用 Docker 自带的 Compose V2 插件。** `podman compose` 自己没有 compose 实现，只是转发给找到的外部程序。
+  执行 `podman compose version`，看到 `Executing external compose provider ".../docker-compose"` 就是这条路；
+  显示的是独立的 `podman-compose` 项目时，与 BrickKit 的配合没有验证过。验证过的是无根 Podman 与 Docker 装在同一台机器上、
+  转发给 Docker 的 Compose 插件；有根 Podman 与 Docker 同机时容器之间不通，见 [下面一节](#podman-上全部-healthy容器之间的调用却超时)。
+
+## `up` 在 Podman 上失败：`failed to connect to the docker API`
+
+**症状**
+
+部署目标是 `podman`，`up`（或 `down`、`status`）一开始就失败，引擎的输出里有：
+
+```text
+failed to connect to the docker API at unix:///run/user/1000/podman/podman.sock; check if the path is correct and if the daemon is running
+```
+
+以 root 运行时路径是 `unix:///run/podman/podman.sock`。
+
+**原因**
+
+`podman compose` 把调用转给 Docker 的 Compose 插件，插件通过 Podman 的 API socket 与 Podman 通信。这个 socket 默认不开。
+无根与有根各有各的 socket：无根的在 `/run/user/<uid>/` 下，是用户级的 systemd 单元；有根的是 `/run/podman/podman.sock`，是系统级的单元。
+开错了那一个，报错不会变。
+
+**解决**
+
+BrickKit 认出这个报错，会在建议里按报错里的路径给出对应的命令：
+
+```bash
+systemctl --user enable --now podman.socket        # 无根
+sudo systemctl enable --now podman.socket          # 有根
+```
+
+## Podman 上全部 healthy，容器之间的调用却超时
+
+**症状**
+
+部署目标是 `podman`，以 root 运行（有根），这台机器上还装着 Docker。`up` 成功、每个组件都 healthy、`status` 全绿，
+但容器之间的调用全部超时，容器访问宿主机上映射出来的端口也超时；容器访问宿主机上的进程（`mode: local` 的组件）却正常。
+没有任何报错：健康检查只查组件自己，查不到它连不连得上别人。
+
+**原因**
+
+Docker 启动时把宿主机防火墙 `FORWARD` 链的默认策略设成 `DROP`，只放行它自己网桥上的流量。有根 Podman 的容器之间的流量也走这条转发链，
+于是被丢掉。netavark 在自己的规则表里放行也没用：同一个转发环节上，任何一处丢弃都是最终的。
+
+无根 Podman 不受影响：它的网络由 `pasta` 在用户空间里转发，不经过宿主机的 `FORWARD` 链。
+
+以 root 跑 `check-environment.sh` 会实际试一次两个容器互相访问；不通，而且 `FORWARD` 的默认策略是 `DROP`、存在 Docker 的 `DOCKER-USER` 链时，
+它会认出这个问题。
+
+**解决**（任选一条）
+
+1. **在 Docker 的 `DOCKER-USER` 链里放行 Podman 的网桥。** Docker 留这条链就是给你加自己的规则用的：
+
+   ```bash
+   sudo iptables -I DOCKER-USER -i podman+ -j ACCEPT
+   sudo iptables -I DOCKER-USER -o podman+ -j ACCEPT
+   ```
+
+   重启后规则会丢，持久化按这台主机自己的防火墙管理方式来（BrickKit 不碰主机防火墙）。
+2. **改用无根 Podman**，以普通用户运行 `brickkit up`。
+3. **不在同一台机器上同时用有根 Podman 和 Docker。**
+
 ## `down` 在 Podman 上失败：`permission denied`
 
 **症状**
@@ -224,7 +310,7 @@ Error: removing container ...: 1 error occurred:
 BrickKit 认出这个特征，会在报错的建议里加一句：
 
 ```text
-这是一个已知的 Ubuntu/Debian AppArmor 缺口，拦住了 rootless Podman 的网络拆卸（containers/podman#27372），不是 BrickKit 或 Podman 的 bug——修法见 docs/zh/10-troubleshooting/01-up-down-issues.md
+这是一个已知的 Ubuntu/Debian AppArmor 缺口，拦住了 rootless Podman 的网络拆卸（containers/podman#27372），不是 BrickKit 或 Podman 的 bug——修法：brickkit docs 10-troubleshooting/01-up-down-issues（网页版：…）
 ```
 
 在受影响的机器上它**每次**都复现，不是偶发。容器本身通常已经没了（Podman 会退回用 `SIGKILL`），但网络资源未必释放，而命令以失败退出——
@@ -232,19 +318,12 @@ BrickKit 认出这个特征，会在报错的建议里加一句：
 
 **原因**
 
-不用 root 运行的 Podman 靠一个叫 `pasta` 的辅助进程给容器接网络。停止容器时，Podman 要给 `pasta` 发一个 `SIGTERM`，让它把网络拆干净。
+无根 Podman 靠 `pasta` 给容器接网络。停止容器时，Podman 要给 `pasta` 发一个 `SIGTERM`，让它把网络拆干净。
 Ubuntu / Debian 默认的 AppArmor 策略拦下了这个信号。这是发行版打包安全策略时的缺口，Podman 上游有完全相同的报告
 （[containers/podman#27372](https://github.com/containers/podman/issues/27372)），Debian 也追查过同一个报错
 （[Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)）。
 
-**先确认自己是否受影响**
-
-```bash
-scripts/podman/check-environment.sh
-```
-
-它基本只读；为了拿到真实的答案，会起一个用完即删的测试容器——光看配置文件判断不了，拦不拦取决于内核里当前加载的策略。
-退出码 `0` 是正常，`1` 是复现了这个问题，`2` 是检查本身跑不起来（比如没装 Podman）。
+**先确认自己是否受影响**：以普通用户跑 `scripts/podman/check-environment.sh`（见 [上面](#podman先跑一遍环境检查)），它会实际删一次测试容器。
 
 **修复**
 
@@ -261,21 +340,8 @@ scripts/podman/fix-apparmor.sh
    代价是这一个进程从此只被监控、不再被限制。
 
 脚本还顺手处理了三件与这个信号无关、但同样会让 `up` 失败或卡住的事：给 `registries.conf` 配上默认的镜像仓库（否则拉 `alpine:3` 这种不带仓库前缀的镜像会失败，
-或者弹出交互式选择，把非交互的 `up` 卡住）；设置 `policy.json`（否则 Podman 拒绝拉任何镜像）；启用 `podman.socket`
-（`podman compose` 通过它与 Podman 通信，没有它会报 `failed to connect to the docker API`）。只缺 socket 时单独执行：
-
-```bash
-systemctl --user enable --now podman.socket
-```
-
-**另外两个前提**
-
-- **从 snap 打包的应用里开的终端**（比如 snap 安装的 VS Code）会把 `$XDG_DATA_HOME` 重定向到一个带版本号的路径，Podman 升级后报
-  `database configuration mismatch`。`check-environment.sh` 会标出它；修法是在 shell 的启动文件里设
-  `export XDG_DATA_HOME="$HOME/.local/share"` 与 `export XDG_CONFIG_HOME="$HOME/.config"`。
-- **`podman compose` 要用 Docker 自带的 Compose V2 插件。** `podman compose` 自己没有 compose 实现，只是转发给找到的外部程序。
-  验证过的是 Docker 与 Podman 装在同一台机器上、它转发给 Docker 的 Compose 插件的情况。执行 `podman compose version`，
-  看到 `Executing external compose provider ".../docker-compose"` 就是这条路；显示的是独立的 `podman-compose` 项目时，与 BrickKit 的配合没有验证过。
+或者弹出交互式选择，把非交互的 `up` 卡住）；设置 `policy.json`（否则 Podman 拒绝拉任何镜像）；启用无根的 `podman.socket`
+（见 [上面](#up-在-podman-上失败failed-to-connect-to-the-docker-api)）。
 
 ## `down` 停不掉 `mode: local` 的组件
 

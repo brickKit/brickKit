@@ -248,7 +248,36 @@ func (c *Compose) failure(args []string, out []byte, err error, lines int) error
 	if strings.Contains(string(out), "kill network process: permission denied") {
 		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor, docpages.Ref(docpages.PageUpDownIssues)...))
 	}
+	if command := podmanSocketCommand(string(out)); command != "" {
+		failure = failure.WithHint(i18n.T(msgid.EnginePodmanSocketInactive,
+			append([]any{command}, docpages.Ref(docpages.PageUpDownIssues)...)...))
+	}
 	return failure
+}
+
+// podmanSocketCommand 认出"compose 连不上 Podman 的 API socket"，返回开启它的命令；不是这个失败时返回空串。
+//
+// `podman compose` 把调用转给 docker-compose，并让它连 Podman 的 socket；socket 默认不开。
+// 有根与无根是两个不同的 socket，开的命令也不同，所以按报错里的路径选：
+// 有根是 /run/podman/podman.sock（系统级 systemd 单元），无根在 /run/user/<uid>/ 下（用户级单元）。
+// 只给无根的写法时，以 root 部署的人照着做也开不了自己要的那个。
+func podmanSocketCommand(out string) string {
+	const marker = "failed to connect to the docker API at unix://"
+	i := strings.Index(out, marker)
+	if i < 0 {
+		return ""
+	}
+	path := out[i+len(marker):]
+	if end := strings.IndexAny(path, " \n;:"); end >= 0 {
+		path = path[:end]
+	}
+	if !strings.HasSuffix(path, "/podman/podman.sock") {
+		return ""
+	}
+	if path == "/run/podman/podman.sock" {
+		return "sudo systemctl enable --now podman.socket"
+	}
+	return "systemctl --user enable --now podman.socket"
 }
 
 // installHint 按缺失的二进制给出对应的安装建议——Podman 引擎缺 podman 时

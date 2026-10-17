@@ -89,6 +89,8 @@ compat.13	NewPodman 调用的是 podman 二进制，不是 docker	.	./internal/e
 compat.14	引擎二进制缺失时的安装建议按引擎名走，不永远建议装 Docker	.	./internal/engine	TestPodmanMissingBinaryGivesInstallHint
 compat.15	down 已知的 AppArmor 失败信号带上环境检查清单的提示	.	./internal/engine	TestPodmanDownTranslatesKnownApparmorFailure
 compat.16	无关的 permission denied 不套用 AppArmor 提示	.	./internal/engine	TestGenericPermissionDeniedGetsNoApparmorHint
+compat.24	podman compose 连不上 Podman 的 socket：提示按报错里的路径给出有根或无根的开启命令	.	./internal/engine	TestPodmanSocketHintMatchesRootfulOrRootless
+compat.25	Docker 自己的 socket 连不上不套用 Podman 的 socket 提示	.	./internal/engine	TestDockerSocketFailureGetsNoPodmanSocketHint
 compat.17	只装 Podman、未显式启用时提示怎么启用	.	./internal/engine	TestPodmanOnlyMachineGetsEnableHint
 compat.18	resolveEngineFor 对 target: podman 真实分发到 Podman 引擎	.	./internal/cli	TestResolveEngineForPodmanTargetDispatchesRealEngine
 compat.19	brickkit up 对 target: podman 真的调用引擎，不再报未实现	.	./internal/cli	TestUpRealRunSucceedsWithPodmanTarget
