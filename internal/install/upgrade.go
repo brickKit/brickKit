@@ -27,6 +27,7 @@ import (
 	"context"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -151,6 +152,7 @@ func PlanUpgrade(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 	u.entries()
 	u.nestIntoMovedShells()
 	u.noteMembersNotFollowing()
+	u.noteRemovedMembersBack()
 	u.configs()
 	sortEntries(u.plan.AddEntries)
 	return u.plan, nil
@@ -494,6 +496,36 @@ func (u *upgrader) noteMembersNotFollowing() {
 			}
 		}
 	}
+}
+
+// noteRemovedMembersBack：使用者移除的成员成了新世界里某个组件的强依赖，于是加了回来（不加项目就缺
+// 依赖）——说一声是谁要它、谁承载它，免得以为又是升级擅自加回来的。
+func (u *upgrader) noteRemovedMembersBack() {
+	for _, ref := range u.plan.Added {
+		if !u.removedMembers[ref.ID] {
+			continue
+		}
+		requirers := strings.Join(u.requirers(ref), ", ")
+		if host, ok := u.hostOf(ref); ok {
+			u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeRemovedMemberBackHosted, ref.ID, requirers, host))
+		} else {
+			u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeRemovedMemberBack, ref.ID, requirers))
+		}
+	}
+}
+
+// requirers 是新世界里强依赖 ref 的组件版本。
+func (u *upgrader) requirers(ref resolver.Ref) []string {
+	var out []string
+	if n := u.newGraph.Node(ref); n != nil {
+		for _, d := range n.Dependents {
+			if dn := u.newGraph.Node(d); dn != nil && slices.Contains(dn.Requires, ref) {
+				out = append(out, d.String())
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // liftIfNotHosted：条目嵌在外壳 owner 下面，而新世界里 owner 不承载 ref（新外壳没编进这个版本）——

@@ -231,6 +231,25 @@ func downloadAddedArtifacts(ctx context.Context, client *source.Client, graph *r
 // 挪了什么、写了哪些文件、有哪些要使用者自己留意的。
 func renderAddResult(opts *Options, targets []resolver.Ref, plan *install.Plan, res *applied) {
 	opts.Printf("%s\n", i18n.T(msgid.CliAddHeader, joinRefs(targets)))
+	renderAddedLines(opts, plan)
+	for _, e := range plan.NestEntries {
+		opts.Printf("   %s\n", i18n.T(msgid.CliAddNested, e.ID, e.Under))
+	}
+	for _, l := range plan.SetRequiredBy {
+		opts.Printf("   %s\n", i18n.T(msgid.CliAddRequiredByExtended, l.Ref().String(), strings.Join(l.RequiredBy, ", ")))
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliInstallWritten, strings.Join(append([]string{project.FileDecl}, res.DeployFiles...), ", ")))
+	renderNewConfigs(opts, res, false)
+	for _, note := range plan.Notes {
+		opts.Printf("%s\n", i18n.T(msgid.CliInstallNote, note))
+	}
+	if len(res.OtherDeployFiles) > 0 {
+		opts.Printf("%s\n", i18n.T(msgid.CliInstallOtherDeployFiles, strings.Join(res.OtherDeployFiles, ", ")))
+	}
+}
+
+// renderAddedLines 列出加进项目的版本：默认 / requiredBy / 在哪个外壳里（add 与 upgrade 共用）。
+func renderAddedLines(opts *Options, plan *install.Plan) {
 	under := map[string]string{}
 	for _, e := range plan.AddEntries {
 		under[e.ID] = e.Under
@@ -248,28 +267,24 @@ func renderAddResult(opts *Options, targets []resolver.Ref, plan *install.Plan, 
 			opts.Printf("   %s\n", i18n.T(msgid.CliAddLine, l.Ref().String()))
 		}
 	}
-	for _, e := range plan.NestEntries {
-		opts.Printf("   %s\n", i18n.T(msgid.CliAddNested, e.ID, e.Under))
-	}
-	for _, l := range plan.SetRequiredBy {
-		opts.Printf("   %s\n", i18n.T(msgid.CliAddRequiredByExtended, l.Ref().String(), strings.Join(l.RequiredBy, ", ")))
-	}
-	opts.Printf("%s\n", i18n.T(msgid.CliInstallWritten, strings.Join(append([]string{project.FileDecl}, res.DeployFiles...), ", ")))
+}
+
+// renderNewConfigs 报告加进来的组件的配置：新骨架、骨架里要自己填的必填项、从归档恢复的
+// （add 与 upgrade 共用；preview 是 upgrade --dry-run，只在副本上改过）。
+func renderNewConfigs(opts *Options, res *applied, preview bool) {
 	if len(res.ConfigsWritten) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigsWritten, strings.Join(res.ConfigsWritten, ", ")))
 	}
 	for _, f := range res.ConfigsToFill {
 		opts.Printf("   %s\n", i18n.T(msgid.CliAddConfigsToFill, f.File, strings.Join(f.Keys, ", ")))
 	}
+	restored := msgid.CliAddConfigRestored
+	if preview {
+		restored = msgid.CliUpgradeWouldRestore
+	}
 	for _, r := range res.Restored {
-		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigRestored, r.File, r.Archive))
+		opts.Printf("%s\n", i18n.T(restored, r.File, r.Archive))
 		renderMigrationReport(opts, r.File, r.Report)
-	}
-	for _, note := range plan.Notes {
-		opts.Printf("%s\n", i18n.T(msgid.CliInstallNote, note))
-	}
-	if len(res.OtherDeployFiles) > 0 {
-		opts.Printf("%s\n", i18n.T(msgid.CliInstallOtherDeployFiles, strings.Join(res.OtherDeployFiles, ", ")))
 	}
 }
 

@@ -333,6 +333,7 @@ func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied, previe
 			}
 		}
 	}
+	renderNewConfigs(opts, res, preview)
 	for _, a := range res.ConfigsArchived {
 		opts.Printf("%s\n", i18n.T(archived, a[0], a[1]))
 	}
@@ -357,13 +358,7 @@ func renderUpgradeLines(opts *Options, plan *install.Plan) {
 	for _, note := range plan.Notes {
 		opts.Printf("   %s\n", i18n.T(msgid.CliInstallNote, note))
 	}
-	for _, l := range plan.AddLines {
-		if len(l.RequiredBy) > 0 {
-			opts.Printf("   %s\n", i18n.T(msgid.CliAddLineRequiredBy, l.Ref().String(), strings.Join(l.RequiredBy, ", ")))
-		} else {
-			opts.Printf("   %s\n", i18n.T(msgid.CliAddLine, l.Ref().String()))
-		}
-	}
+	renderAddedLines(opts, plan)
 	oldDefaults := map[resolver.Ref]bool{}
 	for _, m := range plan.Moves {
 		oldDefaults[resolver.Ref{ID: m.ID, Version: m.From}] = true

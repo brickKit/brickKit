@@ -218,7 +218,7 @@ func TestPlanUpgradeShellDoesNotReaddRemovedMember(t *testing.T) {
 	assert.Contains(t, plan.Notes[0], "erp/b")
 }
 
-// 移除过的成员成了新版本里某个组件的强依赖：它照常进来，由编进它的外壳承载。
+// 移除过的成员成了新版本里某个组件的强依赖：它照常进来，由编进它的外壳承载，并说一声谁要它。
 func TestPlanUpgradeShellHostsRemovedMemberThatBecameRequired(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
@@ -232,7 +232,9 @@ func TestPlanUpgradeShellHostsRemovedMemberThatBecameRequired(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []install.Line{{ID: "erp/b", Version: "2.0.0"}}, plan.AddLines)
 	assert.Equal(t, []install.Entry{{ID: "erp/b", Under: "erp/shell"}}, plan.AddEntries)
-	assert.Empty(t, plan.Notes)
+	require.Len(t, plan.Notes, 1)
+	assert.Contains(t, plan.Notes[0], "erp/a@2.0.0")
+	assert.Contains(t, plan.Notes[0], "erp/shell")
 }
 
 // 使用者移除的成员原本由另一个外壳编进；升级的外壳新编进了它，也不加回来——使用者已经不要它了。

@@ -216,6 +216,7 @@ func TestUpgradeShellDoesNotReaddRemovedMember(t *testing.T) {
 	g.release(comp{ID: "erp/shell", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0", "erp/c@1.0.0"}})
 	r := g.mustRun(dir, "upgrade", "erp/shell@2.0.0", "--yes")
 	assert.Contains(t, r.stdout, "erp/b is not in the project: it stays out (brickkit add erp/b@2.0.0 to host it)")
+	assert.Contains(t, r.stdout, "✅ erp/c@1.0.0 (in shell erp/shell)", "升级加进来的成员也说在哪个外壳里")
 
 	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
 	assert.Contains(t, decl, "id: erp/a\n    version: 2.0.0")
@@ -231,6 +232,36 @@ func TestUpgradeShellDoesNotReaddRemovedMember(t *testing.T) {
 	g.mustRun(dir, "add", "erp/b@2.0.0")
 	deploy = readFile(t, deployPath)
 	assert.Contains(t, deploy, "      - id: erp/b\n", "add 回来的成员嵌在外壳下面")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
+// 移除过的成员成了新版本里某个组件的强依赖：它加回来、由编进它的外壳承载，说一声是谁要它；
+// 配置从归档恢复，使用者当初写的值还在（反馈 FRR-007）。
+func TestUpgradeShellBringsBackRemovedMemberThatBecameRequired(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(withConfig(comp{ID: "erp/b", Version: "1.0.0", Port: 8082}, "B_URL:"))
+	g.release(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/shell@1.0.0")
+	cfg := filepath.Join(dir, "config", "erp-b.yaml")
+	editFile(t, cfg, "# B_URL: ", "B_URL: http://b.internal  # ")
+	g.mustRun(dir, "remove", "erp/b")
+
+	g.release(comp{ID: "erp/a", Version: "2.0.0", Port: 8081, Requires: []string{"erp/b@2.0.0"}})
+	g.release(withConfig(comp{ID: "erp/b", Version: "2.0.0", Port: 8082}, "B_URL:"))
+	g.release(comp{ID: "erp/shell", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0"}})
+	preview := g.mustRun(dir, "upgrade", "erp/shell@2.0.0", "--dry-run")
+	assert.Contains(t, preview.stdout, "Would restore config/erp-b.yaml from the archive")
+	r := g.mustRun(dir, "upgrade", "erp/shell@2.0.0", "--yes")
+	assert.Contains(t, r.stdout, "erp/b was removed from the project, but erp/a@2.0.0 requires it: it comes back, hosted by shell erp/shell")
+	assert.Contains(t, r.stdout, "✅ erp/b@2.0.0 (in shell erp/shell)")
+	assert.Contains(t, r.stdout, "config/erp-b.yaml restored from the archive")
+	assert.NotContains(t, r.stdout, "stays out")
+
+	assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "id: erp/b\n    version: 2.0.0")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "deploy.yaml")), "      - id: erp/b\n")
+	assert.Contains(t, readFile(t, cfg), "B_URL: http://b.internal", "配置从归档恢复")
 	g.mustRun(dir, "up", "--dry-run")
 }
 

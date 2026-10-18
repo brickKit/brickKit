@@ -83,15 +83,17 @@ somewhere else keeps its place and its version — where a member runs is your d
 - **Not in the project** — the shell compiles it in, but you removed it with `brickkit remove` (the project hosts only
   some of the shell's members, see [Hosting only some members](04-members-management.md#hosting-only-some-members)).
   The upgrade doesn't add it back. The exception is a component in the new versions that requires it: then it joins as
-  usual, hosted by the shell that compiles it in.
+  usual, hosted by the shell that compiles it in, its config restored from the archive, and the output names who
+  requires it (the fourth note below).
 
-When the new shell compiles in a different version of a member of the first two kinds, or compiles in a member you
-removed, the output says so:
+When the new shell compiles in a different version of a member of the first two kinds, compiles in a member you
+removed, or a member you removed comes back because something requires it, the output says so:
 
 ```text
 ℹ️  Shell shop/shell@0.2.0 contains shop/stock@0.2.0, but shop/stock is nested under shell shop/infra, which contains shop/stock@0.1.0: it stays at 0.1.0 (upgrade shop/infra to move it)
 ℹ️  Shell shop/shell@0.2.0 contains shop/cart@0.2.0, but shop/cart runs on its own (it is not under the shell in the deploy file): it stays at 0.1.0
 ℹ️  Shell shop/shell@0.2.0 contains shop/audit@0.2.0, but shop/audit is not in the project: it stays out (brickkit add shop/audit@0.2.0 to host it)
+ℹ️  shop/audit was removed from the project, but shop/cart@0.2.0 requires it: it comes back, hosted by shell shop/shell
 ```
 
 The version the shell compiles in for a member it doesn't host isn't added to the project: nothing would run it. Only
