@@ -17,9 +17,9 @@ import (
 func planUpgrade(t *testing.T, p *project.Project, cat stub, moves ...install.Move) (*install.Plan, error) {
 	t.Helper()
 	r := resolver.New(cat)
-	oldGraph, err := install.ResolveWorld(context.Background(), r, install.Defaults(p, nil))
+	oldGraph, err := install.ResolveWorld(context.Background(), r, p, nil)
 	require.NoError(t, err)
-	newGraph, err := install.ResolveWorld(context.Background(), r, install.Defaults(p, moves))
+	newGraph, err := install.ResolveWorld(context.Background(), r, p, moves)
 	require.NoError(t, err)
 	return install.PlanUpgrade(p, oldGraph, newGraph, moves)
 }

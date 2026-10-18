@@ -121,6 +121,72 @@ func TestUpgradeShellMovesMembers(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
+// 两个外壳编进同一组成员、成员分在两个外壳里：升级其中一个外壳只换它承载的成员，别的外壳承载的
+// 成员留在原处、原版本，说一声（反馈 FRB-006：之前把成员同时写进两个外壳，升级失败）。
+func TestUpgradeShellKeepsMembersHostedByAnotherShell(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "1.0.0", Port: 8082})
+	g.release(comp{ID: "erp/core", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	g.release(comp{ID: "erp/infra", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/core@1.0.0")
+	g.mustRun(dir, "add", "erp/infra@1.0.0")
+	deployPath := filepath.Join(dir, "deploy.yaml")
+	deploy := readFile(t, deployPath)
+	split := strings.Replace(strings.Replace(deploy, "      - id: erp/b\n", "", 1),
+		"  - id: erp/infra\n", "  - id: erp/infra\n    members:\n      - id: erp/b\n", 1)
+	require.NotEqual(t, deploy, split)
+	require.NoError(t, os.WriteFile(deployPath, []byte(split), 0o644))
+	g.mustRun(dir, "lint")
+
+	g.release(comp{ID: "erp/a", Version: "2.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "2.0.0", Port: 8082})
+	g.release(comp{ID: "erp/core", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0"}})
+	r := g.mustRun(dir, "upgrade", "erp/core@2.0.0", "--yes")
+	assert.Contains(t, r.stdout, "erp/b is nested under shell erp/infra, which contains erp/b@1.0.0: it stays at 1.0.0")
+
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: erp/a\n    version: 2.0.0")
+	assert.Contains(t, decl, "id: erp/b\n    version: 1.0.0")
+	assert.NotContains(t, decl, "erp/b\n    version: 2.0.0", "core 不承载 b：它编进的 b@2.0.0 没人跑")
+	assert.NotContains(t, decl, "requiredBy", "infra 不承载 a：不为它留 a@1.0.0")
+	deploy = readFile(t, deployPath)
+	assert.Contains(t, deploy, "  - id: erp/core\n    members:\n      - id: erp/a\n")
+	assert.Contains(t, deploy, "  - id: erp/infra\n    members:\n      - id: erp/b\n")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
+// 使用者把成员移出外壳独立运行；之后升级外壳不把它挪回去、也不换它的版本，说一声。
+func TestUpgradeShellLeavesStandaloneMember(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "1.0.0", Port: 8082})
+	g.release(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/shell@1.0.0")
+	deployPath := filepath.Join(dir, "deploy.yaml")
+	deploy := readFile(t, deployPath)
+	lifted := strings.Replace(deploy, "      - id: erp/b\n", "", 1) + "  - id: erp/b\n"
+	require.NoError(t, os.WriteFile(deployPath, []byte(lifted), 0o644))
+	g.mustRun(dir, "lint")
+
+	g.release(comp{ID: "erp/a", Version: "2.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "2.0.0", Port: 8082})
+	g.release(comp{ID: "erp/shell", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0"}})
+	r := g.mustRun(dir, "upgrade", "erp/shell@2.0.0", "--yes")
+	assert.Contains(t, r.stdout, "erp/b runs on its own (it is not under the shell in the deploy file): it stays at 1.0.0")
+
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: erp/a\n    version: 2.0.0")
+	assert.Contains(t, decl, "id: erp/b\n    version: 1.0.0")
+	assert.NotContains(t, decl, "erp/b\n    version: 2.0.0")
+	deploy = readFile(t, deployPath)
+	assert.Contains(t, deploy, "  - id: erp/shell\n    members:\n      - id: erp/a\n")
+	assert.Contains(t, deploy, "\n  - id: erp/b\n", "b 仍在顶层独立运行")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
 // 全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
 func TestUpgradeAllIsAllOrNothing(t *testing.T) {
 	g := newGitOrgProject(t)

@@ -111,25 +111,16 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) (err err
 
 // installAdd 是 add 与 add --local 共用的主流程。
 func installAdd(ctx context.Context, opts *Options, proj *project.Project, client *source.Client, targets []resolver.Ref, f addFlags) error {
-	roots := make([]resolver.Ref, 0, len(proj.Decl.Components)+len(targets))
-	for _, c := range proj.Decl.Components {
-		roots = append(roots, resolver.Ref{ID: c.ID, Version: c.Version})
-	}
+	manifests := map[resolver.Ref]*manifest.Manifest{}
 	for _, t := range targets {
 		fetched, err := client.Manifest(ctx, t.ID, t.Version)
 		if err != nil {
 			return err
 		}
-		roots = append(roots, t)
-		// 外壳编进的成员跟着外壳一起进来
-		if fetched.Manifest.IsShell() {
-			for _, member := range fetched.Manifest.Shell.Members {
-				id, version, _ := manifest.SplitRef(member)
-				roots = append(roots, resolver.Ref{ID: id, Version: version})
-			}
-		}
+		manifests[t] = fetched.Manifest
 	}
-	graph, err := resolver.New(resolver.FromSource(client)).Resolve(ctx, roots...)
+	// 外壳要承载的成员跟着外壳一起进来
+	graph, err := resolver.New(resolver.FromSource(client)).Resolve(ctx, install.AddRoots(proj, targets, manifests)...)
 	if err != nil {
 		return err
 	}

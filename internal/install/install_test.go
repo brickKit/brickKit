@@ -373,7 +373,7 @@ func TestPlanAddShellNotesMemberNestedUnderAnotherShell(t *testing.T) {
 		require.Len(t, plan.Notes, 1, added)
 		assert.Contains(t, plan.Notes[0], "erp/a@1.0.0")
 		assert.Contains(t, plan.Notes[0], "shell erp/shell,")
-		assert.Contains(t, plan.Notes[0], "shell "+added+" ")
+		assert.Contains(t, plan.Notes[0], "Shell "+added+" contains")
 	}
 }
 

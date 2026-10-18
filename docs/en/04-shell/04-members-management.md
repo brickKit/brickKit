@@ -41,14 +41,15 @@ start). `add` writes `deploy.yaml` (and `deploy.local.yaml`); other deploy files
 changed. To keep a member running on its own in an environment, move its entry back to the top level in that file
 ([Moving out of a shell](#moving-out-of-a-shell)).
 
-**When two shells compile in the same member version**, a version can be in only one shell, and these rules decide
-which one hosts it:
+**When two shells compile in the same member** (the same version or not), a component can be in only one shell, and
+these rules decide which one hosts it:
 
 - The member is already nested under another shell in the project: it stays there, the shell you are adding doesn't
-  host it, and the output has a note:
+  host it, and the output has a note. If the shell you are adding compiles in a different version of it, that version
+  isn't added: nothing would run it.
 
   ```text
-  ℹ️  shop/stock@0.1.0 is nested under shell shop/shell, so shell shop/shell2 does not host it (a version can be in only one shell)
+  ℹ️  Shell shop/shell2 contains shop/stock@0.1.0, but shop/stock is nested under shell shop/shell, so shop/shell2 does not host it (a component can be in only one shell)
   ```
 
 - The member is at the top level (you moved it out of the older shell), or it comes into the project with the new

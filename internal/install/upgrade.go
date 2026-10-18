@@ -4,20 +4,22 @@ package install
 //
 // # 思路：比较升级前后的"世界"
 //
-// 项目要跑的版本 = 默认版本、外壳编进的成员，以及它们的依赖闭包（ResolveWorld）。升级前后各算一次：
+// 项目要跑的版本 = 默认版本、外壳承载的成员（外壳编进的那个版本），以及它们的依赖闭包（ResolveWorld）。
+// 哪个外壳承载哪个成员按 hosting.go 的规则：升级外壳不改承载位置——别的外壳承载的、在顶层独立运行的
+// 成员不跟着它走（Notes 里说一声）。升级前后各算一次：
 //
 //	新世界有、项目里没有           加进来（像 add：默认版本，或带 requiredBy 的兼容版本）
 //	旧世界有、新世界没有           移除（配置归档）——只动升级带来的变化，旧世界里本来就没人要的
 //	                                行（手写的）不碰
 //	两边都有的兼容版本             谁需要它变了，requiredBy 跟着改成新世界里真正需要它的组件
 //
-// 被移动的默认版本 v1 → v2：brickkit.yaml 那一行原地改版本；v1 在新世界里还有人要（依赖方、编进
+// 被移动的默认版本 v1 → v2：brickkit.yaml 那一行原地改版本；v1 在新世界里还有人要（依赖方、承载
 // 它的外壳）就另起一行带 requiredBy 留下，配置文件改名成带版本号的；v2 原本就是兼容版本时它转正。
 //
 // # 部署条目
 //
 // 每个版本在新世界里写成什么 id：默认版本写裸 ID，其余写 id@version。裸条目（带着使用者的字段）
-// 跟着默认版本走——例外是它嵌在一个编进了 v1 的外壳下面、而 v1 留下了：那它留给 v1（改名成
+// 跟着默认版本走——例外是它嵌在一个承载着 v1 的外壳下面、而 v1 留下了：那它留给 v1（改名成
 // id@v1），v2 在顶层另起一个裸条目，P3f 的核对照样成立。改名时先降级（裸 → id@v）再升级
 // （id@v → 裸），同一时刻不会有两个裸条目。嵌在外壳下面、而新外壳没编进这个版本的条目挪到顶层。
 
@@ -64,10 +66,11 @@ func Defaults(p *project.Project, moves []Move) []resolver.Ref {
 	return out
 }
 
-// ResolveWorld 解析一个世界：以默认版本为根，外壳编进的成员也是根（它们不是依赖边），
-// 直到不再出现新的外壳成员。
-func ResolveWorld(ctx context.Context, r *resolver.Resolver, defaults []resolver.Ref) (*resolver.Graph, error) {
-	roots := append([]resolver.Ref{}, defaults...)
+// ResolveWorld 解析 moves 之后的世界（moves 为空即升级前）：以默认版本为根，外壳承载的成员也是根
+// （它们不是依赖边），直到不再出现新的外壳成员。
+func ResolveWorld(ctx context.Context, r *resolver.Resolver, p *project.Project, moves []Move) (*resolver.Graph, error) {
+	hosting := worldHosting(p, moves)
+	roots := Defaults(p, moves)
 	seen := map[resolver.Ref]bool{}
 	for _, ref := range roots {
 		seen[ref] = true
@@ -78,18 +81,11 @@ func ResolveWorld(ctx context.Context, r *resolver.Resolver, defaults []resolver
 			return nil, err
 		}
 		grew := false
-		for _, n := range graph.Nodes {
-			if !n.Manifest.IsShell() {
-				continue
-			}
-			for _, member := range n.Manifest.Shell.Members {
-				id, version, _ := manifest.SplitRef(member)
-				ref := resolver.Ref{ID: id, Version: version}
-				if !seen[ref] {
-					seen[ref] = true
-					roots = append(roots, ref)
-					grew = true
-				}
+		for _, ref := range hosting.Place(graph).Hosted() {
+			if !seen[ref] {
+				seen[ref] = true
+				roots = append(roots, ref)
+				grew = true
 			}
 		}
 		if !grew {
@@ -98,9 +94,10 @@ func ResolveWorld(ctx context.Context, r *resolver.Resolver, defaults []resolver
 	}
 }
 
-// ShellMoves 把外壳的升级展开成成员的版本移动（外壳编进的是成员的精确版本）：默认版本正是旧外壳编进的
-// 那个版本的成员，跟着换成新外壳编进的版本。只为外壳保留的兼容版本、新成员、被去掉的成员由
-// PlanUpgrade 按新旧世界的差处理。
+// ShellMoves 把外壳的升级展开成成员的版本移动（外壳编进的是成员的精确版本）：由这个外壳承载、默认
+// 版本正是旧外壳编进的那个版本的成员，跟着换成新外壳编进的版本。别的外壳承载的、在顶层独立运行的
+// 成员不动（承载位置是使用者定的）。只为外壳保留的兼容版本、新成员、被去掉的成员由 PlanUpgrade 按
+// 新旧世界的差处理。
 func ShellMoves(p *project.Project, oldShell, newShell *manifest.Manifest) []Move {
 	if !oldShell.IsShell() || !newShell.IsShell() {
 		return nil // 新版本不再是外壳（或原来就不是）：没有成员可跟
@@ -110,6 +107,9 @@ func ShellMoves(p *project.Project, oldShell, newShell *manifest.Manifest) []Mov
 		id, to, _ := manifest.SplitRef(member)
 		from, ok := oldShell.HostedVersion(id)
 		if !ok || from == to || !p.Decl.IsDefault(id, from) {
+			continue
+		}
+		if owner, _ := p.MemberShell(id); owner != newShell.Metadata.ID {
 			continue
 		}
 		moves = append(moves, Move{ID: id, From: from, To: to})
@@ -138,6 +138,7 @@ func PlanUpgrade(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 	u.lines()
 	u.entries()
 	u.nestIntoMovedShells()
+	u.noteMembersNotFollowing()
 	u.configs()
 	sortEntries(u.plan.AddEntries)
 	return u.plan, nil
@@ -149,14 +150,13 @@ type upgrader struct {
 	moves              map[string]Move
 	plan               *Plan
 	declared           map[resolver.Ref]bool
-	// shells 是新世界里的外壳（ID → Manifest），按出现顺序。
-	shells   map[string]*manifest.Manifest
-	shellIDs []string
+	// oldHosts / newHosts 是升级前后两个世界里的承载关系。
+	oldHosts, newHosts Placement
 }
 
 func newUpgrader(p *project.Project, oldGraph, newGraph *resolver.Graph, moves []Move) *upgrader {
 	u := &upgrader{p: p, oldGraph: oldGraph, newGraph: newGraph, moves: map[string]Move{}, plan: &Plan{},
-		declared: map[resolver.Ref]bool{}, shells: map[string]*manifest.Manifest{}}
+		declared: map[resolver.Ref]bool{}}
 	for _, m := range moves {
 		u.moves[m.ID] = m
 		u.plan.Moves = append(u.plan.Moves, m)
@@ -164,12 +164,8 @@ func newUpgrader(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 	for _, c := range p.Decl.Components {
 		u.declared[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 	}
-	for _, n := range newGraph.Nodes {
-		if n.Manifest.IsShell() && u.shells[n.Ref.ID] == nil {
-			u.shells[n.Ref.ID] = n.Manifest
-			u.shellIDs = append(u.shellIDs, n.Ref.ID)
-		}
-	}
+	u.oldHosts = worldHosting(p, nil).Place(oldGraph)
+	u.newHosts = worldHosting(p, moves).Place(newGraph)
 	return u
 }
 
@@ -194,8 +190,8 @@ func (u *upgrader) entryID(ref resolver.Ref) string {
 func (u *upgrader) inNew(ref resolver.Ref) bool { return u.newGraph.Has(ref) }
 func (u *upgrader) inOld(ref resolver.Ref) bool { return u.oldGraph.Has(ref) }
 
-// neededBy 是 graph 所在的世界里需要 ref 的组件 ID：依赖方、编进了它的外壳。
-func neededIn(graph *resolver.Graph, ref resolver.Ref) []string {
+// neededIn 是 graph 所在的世界里需要 ref 的组件 ID：依赖方、承载它的外壳（hosts 是那个世界的承载关系）。
+func neededIn(graph *resolver.Graph, hosts Placement, ref resolver.Ref) []string {
 	var out []string
 	if n := graph.Node(ref); n != nil {
 		for _, d := range n.Dependents {
@@ -204,27 +200,18 @@ func neededIn(graph *resolver.Graph, ref resolver.Ref) []string {
 			}
 		}
 	}
-	for _, n := range graph.Nodes {
-		if !n.Manifest.IsShell() {
-			continue
-		}
-		if v, ok := n.Manifest.HostedVersion(ref.ID); ok && v == ref.Version {
-			out = append(out, n.Ref.ID)
-		}
+	if host, ok := hosts.HostOf(ref); ok {
+		out = append(out, host)
 	}
 	sort.Strings(out)
 	return slices.Compact(out)
 }
 
-// hostOf 是新世界里编进了 ref 的外壳。
-func (u *upgrader) hostOf(ref resolver.Ref) (string, bool) {
-	for _, id := range u.shellIDs {
-		if v, ok := u.shells[id].HostedVersion(ref.ID); ok && v == ref.Version {
-			return id, true
-		}
-	}
-	return "", false
-}
+func (u *upgrader) neededBefore(ref resolver.Ref) []string { return neededIn(u.oldGraph, u.oldHosts, ref) }
+func (u *upgrader) neededAfter(ref resolver.Ref) []string  { return neededIn(u.newGraph, u.newHosts, ref) }
+
+// hostOf 是新世界里承载 ref 的外壳。
+func (u *upgrader) hostOf(ref resolver.Ref) (string, bool) { return u.newHosts.HostOf(ref) }
 
 // checkKinds：外壳只有一个版本（单版本约束）——还有组件需要旧外壳时升级不了；
 // 组件在新版本里成了外壳（或不再是外壳）时 kind 跟着改，同一个 ID 还剩别的版本时就改不了
@@ -240,7 +227,7 @@ func (u *upgrader) checkKinds() error {
 		}
 		newShell := newNode.Manifest.IsShell()
 		if oldShell && u.inNew(from) {
-			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InstallUpgradeShellStillNeeded, from.String(), joinStrings(neededIn(u.newGraph, from)))).
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InstallUpgradeShellStillNeeded, from.String(), joinStrings(u.neededAfter(from)))).
 				WithHint(i18n.T(msgid.InstallHintUpgradeShellDependents, from.String()))
 		}
 		if oldShell == newShell {
@@ -281,14 +268,14 @@ func (u *upgrader) lines() {
 				// 新版本原本就是兼容版本：它转正，旧默认版本要么留作兼容版本，要么移除
 				u.plan.SetRequiredBy = append(u.plan.SetRequiredBy, Line{ID: m.ID, Version: m.To})
 				if kept {
-					u.plan.SetRequiredBy = append(u.plan.SetRequiredBy, Line{ID: c.ID, Version: c.Version, RequiredBy: neededIn(u.newGraph, ref)})
+					u.plan.SetRequiredBy = append(u.plan.SetRequiredBy, Line{ID: c.ID, Version: c.Version, RequiredBy: u.neededAfter(ref)})
 				} else {
 					u.remove(ref)
 				}
 			} else {
 				u.plan.ChangeVersions = append(u.plan.ChangeVersions, m)
 				if kept {
-					u.plan.AddLines = append(u.plan.AddLines, Line{ID: c.ID, Version: c.Version, Shell: c.IsShell(), RequiredBy: neededIn(u.newGraph, ref)})
+					u.plan.AddLines = append(u.plan.AddLines, Line{ID: c.ID, Version: c.Version, Shell: c.IsShell(), RequiredBy: u.neededAfter(ref)})
 				}
 			}
 		case moved && c.Version == m.To:
@@ -296,7 +283,7 @@ func (u *upgrader) lines() {
 		case !u.inNew(ref) && u.inOld(ref) && !u.p.Decl.IsDefault(c.ID, c.Version):
 			u.remove(ref)
 		case len(c.RequiredBy) > 0 && u.inNew(ref):
-			before, after := neededIn(u.oldGraph, ref), neededIn(u.newGraph, ref)
+			before, after := u.neededBefore(ref), u.neededAfter(ref)
 			if !slices.Equal(before, after) {
 				u.plan.SetRequiredBy = append(u.plan.SetRequiredBy, Line{ID: c.ID, Version: c.Version, RequiredBy: after})
 			}
@@ -313,7 +300,7 @@ func (u *upgrader) lines() {
 		}
 		line := Line{ID: ref.ID, Version: ref.Version, Shell: n.Manifest.IsShell()}
 		if !u.isDefault(ref) {
-			line.RequiredBy = neededIn(u.newGraph, ref)
+			line.RequiredBy = u.neededAfter(ref)
 		}
 		u.plan.AddLines = append(u.plan.AddLines, line)
 		u.plan.Added = append(u.plan.Added, ref)
@@ -422,25 +409,20 @@ func (u *upgrader) promotionsKeepingBare() map[string]bool {
 	return out
 }
 
-// nestIntoMovedShells：升级后的外壳编进了、已经声明、却在顶层的版本，挪进外壳（同 add 外壳时）。
-// 只对这次升级的外壳做：别的外壳下面缺的成员是使用者移出去的。
+// nestIntoMovedShells：升级后的外壳承载的、已经声明、却在顶层的版本，挪进外壳——比如它原来承载着
+// 兼容版本，新外壳编进的正是顶层的默认版本。只对这次升级的外壳做；在顶层独立运行的成员（使用者
+// 移出去的）不归它承载，不动。
 func (u *upgrader) nestIntoMovedShells() {
 	renamed := map[string]string{}
 	for _, r := range u.plan.RenameEntries {
 		renamed[r.From] = r.To
 	}
 	for _, m := range u.plan.Moves {
-		shell, ok := u.shells[m.ID]
-		if !ok || shell.Metadata.Version != m.To {
-			continue
-		}
-		for _, member := range shell.Shell.Members {
-			id, version, _ := manifest.SplitRef(member)
-			ref := resolver.Ref{ID: id, Version: version}
-			if !u.declared[ref] || u.removed(ref) {
+		for _, ref := range u.movedShellMembers(m) {
+			if host, ok := u.hostOf(ref); !ok || host != m.ID || !u.declared[ref] || u.removed(ref) {
 				continue
 			}
-			entry, found := u.p.Deploy.EntryAt(id, version, u.p.Decl.IsDefault(id, version))
+			entry, found := u.p.Deploy.EntryAt(ref.ID, ref.Version, u.p.Decl.IsDefault(ref.ID, ref.Version))
 			if !found || entry.Shell != "" {
 				continue
 			}
@@ -453,13 +435,53 @@ func (u *upgrader) nestIntoMovedShells() {
 	}
 }
 
-// liftIfNotHosted：条目嵌在外壳 owner 下面，而新世界里 owner 不编进 ref——挪到顶层独立运行。
+// movedShellMembers 是移动 m 之后的外壳编进的成员版本；m 不是外壳（或新版本不再是）时为空。
+func (u *upgrader) movedShellMembers(m Move) []resolver.Ref {
+	shell := u.newHosts.shells[m.ID]
+	if shell == nil || shell.Metadata.Version != m.To {
+		return nil
+	}
+	var out []resolver.Ref
+	for _, member := range shell.Shell.Members {
+		id, version, _ := manifest.SplitRef(member)
+		out = append(out, resolver.Ref{ID: id, Version: version})
+	}
+	return out
+}
+
+// noteMembersNotFollowing：升级后的外壳编进了成员的另一个版本，成员却不归它承载（嵌在别的外壳下面，
+// 或在顶层独立运行）——它留在原来的版本，说一声，免得以为它跟着外壳升级了。
+func (u *upgrader) noteMembersNotFollowing() {
+	for _, m := range u.plan.Moves {
+		shell := resolver.Ref{ID: m.ID, Version: m.To}
+		for _, ref := range u.movedShellMembers(m) {
+			owner, placed := u.newHosts.Owner(ref.ID)
+			if placed && owner == m.ID {
+				continue
+			}
+			if placed {
+				hosted, _ := u.newHosts.shells[owner].HostedVersion(ref.ID)
+				if hosted != ref.Version {
+					u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeMemberUnderOtherShell,
+						shell.String(), ref.String(), ref.ID, owner, hosted))
+				}
+				continue
+			}
+			if current, ok := u.p.Decl.DefaultVersion(ref.ID); ok && current != ref.Version {
+				u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeMemberRunsAlone,
+					shell.String(), ref.String(), ref.ID, current))
+			}
+		}
+	}
+}
+
+// liftIfNotHosted：条目嵌在外壳 owner 下面，而新世界里 owner 不承载 ref（新外壳没编进这个版本）——
+// 挪到顶层独立运行。
 func (u *upgrader) liftIfNotHosted(owner string, ref resolver.Ref, entryID string) {
 	if owner == "" {
 		return
 	}
-	shell := u.shells[owner]
-	if v, ok := shell.HostedVersion(ref.ID); shell != nil && ok && v == ref.Version {
+	if host, ok := u.hostOf(ref); ok && host == owner {
 		return
 	}
 	u.plan.LiftEntries = append(u.plan.LiftEntries, entryID)

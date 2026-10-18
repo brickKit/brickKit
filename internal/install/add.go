@@ -14,8 +14,7 @@ import (
 )
 
 // PlanAdd 算出把 targets 加进项目要做的改动（add 一个组件，或 add --local 一批）。graph 以
-// 项目里已声明的全部组件、targets、以及外壳编进的成员为根解析——图里没在 brickkit.yaml
-// 里的都是这次要加的。
+// AddRoots 为根解析——图里没在 brickkit.yaml 里的都是这次要加的。
 //
 // 规则：
 //   - 新组件 ID 的第一个版本是默认版本：没有 requiredBy、部署条目写裸 ID、无版本号配置文件；
@@ -23,10 +22,10 @@ import (
 //   - ID 已有别的版本：这是为依赖方（或外壳）保留的兼容版本，requiredBy 写上它们
 //     、部署条目写 id@version、配置文件带版本号
 //   - target 本身是已有 ID 的另一个版本、又没有谁需要它：报错，换默认版本归 upgrade
-//   - 项目里（含这次新加的）有外壳编进了这个版本：条目嵌到外壳下面；
-//     已在顶层的挪进去
+//   - 承载它的外壳（hosting.go 的规则：add 外壳就是决定由它承载编进的成员，已经嵌在别的外壳
+//     下面的除外）编进的正是这个版本：条目嵌到外壳下面；已在顶层的挪进去
 func PlanAdd(p *project.Project, graph *resolver.Graph, targets ...resolver.Ref) (*Plan, error) {
-	a := newAdder(p, graph)
+	a := newAdder(p, graph, targets)
 	for _, target := range targets {
 		if err := a.checkTarget(target); err != nil {
 			return nil, err
@@ -36,6 +35,7 @@ func PlanAdd(p *project.Project, graph *resolver.Graph, targets ...resolver.Ref)
 	a.addNewRefs()
 	a.extendRequiredBy()
 	a.nestExisting()
+	a.noteMembersHostedElsewhere()
 	for _, target := range targets {
 		a.fillMissingConfig(target)
 	}
@@ -52,38 +52,29 @@ type adder struct {
 	fresh []resolver.Ref
 	// defaults 是这次新组件 ID 的默认版本。
 	defaults map[string]string
-	// shells 是加完之后项目里的全部外壳（ID → Manifest）。
-	shells map[string]*manifest.Manifest
-	// shellIDs：这次新加的外壳排在前面——add 外壳就是决定由它承载成员，项目里别的外壳也编进了
-	// 同一个版本时，轮不到它们。其余按图的解析顺序。
-	shellIDs []string
-	// freshShells 是这次新加的外壳。
-	freshShells map[string]bool
+	// hosting / hosts：加完之后的承载关系；hosting.acting 是 targets 里的外壳。
+	hosting Hosting
+	hosts   Placement
 }
 
-func newAdder(p *project.Project, graph *resolver.Graph) *adder {
-	a := &adder{p: p, graph: graph, plan: &Plan{}, declared: map[resolver.Ref]bool{},
-		defaults: map[string]string{}, shells: map[string]*manifest.Manifest{}, freshShells: map[string]bool{}}
+func newAdder(p *project.Project, graph *resolver.Graph, targets []resolver.Ref) *adder {
+	a := &adder{p: p, graph: graph, plan: &Plan{}, declared: map[resolver.Ref]bool{}, defaults: map[string]string{}}
 	for _, c := range p.Decl.Components {
 		a.declared[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 	}
-	var existing []string
 	for _, n := range graph.Nodes {
 		if !a.declared[n.Ref] {
 			a.fresh = append(a.fresh, n.Ref)
 		}
-		if !n.Manifest.IsShell() || a.shells[n.Ref.ID] != nil {
-			continue
-		}
-		a.shells[n.Ref.ID] = n.Manifest
-		if a.declared[n.Ref] {
-			existing = append(existing, n.Ref.ID)
-		} else {
-			a.freshShells[n.Ref.ID] = true
-			a.shellIDs = append(a.shellIDs, n.Ref.ID)
+	}
+	manifests := map[resolver.Ref]*manifest.Manifest{}
+	for _, t := range targets {
+		if n := graph.Node(t); n != nil {
+			manifests[t] = n.Manifest
 		}
 	}
-	a.shellIDs = append(a.shellIDs, existing...)
+	a.hosting = addHosting(p, targets, manifests)
+	a.hosts = a.hosting.Place(graph)
 	return a
 }
 
@@ -131,7 +122,7 @@ func (a *adder) isDefault(ref resolver.Ref) bool {
 	return a.p.Decl.IsDefault(ref.ID, ref.Version)
 }
 
-// neededBy 是需要这个版本的组件 ID（图里的依赖方 + 编进了它的外壳），排好序、去重。
+// neededBy 是需要这个版本的组件 ID（图里的依赖方 + 承载它的外壳），排好序、去重。
 func (a *adder) neededBy(ref resolver.Ref) []string {
 	var out []string
 	if n := a.graph.Node(ref); n != nil {
@@ -141,30 +132,11 @@ func (a *adder) neededBy(ref resolver.Ref) []string {
 			}
 		}
 	}
-	for _, id := range a.shellIDs {
-		if v, ok := a.shells[id].HostedVersion(ref.ID); ok && v == ref.Version {
-			out = append(out, id)
-		}
+	if host, ok := a.hosts.HostOf(ref); ok {
+		out = append(out, host)
 	}
 	sort.Strings(out)
 	return slices.Compact(out)
-}
-
-// hostsOf 是编进了这个版本的外壳，按 shellIDs 的顺序：第一个承载它。
-func (a *adder) hostsOf(ref resolver.Ref) []string {
-	var out []string
-	for _, id := range a.shellIDs {
-		if v, ok := a.shells[id].HostedVersion(ref.ID); ok && v == ref.Version {
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-// noteNotHostedBy：这次新加的外壳 shell 编进了 ref，它却嵌在 owner 下面（一个版本只能在一个外壳里）——
-// 加外壳的人以为成员会由它承载，说一声。
-func (a *adder) noteNotHostedBy(ref resolver.Ref, owner, shell string) {
-	a.plan.Notes = append(a.plan.Notes, i18n.T(msgid.InstallNoteMemberUnderOtherShell, ref.String(), owner, shell))
 }
 
 func (a *adder) addNewRefs() {
@@ -179,13 +151,8 @@ func (a *adder) addNewRefs() {
 		a.plan.Added = append(a.plan.Added, ref)
 
 		entry := Entry{ID: EntryID(ref.ID, ref.Version, isDefault)}
-		if hosts := a.hostsOf(ref); len(hosts) > 0 {
-			entry.Under = hosts[0]
-			for _, shell := range hosts[1:] {
-				if a.freshShells[shell] {
-					a.noteNotHostedBy(ref, entry.Under, shell)
-				}
-			}
+		if host, ok := a.hosts.HostOf(ref); ok {
+			entry.Under = host
 		} else {
 			a.noteOtherHostedVersion(ref)
 		}
@@ -198,10 +165,15 @@ func (a *adder) addNewRefs() {
 	}
 }
 
-// noteOtherHostedVersion：项目里的外壳编进的是这个组件的另一个版本——这个版本独立运行，说一声为什么。
+// noteOtherHostedVersion：承载这个组件的外壳（没有外壳承载它时，编进了它的外壳）编进的是另一个
+// 版本——这个版本独立运行，说一声为什么。
 func (a *adder) noteOtherHostedVersion(ref resolver.Ref) {
-	for _, id := range a.shellIDs {
-		if v, ok := a.shells[id].HostedVersion(ref.ID); ok && v != ref.Version {
+	owner, placed := a.hosts.Owner(ref.ID)
+	for _, id := range a.hosts.order {
+		if placed && id != owner {
+			continue
+		}
+		if v, ok := a.hosts.shells[id].HostedVersion(ref.ID); ok && v != ref.Version {
 			a.plan.Notes = append(a.plan.Notes,
 				i18n.T(msgid.InstallNoteShellHostsOtherVersion, id, ref.ID+"@"+v, ref.String()))
 		}
@@ -223,27 +195,32 @@ func (a *adder) extendRequiredBy() {
 	}
 }
 
-// nestExisting：已声明、在部署文件顶层的组件版本，正是这次新加的某个外壳编进的那一个——挪进外壳。
-// 已经嵌在别的外壳下面的不动（一个版本只能在一个外壳里），说一声。
+// nestExisting：已声明、在部署文件顶层的组件版本，正是这次 add 的外壳要承载的那一个——挪进外壳。
 //
-// 只对这次新加的外壳做：已在项目里的外壳下面缺的成员，是使用者移出去独立
+// 只对这次 add 的外壳做：已在项目里的外壳下面缺的成员，是使用者移出去独立
 // 运行的，之后 add 别的组件不能把它塞回去。
 func (a *adder) nestExisting() {
 	for _, c := range a.p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		l, found := a.p.Deploy.EntryAt(c.ID, c.Version, a.p.Decl.IsDefault(c.ID, c.Version))
-		if !found {
+		if !found || l.Shell != "" {
 			continue
 		}
-		owner, _, _ := manifest.SplitRef(l.Shell)
-		for _, shell := range a.hostsOf(ref) {
-			switch {
-			case !a.freshShells[shell] || owner == shell:
-			case owner == "":
-				a.plan.NestEntries = append(a.plan.NestEntries, Entry{ID: l.ID, Under: shell})
-				owner = shell
-			default:
-				a.noteNotHostedBy(ref, owner, shell)
+		if host, ok := a.hosts.HostOf(ref); ok && slices.Contains(a.hosting.acting, host) {
+			a.plan.NestEntries = append(a.plan.NestEntries, Entry{ID: l.ID, Under: host})
+		}
+	}
+}
+
+// noteMembersHostedElsewhere：这次 add 的外壳编进的成员已经嵌在别的外壳下面（一个组件只能在一个
+// 外壳里）——加外壳的人以为成员会由它承载，说一声。
+func (a *adder) noteMembersHostedElsewhere() {
+	for _, shellID := range a.hosting.acting {
+		for _, member := range a.hosts.shells[shellID].Shell.Members {
+			id, version, _ := manifest.SplitRef(member)
+			if owner, ok := a.hosts.Owner(id); ok && owner != shellID {
+				ref := resolver.Ref{ID: id, Version: version}
+				a.plan.Notes = append(a.plan.Notes, i18n.T(msgid.InstallNoteMemberUnderOtherShell, ref.String(), id, owner, shellID))
 			}
 		}
 	}

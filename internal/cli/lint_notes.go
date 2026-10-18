@@ -71,7 +71,7 @@ func sourceVersionNotes(opts *Options, proj *project.Project, only string) []str
 }
 
 // orphanVersionNotes：一个兼容版本（带 requiredBy 的行）列出的组件，按它们现在的 component.yaml 已经没有谁
-// 依赖这个版本、也没有外壳编进它——依赖方在版本号不变的情况下把依赖改钉到了别的版本（本地源开发时常见），
+// 依赖这个版本、也没有外壳承载它（成员嵌在它下面、它编进的正是这个版本）——依赖方在版本号不变的情况下把依赖改钉到了别的版本（本地源开发时常见），
 // upgrade 认为它已是最新、什么都不做，这一行就一直留着：多一套容器、多一份配置。
 //
 // 只在说得准时才提：requiredBy 里任何一个组件的 Manifest 盘上没有或读不了，就不提。
@@ -90,7 +90,7 @@ func orphanVersionNotes(proj *project.Project, only string) []string {
 	return notes
 }
 
-// stillRequired 报告 requiredBy 里的组件（项目里声明的每个版本）是否还有谁依赖 id@version 或把它编进外壳。
+// stillRequired 报告 requiredBy 里的组件（项目里声明的每个版本）是否还有谁依赖 id@version 或在外壳里承载它。
 // known 为假表示有 Manifest 读不到，结论不可信。
 func stillRequired(proj *project.Project, id, version string, requiredBy []string) (needed, known bool) {
 	for _, dependent := range requiredBy {
@@ -99,7 +99,7 @@ func stillRequired(proj *project.Project, id, version string, requiredBy []strin
 			if !found || problem != "" {
 				return false, false
 			}
-			if hosted, ok := m.HostedVersion(id); ok && hosted == version {
+			if hosted, ok := m.HostedVersion(id); ok && hosted == version && hostedHere(proj, id, dependent) {
 				return true, true
 			}
 			if m.Dependencies == nil {
@@ -113,4 +113,11 @@ func stillRequired(proj *project.Project, id, version string, requiredBy []strin
 		}
 	}
 	return false, true
+}
+
+// hostedHere 报告成员 id 在部署文件里嵌在外壳 shellID 下面——外壳只承载嵌在它下面的成员，
+// 编进了却嵌在别的外壳下面（或在顶层独立运行）的，它编进的版本没人跑。
+func hostedHere(proj *project.Project, id, shellID string) bool {
+	owner, ok := proj.MemberShell(id)
+	return ok && owner == shellID
 }

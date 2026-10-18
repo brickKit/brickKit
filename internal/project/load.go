@@ -206,6 +206,20 @@ func (p *Project) MembersOf(shellID string) []deployfile.Entry {
 	return nil
 }
 
+// MemberShell 返回部署文件里成员条目嵌在哪个外壳下面（按组件 ID：一个 ID 只进一个外壳）。
+// 只看文件：IgnoreShells 不影响它——add / upgrade / remove 改的就是这份文件。
+func (p *Project) MemberShell(memberID string) (string, bool) {
+	for _, c := range p.Deploy.Components {
+		for _, m := range c.Members {
+			if id, _ := m.Key(); id == memberID {
+				shellID, _ := c.Key()
+				return shellID, true
+			}
+		}
+	}
+	return "", false
+}
+
 // ShellOf 返回某个成员版本所属的外壳：只有被外壳承载的那个版本返回 true（同 ID 的其他版本
 // 独立部署）。IgnoreShells 之后一律返回 false。
 func (p *Project) ShellOf(memberID, version string) (string, bool) {

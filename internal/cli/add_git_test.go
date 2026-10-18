@@ -177,11 +177,33 @@ func TestAddShellSaysWhenAMemberStaysUnderAnotherShell(t *testing.T) {
 	g.mustRun(dir, "add", "erp/shell@1.0.0")
 
 	r := g.mustRun(dir, "add", "erp/shell2@1.0.0")
-	assert.Contains(t, r.stdout, "ℹ️  erp/a@1.0.0 is nested under shell erp/shell, so shell erp/shell2 does not host it")
+	assert.Contains(t, r.stdout, "ℹ️  Shell erp/shell2 contains erp/a@1.0.0, but erp/a is nested under shell erp/shell, so erp/shell2 does not host it")
 	assert.NotContains(t, r.stdout, "moved into shell")
 	deploy := readFile(t, filepath.Join(dir, "deploy.yaml"))
 	assert.Contains(t, deploy, "  - id: erp/shell\n    members:\n      - id: erp/a\n")
 	assert.Contains(t, deploy, "  - id: erp/shell2\n    members:\n      - id: erp/b\n")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
+// 新外壳编进的是成员的另一个版本，而成员已经嵌在别的外壳下面：那个版本没人跑，不加进来
+// （之前加成兼容版本、嵌在新外壳下面，同一个成员进了两个外壳，add 失败）。
+func TestAddShellSkipsOtherVersionOfAMemberHostedElsewhere(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/a", Version: "2.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "1.0.0", Port: 8082})
+	g.release(comp{ID: "erp/core", Version: "2.0.0", Port: 8090, ShellMembers: []string{"erp/a@2.0.0"}})
+	g.release(comp{ID: "erp/infra", Version: "1.0.0", Port: 8091, ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/core@2.0.0")
+
+	r := g.mustRun(dir, "add", "erp/infra@1.0.0")
+	assert.Contains(t, r.stdout, "Shell erp/infra contains erp/a@1.0.0, but erp/a is nested under shell erp/core, so erp/infra does not host it")
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.NotContains(t, decl, "version: 1.0.0\n    requiredBy", "infra 不承载 a：不为它留 a@1.0.0")
+	deploy := readFile(t, filepath.Join(dir, "deploy.yaml"))
+	assert.Contains(t, deploy, "  - id: erp/core\n    members:\n      - id: erp/a\n")
+	assert.Contains(t, deploy, "  - id: erp/infra\n    members:\n      - id: erp/b\n")
 	g.mustRun(dir, "up", "--dry-run")
 }
 

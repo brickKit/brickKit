@@ -140,7 +140,8 @@ graph as Mermaid (greyed nodes won't start; shell members are drawn inside their
 are two different service names. Inside one `component.yaml`, a component id can appear only once.
 
 **Adding a shell** brings in the member versions it compiles in and nests them under the shell's
-deploy entry; **upgrading a shell** switches to the members the new shell compiles in.
+deploy entry; **upgrading a shell** switches the members nested under it to the versions the new shell compiles in
+(members under another shell or at the top level keep their place and version).
 
 **Environments**: one complete deploy file per environment, `brickkit up -f deploy.prod.yaml`.
 `brickkit.yaml` and `config/` are shared; values that differ per environment go through the deploy

@@ -577,6 +577,29 @@ func TestLintNotesCompatibilityVersionNobodyNeeds(t *testing.T) {
 	assert.NotContains(t, runIn(t, project(""), "lint").stdout, "is in the project only for", "依赖方的 Manifest 不在盘上：说不准就不说")
 }
 
+// 兼容版本只为一个外壳留着，外壳也编进了它，可它不嵌在外壳下面——外壳不承载它，这个版本没人要：照样提。
+// 嵌在外壳下面时外壳承载着它，不提。
+func TestLintNotesCompatibilityVersionAShellCompilesButDoesNotHost(t *testing.T) {
+	project := func(deployComponents string) string {
+		dir := t.TempDir()
+		writeTree(t, dir, map[string]string{
+			"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+				"components:\n  - id: erp/a\n    version: 2.0.0\n  - id: erp/a\n    version: 1.0.0\n    requiredBy: [erp/shell]\n" +
+				"  - id: erp/shell\n    version: 1.0.0\n    kind: shell\n",
+			"deploy.yaml":                         "target: docker\ncomponents:\n" + deployComponents,
+			"components/erp/a/component.yaml":     comp{ID: "erp/a", Version: "2.0.0", Port: 8081}.yamlText(),
+			"components/erp/shell/component.yaml": comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0"}}.yamlText(),
+		})
+		return dir
+	}
+	const note = "ℹ️ erp/a@1.0.0 is in the project only for erp/shell"
+
+	standalone := project("  - id: erp/a\n  - id: erp/a@1.0.0\n  - id: erp/shell\n")
+	assert.Contains(t, runIn(t, standalone, "lint").stdout, note)
+	hosted := project("  - id: erp/a\n  - id: erp/shell\n    members:\n      - id: erp/a@1.0.0\n")
+	assert.NotContains(t, runIn(t, hosted, "lint").stdout, note)
+}
+
 // 订阅了项目里没有任何组件发布的事件：lint 提一句（ℹ️，不算警告）。有人发布（前缀匹配也算、自己发布也算）时不提；
 // 项目里有组件的 Manifest 不在盘上时说不准——发布方可能正是它——就一条都不提。
 func TestLintNotesSubscriptionNobodyPublishes(t *testing.T) {

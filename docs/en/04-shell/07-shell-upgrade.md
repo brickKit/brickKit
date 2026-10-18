@@ -71,6 +71,25 @@ Fields you wrote on member entries (`mode`, `skipWaitFor`…) are kept. Build th
 A shell can have only one version in `brickkit.yaml`: with two versions of the same shell hosting members at once, who
 hosts whom would be unclear.
 
+### Members the shell doesn't host stay where they are
+
+Only the members nested under the shell in the deploy file follow it. A member the new shell compiles in but that runs
+somewhere else keeps its place and its version — where a member runs is your decision, and the upgrade doesn't change it:
+
+- **Nested under another shell** — two shells compile in the same members and the deploy file splits them, for example
+  to spread the load. The other shell hosts it, so it stays at the version that shell compiles in. To move it, upgrade
+  that shell too.
+- **At the top level** — you moved it out of the shell to run on its own. It stays out, at its version.
+
+When the new shell compiles in a different version of such a member, the output says so:
+
+```text
+ℹ️  Shell shop/shell@0.2.0 contains shop/stock@0.2.0, but shop/stock is nested under shell shop/infra, which contains shop/stock@0.1.0: it stays at 0.1.0 (upgrade shop/infra to move it)
+ℹ️  Shell shop/shell@0.2.0 contains shop/cart@0.2.0, but shop/cart runs on its own (it is not under the shell in the deploy file): it stays at 0.1.0
+```
+
+The version the shell compiles in for a member it doesn't host isn't added to the project: nothing would run it.
+
 ## Upgrading only a member
 
 Upgrading only a member (`brickkit upgrade shop/stock`) leaves the shell alone: the shell's image still holds the old

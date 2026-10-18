@@ -70,3 +70,7 @@ R55	Docker / Podman 下 replicas 大于 1 渲染成 compose 的 deploy.replicas�
 R56	多个副本的组件写了 expose：生成阶段报 PORT_CONFLICT，不等第二个副本启动时撞端口	.	./internal/compose	TestReplicasWithExposeAreRefused
 R57	本机进程经宿主机端口连一个多副本的依赖：生成阶段报错，建议在部署文件里改成 replicas: 1	.	./internal/compose	TestReplicasOfADependencyOfAProcessOnThisMachineAreRefused
 R58	compose 下一个服务有多个容器：状态取最差的副本，坏的副本不被好的盖住，并带上就绪数	.	./internal/engine	TestParsePSReportsTheWorstReplica
+R59	两个外壳编进同一组成员、成员分在两个外壳里：升级其中一个外壳只换它承载的成员，别的外壳承载的留在原处、原版本并提示，项目照样加载	.	./internal/cli	TestUpgradeShellKeepsMembersHostedByAnotherShell
+R60	成员被移出外壳在顶层独立运行：升级外壳不把它挪回去、不换它的版本，并提示	.	./internal/cli	TestUpgradeShellLeavesStandaloneMember
+R61	add 的外壳编进的是成员的另一个版本、而成员已嵌在别的外壳下面：那个版本不加进来，提示，add 成功	.	./internal/cli	TestAddShellSkipsOtherVersionOfAMemberHostedElsewhere
+R62	兼容版本只为一个编进它却不承载它的外壳留着：lint 提示它没人要	.	./internal/cli	TestLintNotesCompatibilityVersionAShellCompilesButDoesNotHost

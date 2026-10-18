@@ -216,7 +216,7 @@ component's config file — see [Where a value comes from](08-resolution-priorit
 | --- | --- |
 | `brickkit add` | An entry for the new component (the bare ID; `id@version` for a non-default version brought in for a dependency); a shell's members are nested under it automatically |
 | `brickkit remove` | The component's entry goes; when it's a shell, its members move back to the top level and run on their own (their fields kept as they were) |
-| `brickkit upgrade` | When the default version changes, the entry follows; when a shell is upgraded, the member entries follow the versions the new shell compiles in |
+| `brickkit upgrade` | When the default version changes, the entry follows; when a shell is upgraded, the member entries under it follow the versions the new shell compiles in |
 
 `deploy.yaml` and `deploy.local.yaml` (when it exists) are updated together: `add` never leaves your personal file behind.
 
