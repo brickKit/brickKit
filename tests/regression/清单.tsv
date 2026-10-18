@@ -74,3 +74,6 @@ R59	两个外壳编进同一组成员、成员分在两个外壳里：升级其�
 R60	成员被移出外壳在顶层独立运行：升级外壳不把它挪回去、不换它的版本，并提示	.	./internal/cli	TestUpgradeShellLeavesStandaloneMember
 R61	add 的外壳编进的是成员的另一个版本、而成员已嵌在别的外壳下面：那个版本不加进来，提示，add 成功	.	./internal/cli	TestAddShellSkipsOtherVersionOfAMemberHostedElsewhere
 R62	兼容版本只为一个编进它却不承载它的外壳留着：lint 提示它没人要	.	./internal/cli	TestLintNotesCompatibilityVersionAShellCompilesButDoesNotHost
+R63	使用者移除了外壳编进的成员：升级外壳不把它加回来、提示加回来的命令；新外壳新编进的成员照常进来；之后 add 它嵌在外壳下面	.	./internal/cli	TestUpgradeShellDoesNotReaddRemovedMember
+R64	移除过的成员成了新版本里某个组件的强依赖：升级外壳时它照常进来、由编进它的外壳承载	.	./internal/install	TestPlanUpgradeShellHostsRemovedMemberThatBecameRequired
+R65	使用者移除的成员原本由另一个外壳编进、升级的外壳新编进了它：也不加回来	.	./internal/install	TestPlanUpgradeShellDoesNotReaddMemberAnotherShellOffered

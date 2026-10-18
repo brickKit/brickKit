@@ -141,7 +141,7 @@ are two different service names. Inside one `component.yaml`, a component id can
 
 **Adding a shell** brings in the member versions it compiles in and nests them under the shell's
 deploy entry; **upgrading a shell** switches the members nested under it to the versions the new shell compiles in
-(members under another shell or at the top level keep their place and version).
+(members under another shell or at the top level keep their place and version, and members you removed aren't added back).
 
 **Environments**: one complete deploy file per environment, `brickkit up -f deploy.prod.yaml`.
 `brickkit.yaml` and `config/` are shared; values that differ per environment go through the deploy

@@ -372,7 +372,7 @@ Move a component's default version, with the three layers following:
   dropped stay in the archive and are reported.
 
 When other components still depend on the old version, it stays as a compatibility version. Upgrading a shell switches
-the members it hosts to the versions the new shell compiles in; members under another shell or at the top level stay. Without a component, every component with a newer version is
+the members it hosts to the versions the new shell compiles in; members under another shell or at the top level stay, and members you removed aren't added back. Without a component, every component with a newer version is
 upgraded — all of them, or none.
 
 A key you changed whose default the component's author also changed is a **conflict**: in a terminal you choose, one

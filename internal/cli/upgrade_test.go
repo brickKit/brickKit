@@ -199,6 +199,41 @@ func TestUpgradeShellLeavesStandaloneMember(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
+// 使用者移除了外壳编进的一个成员；升级外壳不把它加回来（它不在项目里也是使用者定的承载位置），
+// 说一声；新外壳新编进的成员照常进来。之后 add 它，它嵌在外壳下面（反馈 FRB-007）。
+func TestUpgradeShellDoesNotReaddRemovedMember(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "1.0.0", Port: 8082})
+	g.release(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0", "erp/b@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/shell@1.0.0")
+	g.mustRun(dir, "remove", "erp/b")
+
+	g.release(comp{ID: "erp/a", Version: "2.0.0", Port: 8081})
+	g.release(comp{ID: "erp/b", Version: "2.0.0", Port: 8082})
+	g.release(comp{ID: "erp/c", Version: "1.0.0", Port: 8083})
+	g.release(comp{ID: "erp/shell", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0", "erp/c@1.0.0"}})
+	r := g.mustRun(dir, "upgrade", "erp/shell@2.0.0", "--yes")
+	assert.Contains(t, r.stdout, "erp/b is not in the project: it stays out (brickkit add erp/b@2.0.0 to host it)")
+
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: erp/a\n    version: 2.0.0")
+	assert.Contains(t, decl, "id: erp/c\n    version: 1.0.0", "新外壳新编进的成员照常进来")
+	assert.NotContains(t, decl, "erp/b")
+	deployPath := filepath.Join(dir, "deploy.yaml")
+	deploy := readFile(t, deployPath)
+	assert.Contains(t, deploy, "  - id: erp/shell\n    members:\n      - id: erp/a\n      - id: erp/c\n")
+	assert.NotContains(t, deploy, "erp/b")
+	assert.NoFileExists(t, filepath.Join(dir, "config", "erp-b.yaml"))
+	g.mustRun(dir, "up", "--dry-run")
+
+	g.mustRun(dir, "add", "erp/b@2.0.0")
+	deploy = readFile(t, deployPath)
+	assert.Contains(t, deploy, "      - id: erp/b\n", "add 回来的成员嵌在外壳下面")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
 // 全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
 func TestUpgradeAllIsAllOrNothing(t *testing.T) {
 	g := newGitOrgProject(t)

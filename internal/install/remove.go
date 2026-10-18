@@ -29,7 +29,7 @@ func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) 
 		return nil, err
 	}
 	plan := &Plan{}
-	hosts := worldHosting(p, nil).Place(graph)
+	hosts := worldHosting(p, nil, nil).Place(graph)
 	removed, affected := cascade(p, graph, hosts, target)
 	plan.Notes = optionalDependentNotes(graph, removed)
 

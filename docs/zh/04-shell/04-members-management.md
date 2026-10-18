@@ -69,6 +69,24 @@ components:
 同样的道理，在某一份部署文件里把成员条目写成 `mode: disable`，外壳这次就不承载它；在 `deploy.local.yaml` 里写成 `mode: debug` 或 `mode: local`，
 它这次在你的机器上以本机进程运行，外壳也不承载它（见 [本地调试](../02-project-guide/03-local-debug-workflow.md#外壳成员的调试)）。
 
+## 只承载一部分成员
+
+外壳编进了的成员，项目不一定都要：外壳只核对它承载着的成员，没承载的那些代码在进程里闲着，不收请求。不要的成员直接移除：
+
+```bash
+brickkit remove shop/stock
+```
+
+它的行从 `brickkit.yaml` 删掉，条目从外壳的 `members` 下面删掉，配置归档进 `config/.archive/`。这和 `mode: disable` 不同：
+`disable` 是某一份部署文件里"这次不跑"，组件还在项目里；移除是这个项目根本不用它。
+
+之后升级外壳不会把它加回来（见[外壳升级](07-shell-upgrade.md#外壳不承载的成员留在原处)）。想再由外壳承载，`add` 外壳编进的那个版本，
+它一开始就嵌在外壳下面：
+
+```bash
+brickkit add shop/stock@0.1.0
+```
+
 ## 外壳不跑时
 
 外壳被 `mode: disable` 关掉、或者这次没有启动时，它下面的成员不会跟着消失——它们**回落成独立组件**，各自按自己的条目部署。

@@ -1664,6 +1664,7 @@ const (
 	InstallNoteMemberUnderOtherShell                           ID = "install.note_member_under_other_shell"
 	InstallNoteUpgradeMemberUnderOtherShell                    ID = "install.note_upgrade_member_under_other_shell"
 	InstallNoteUpgradeMemberRunsAlone                          ID = "install.note_upgrade_member_runs_alone"
+	InstallNoteUpgradeMemberRemoved                            ID = "install.note_upgrade_member_removed"
 	InstallNoteOptionalDependent                               ID = "install.note_optional_dependent"
 	InstallRemoveHasDependents                                 ID = "install.remove_has_dependents"
 	InstallHintRemoveDependentsFirst                           ID = "install.hint_remove_dependents_first"

@@ -13,7 +13,8 @@ package install
 //     条目由各自的规划挪到顶层
 //  2. 这次 add / upgrade 的外壳（acting，按顺序）：编进的、还没有外壳承载的成员归它——项目里没有的
 //     成员跟着它进来。在顶层独立运行的成员只在 add 外壳时收编（add 外壳就是决定把成员合进去）；
-//     升级外壳不改使用者定下的承载位置
+//     升级外壳不改使用者定下的承载位置。"不在项目里"也是一种承载位置：升级前就有外壳编进、项目里
+//     却没有的成员是使用者移除的（removedMembers），升级不把它加回来——除非这个世界里有组件需要它
 //  3. 别的外壳：项目里没有、这次又进了世界的成员（比如 add 的正是它），编进了这个版本的外壳承载它
 
 import (
@@ -31,6 +32,8 @@ type Hosting struct {
 	acting []string
 	// claimStandalone：acting 的外壳也收编在顶层独立运行的成员（add 外壳时）。
 	claimStandalone bool
+	// removed 是使用者移除的成员 ID：acting 的外壳也只在世界里有它时才收（upgrade 时）。
+	removed map[string]bool
 }
 
 // Placement 是一个世界里的承载关系。
@@ -53,12 +56,12 @@ func (h Hosting) Place(graph *resolver.Graph) Placement {
 	h.placeWritten(pl)
 	for _, id := range h.acting {
 		if m := pl.shells[id]; m != nil {
-			h.claim(pl, id, m, nil)
+			h.claim(pl, id, m, true, graph.Has)
 		}
 	}
 	for _, id := range pl.order {
 		if !slices.Contains(h.acting, id) {
-			h.claim(pl, id, pl.shells[id], graph.Has)
+			h.claim(pl, id, pl.shells[id], false, graph.Has)
 		}
 	}
 	return pl
@@ -91,8 +94,9 @@ func (h Hosting) placeWritten(pl Placement) {
 }
 
 // claim 是第 2、3 条：外壳 shellID 收下它编进的、还没有外壳承载的成员，返回收下的成员版本。
-// has 为 nil 表示 acting 的外壳（编进的成员跟着它进来），否则只收这个世界里已经有的版本。
-func (h Hosting) claim(pl Placement, shellID string, m *manifest.Manifest, has func(resolver.Ref) bool) []resolver.Ref {
+// acting 的外壳编进的成员跟着它进来；别的外壳、以及 acting 的外壳遇到使用者移除的成员时，只收 has
+// 报告这个世界里已经有的版本（has 为 nil：还没有世界，什么都不算已有）。
+func (h Hosting) claim(pl Placement, shellID string, m *manifest.Manifest, acting bool, has func(resolver.Ref) bool) []resolver.Ref {
 	var claimed []resolver.Ref
 	for _, member := range m.Shell.Members {
 		id, version, _ := manifest.SplitRef(member)
@@ -101,10 +105,10 @@ func (h Hosting) claim(pl Placement, shellID string, m *manifest.Manifest, has f
 			continue
 		}
 		declared := len(h.p.Decl.Versions(id)) > 0
-		if declared && (has != nil || !h.claimStandalone) {
+		if declared && (!acting || !h.claimStandalone) {
 			continue // 在顶层独立运行：使用者定下的，只有 add 外壳时收编
 		}
-		if has != nil && !has(ref) {
+		if (!acting || h.removed[id]) && (has == nil || !has(ref)) {
 			continue
 		}
 		pl.host[id] = shellID
@@ -144,7 +148,7 @@ func AddRoots(p *project.Project, targets []resolver.Ref, manifests map[resolver
 	for _, t := range targets {
 		roots = append(roots, t)
 		if m := manifests[t]; m.IsShell() {
-			roots = append(roots, h.claim(pl, t.ID, m, nil)...)
+			roots = append(roots, h.claim(pl, t.ID, m, true, nil)...)
 		}
 	}
 	return roots
@@ -162,11 +166,29 @@ func addHosting(p *project.Project, targets []resolver.Ref, manifests map[resolv
 }
 
 // worldHosting：upgrade 的 acting 外壳是被移动的外壳（不是外壳的 ID 在 Place 里找不到 Manifest，
-// 自然跳过）；moves 为空就只有部署文件写下的承载关系（remove、升级前的世界）。
-func worldHosting(p *project.Project, moves []Move) Hosting {
-	h := Hosting{p: p}
+// 自然跳过）；moves 为空就只有部署文件写下的承载关系（remove、升级前的世界）。removed 见 removedMembers。
+func worldHosting(p *project.Project, moves []Move, removed map[string]bool) Hosting {
+	h := Hosting{p: p, removed: removed}
 	for _, m := range moves {
 		h.acting = append(h.acting, m.ID)
 	}
 	return h
+}
+
+// removedMembers 是使用者移除的成员 ID：before（升级前的世界）里有外壳编进它，项目里却没有它。
+// add 外壳总把编进的成员一起带进来，所以它不在项目里只能是使用者移除的——这个"不在"就是记录，
+// 不另设字段。
+func removedMembers(p *project.Project, before *resolver.Graph) map[string]bool {
+	removed := map[string]bool{}
+	for _, n := range before.Nodes {
+		if !n.Manifest.IsShell() {
+			continue
+		}
+		for _, member := range n.Manifest.Shell.Members {
+			if id, _, _ := manifest.SplitRef(member); len(p.Decl.Versions(id)) == 0 {
+				removed[id] = true
+			}
+		}
+	}
+	return removed
 }

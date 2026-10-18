@@ -79,6 +79,27 @@ By the same reasoning, writing a member's entry as `mode: disable` in a deploy f
 time; writing it as `mode: debug` or `mode: local` in `deploy.local.yaml` runs it as a process on your machine this time,
 and the shell doesn't host it either (see [Local debugging](../02-project-guide/03-local-debug-workflow.md#debugging-a-shell-member)).
 
+## Hosting only some members
+
+A project doesn't have to want every member a shell compiles in: the shell checks only the members it hosts, and the
+code of the others sits idle in the process, taking no requests. Remove the members you don't want:
+
+```bash
+brickkit remove shop/stock
+```
+
+Its line leaves `brickkit.yaml`, its entry leaves the shell's `members`, and its config is archived into
+`config/.archive/`. That is not the same as `mode: disable`: `disable` means "not this time" in one deploy file, and the
+component stays in the project; removing it means this project doesn't use it at all.
+
+Upgrading the shell later doesn't add it back (see
+[Shell upgrade](07-shell-upgrade.md#members-the-shell-doesnt-host-stay-where-they-are)). To have the shell host it again,
+`add` the version the shell compiles in; it is nested under the shell from the start:
+
+```bash
+brickkit add shop/stock@0.1.0
+```
+
 ## When the shell doesn't run
 
 When the shell is turned off with `mode: disable`, or doesn't start this time, the members under it don't disappear with

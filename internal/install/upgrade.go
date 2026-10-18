@@ -4,9 +4,9 @@ package install
 //
 // # 思路：比较升级前后的"世界"
 //
-// 项目要跑的版本 = 默认版本、外壳承载的成员（外壳编进的那个版本），以及它们的依赖闭包（ResolveWorld）。
+// 项目要跑的版本 = 默认版本、外壳承载的成员（外壳编进的那个版本），以及它们的依赖闭包（ResolveWorlds）。
 // 哪个外壳承载哪个成员按 hosting.go 的规则：升级外壳不改承载位置——别的外壳承载的、在顶层独立运行的
-// 成员不跟着它走（Notes 里说一声）。升级前后各算一次：
+// 成员不跟着它走，使用者移除的成员不加回来（Notes 里说一声）。升级前后各算一次：
 //
 //	新世界有、项目里没有           加进来（像 add：默认版本，或带 requiredBy 的兼容版本）
 //	旧世界有、新世界没有           移除（配置归档）——只动升级带来的变化，旧世界里本来就没人要的
@@ -66,10 +66,22 @@ func Defaults(p *project.Project, moves []Move) []resolver.Ref {
 	return out
 }
 
-// ResolveWorld 解析 moves 之后的世界（moves 为空即升级前）：以默认版本为根，外壳承载的成员也是根
-// （它们不是依赖边），直到不再出现新的外壳成员。
-func ResolveWorld(ctx context.Context, r *resolver.Resolver, p *project.Project, moves []Move) (*resolver.Graph, error) {
-	hosting := worldHosting(p, moves)
+// ResolveWorlds 解析升级前（before）与 moves 之后（after）的两个世界：以默认版本为根，外壳承载的
+// 成员也是根（它们不是依赖边），直到不再出现新的外壳成员。after 要看 before：升级前就有外壳编进、
+// 项目里却没有的成员是使用者移除的（removedMembers），升级不把它加回来。
+func ResolveWorlds(ctx context.Context, r *resolver.Resolver, p *project.Project, moves []Move) (before, after *resolver.Graph, err error) {
+	before, err = resolveWorld(ctx, r, p, nil, worldHosting(p, nil, nil))
+	if err != nil {
+		return nil, nil, err
+	}
+	after, err = resolveWorld(ctx, r, p, moves, worldHosting(p, moves, removedMembers(p, before)))
+	if err != nil {
+		return nil, nil, err
+	}
+	return before, after, nil
+}
+
+func resolveWorld(ctx context.Context, r *resolver.Resolver, p *project.Project, moves []Move, hosting Hosting) (*resolver.Graph, error) {
 	roots := Defaults(p, moves)
 	seen := map[resolver.Ref]bool{}
 	for _, ref := range roots {
@@ -117,7 +129,7 @@ func ShellMoves(p *project.Project, oldShell, newShell *manifest.Manifest) []Mov
 	return moves
 }
 
-// PlanUpgrade 规划一组移动。oldGraph / newGraph 由 ResolveWorld 以 Defaults(p, nil) / Defaults(p, moves) 解析。
+// PlanUpgrade 规划一组移动。oldGraph / newGraph 是 ResolveWorlds 解析的升级前后两个世界。
 func PlanUpgrade(p *project.Project, oldGraph, newGraph *resolver.Graph, moves []Move) (*Plan, error) {
 	for _, m := range moves {
 		if !p.Decl.IsDefault(m.ID, m.From) {
@@ -152,6 +164,8 @@ type upgrader struct {
 	declared           map[resolver.Ref]bool
 	// oldHosts / newHosts 是升级前后两个世界里的承载关系。
 	oldHosts, newHosts Placement
+	// removedMembers 是使用者移除的成员 ID（见 removedMembers 函数）。
+	removedMembers map[string]bool
 }
 
 func newUpgrader(p *project.Project, oldGraph, newGraph *resolver.Graph, moves []Move) *upgrader {
@@ -164,8 +178,9 @@ func newUpgrader(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 	for _, c := range p.Decl.Components {
 		u.declared[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 	}
-	u.oldHosts = worldHosting(p, nil).Place(oldGraph)
-	u.newHosts = worldHosting(p, moves).Place(newGraph)
+	u.removedMembers = removedMembers(p, oldGraph)
+	u.oldHosts = worldHosting(p, nil, nil).Place(oldGraph)
+	u.newHosts = worldHosting(p, moves, u.removedMembers).Place(newGraph)
 	return u
 }
 
@@ -450,7 +465,8 @@ func (u *upgrader) movedShellMembers(m Move) []resolver.Ref {
 }
 
 // noteMembersNotFollowing：升级后的外壳编进了成员的另一个版本，成员却不归它承载（嵌在别的外壳下面，
-// 或在顶层独立运行）——它留在原来的版本，说一声，免得以为它跟着外壳升级了。
+// 或在顶层独立运行）——它留在原来的版本，说一声，免得以为它跟着外壳升级了。使用者移除的成员不加
+// 回来，也说一声，并给出加回来的命令。
 func (u *upgrader) noteMembersNotFollowing() {
 	for _, m := range u.plan.Moves {
 		shell := resolver.Ref{ID: m.ID, Version: m.To}
@@ -467,9 +483,14 @@ func (u *upgrader) noteMembersNotFollowing() {
 				}
 				continue
 			}
-			if current, ok := u.p.Decl.DefaultVersion(ref.ID); ok && current != ref.Version {
+			current, declared := u.p.Decl.DefaultVersion(ref.ID)
+			switch {
+			case declared && current != ref.Version:
 				u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeMemberRunsAlone,
 					shell.String(), ref.String(), ref.ID, current))
+			case !declared && u.removedMembers[ref.ID]:
+				u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteUpgradeMemberRemoved,
+					shell.String(), ref.String(), ref.ID))
 			}
 		}
 	}

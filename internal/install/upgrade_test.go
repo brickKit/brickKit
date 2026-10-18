@@ -17,9 +17,7 @@ import (
 func planUpgrade(t *testing.T, p *project.Project, cat stub, moves ...install.Move) (*install.Plan, error) {
 	t.Helper()
 	r := resolver.New(cat)
-	oldGraph, err := install.ResolveWorld(context.Background(), r, p, nil)
-	require.NoError(t, err)
-	newGraph, err := install.ResolveWorld(context.Background(), r, p, moves)
+	oldGraph, newGraph, err := install.ResolveWorlds(context.Background(), r, p, moves)
 	require.NoError(t, err)
 	return install.PlanUpgrade(p, oldGraph, newGraph, moves)
 }
@@ -200,6 +198,58 @@ func TestPlanUpgradeDoesNotReaddWhatTheUserRemoved(t *testing.T) {
 	plan, err := planUpgrade(t, p, cat, mv("erp/x", "1.0.0", "2.0.0"))
 	require.NoError(t, err)
 	assert.Empty(t, plan.AddLines)
+}
+
+// 升级外壳：旧外壳就编进、项目里没有的成员是使用者移除的，不加回来；新外壳新编进的照常进来。
+func TestPlanUpgradeShellDoesNotReaddRemovedMember(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
+    members:
+      - id: erp/a`)
+	s1 := shellMf("erp/shell@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0")
+	s2 := shellMf("erp/shell@2.0.0", "erp/a@2.0.0", "erp/b@2.0.0", "erp/c@1.0.0")
+	cat := catalog(s1, s2, mf("erp/a@1.0.0"), mf("erp/a@2.0.0"), mf("erp/b@1.0.0"), mf("erp/b@2.0.0"), mf("erp/c@1.0.0"))
+	moves := append([]install.Move{mv("erp/shell", "1.0.0", "2.0.0")}, install.ShellMoves(p, s1, s2)...)
+	plan, err := planUpgrade(t, p, cat, moves...)
+	require.NoError(t, err)
+	assert.Equal(t, []install.Line{{ID: "erp/c", Version: "1.0.0"}}, plan.AddLines)
+	assert.Equal(t, []install.Entry{{ID: "erp/c", Under: "erp/shell"}}, plan.AddEntries)
+	require.Len(t, plan.Notes, 1)
+	assert.Contains(t, plan.Notes[0], "erp/b")
+}
+
+// 移除过的成员成了新版本里某个组件的强依赖：它照常进来，由编进它的外壳承载。
+func TestPlanUpgradeShellHostsRemovedMemberThatBecameRequired(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
+    members:
+      - id: erp/a`)
+	s1 := shellMf("erp/shell@1.0.0", "erp/a@1.0.0", "erp/b@1.0.0")
+	s2 := shellMf("erp/shell@2.0.0", "erp/a@2.0.0", "erp/b@2.0.0")
+	cat := catalog(s1, s2, mf("erp/a@1.0.0"), mf("erp/a@2.0.0", "erp/b@2.0.0"), mf("erp/b@1.0.0"), mf("erp/b@2.0.0"))
+	moves := append([]install.Move{mv("erp/shell", "1.0.0", "2.0.0")}, install.ShellMoves(p, s1, s2)...)
+	plan, err := planUpgrade(t, p, cat, moves...)
+	require.NoError(t, err)
+	assert.Equal(t, []install.Line{{ID: "erp/b", Version: "2.0.0"}}, plan.AddLines)
+	assert.Equal(t, []install.Entry{{ID: "erp/b", Under: "erp/shell"}}, plan.AddEntries)
+	assert.Empty(t, plan.Notes)
+}
+
+// 使用者移除的成员原本由另一个外壳编进；升级的外壳新编进了它，也不加回来——使用者已经不要它了。
+func TestPlanUpgradeShellDoesNotReaddMemberAnotherShellOffered(t *testing.T) {
+	p := proj(t, `  - {id: erp/core, version: 1.0.0, kind: shell}
+  - {id: erp/infra, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/core
+    members:
+      - id: erp/a
+  - id: erp/infra`)
+	c1 := shellMf("erp/core@1.0.0", "erp/a@1.0.0")
+	c2 := shellMf("erp/core@2.0.0", "erp/a@1.0.0", "erp/b@1.0.0")
+	cat := catalog(c1, c2, shellMf("erp/infra@1.0.0", "erp/b@1.0.0"), mf("erp/a@1.0.0"), mf("erp/b@1.0.0"))
+	plan, err := planUpgrade(t, p, cat, mv("erp/core", "1.0.0", "2.0.0"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.AddLines)
+	assert.Len(t, plan.Notes, 1)
 }
 
 // 升级外壳：新外壳编进的、已经声明的版本（在顶层）挪进外壳，像 add 外壳时一样。

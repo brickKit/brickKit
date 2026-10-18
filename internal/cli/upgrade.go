@@ -80,11 +80,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 		return err
 	}
 	r := resolver.New(resolver.FromSource(client))
-	oldGraph, err := install.ResolveWorld(ctx, r, proj, nil)
-	if err != nil {
-		return err
-	}
-	newGraph, err := install.ResolveWorld(ctx, r, proj, moves)
+	oldGraph, newGraph, err := install.ResolveWorlds(ctx, r, proj, moves)
 	if err != nil {
 		return err
 	}
