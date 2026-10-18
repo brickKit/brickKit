@@ -155,6 +155,18 @@ func TestUpgradeShellKeepsMembersHostedByAnotherShell(t *testing.T) {
 	assert.Contains(t, deploy, "  - id: erp/core\n    members:\n      - id: erp/a\n")
 	assert.Contains(t, deploy, "  - id: erp/infra\n    members:\n      - id: erp/b\n")
 	g.mustRun(dir, "up", "--dry-run")
+
+	// 再升级另一个外壳：它承载的成员跟着它走
+	g.release(comp{ID: "erp/infra", Version: "2.0.0", ShellMembers: []string{"erp/a@2.0.0", "erp/b@2.0.0"}})
+	r = g.mustRun(dir, "upgrade", "erp/infra@2.0.0", "--yes")
+	assert.NotContains(t, r.stdout, "stays at")
+	decl = readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: erp/b\n    version: 2.0.0")
+	assert.NotContains(t, decl, "version: 1.0.0")
+	deploy = readFile(t, deployPath)
+	assert.Contains(t, deploy, "  - id: erp/core\n    members:\n      - id: erp/a\n")
+	assert.Contains(t, deploy, "  - id: erp/infra\n    members:\n      - id: erp/b\n")
+	g.mustRun(dir, "up", "--dry-run")
 }
 
 // 使用者把成员移出外壳独立运行；之后升级外壳不把它挪回去、也不换它的版本，说一声。
