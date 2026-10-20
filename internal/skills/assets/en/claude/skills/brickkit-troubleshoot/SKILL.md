@@ -57,7 +57,7 @@ one key and hides the conflict.
 
 | You see | Cause | Fix |
 | --- | --- | --- |
-| `DEPLOY_INCONSISTENT`: the deploy file doesn't match the components in `brickkit.yaml` | A component line was added/removed by hand, or a `requiredBy` version has no `id@version` entry | Add/remove the listed entries — or redo the change with `brickkit add` / `remove`, which keep all three layers in step |
+| `DEPLOY_INCONSISTENT`: the deploy file doesn't match the components in `brickkit.yaml` | A component line was added/removed by hand, or a `requiredBy` version has no `id@version` entry (listed with its `requiredBy`) | Add/remove the listed entries — or redo the change with `brickkit add` / `remove`, which keep all three layers in step. For a missing `requiredBy` version, first ask whether that dependent should have moved to the default version instead |
 | `DEPLOY_INCONSISTENT`: `deploy.local.yaml` is out of date | Local mode is on and the team changed `brickkit.yaml` | `brickkit local refresh` (re-apply the listed old changes by hand), or edit the file, or `brickkit local off` |
 | "a required component config item has no value" (`CONFIG_INVALID`) | `add` wrote `KEY: ""` for a required key without default | Fill it in `config/<scope>-<name>.yaml` — often as `${VAR}` or `$var:NAME` |
 | "unresolved configuration conflicts" (`CONFIG_CONFLICT`) | `upgrade` with `--yes` / no TTY met a key you changed whose default also changed | Keep one of the two lines in the config file, delete the other and the comment |

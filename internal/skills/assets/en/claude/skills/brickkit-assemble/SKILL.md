@@ -42,7 +42,10 @@ deploy entry is `- id: erp/backend@1.0.0` and its config file is `config/erp-bac
 
 **4. `add` of another version is an error — use `upgrade`.**
 
-When a *dependency* needs another version, `add` writes the `requiredBy` line itself. But
+When a *dependency* needs another version, `add` writes the `requiredBy` line itself, and an
+`ℹ️ … runs beside …` line says who it is kept for. Two versions running is usually a dependent that
+didn't follow its dependency's upgrade: unless the user wants both, move that dependent to a version
+that depends on the default one instead of living with a second deployment. But
 `brickkit add erp/backend@2.0.0` when `erp/backend` is already present is refused: moving the
 default is `brickkit upgrade erp/backend@2.0.0`. `upgrade` with no argument moves every component
 that has a newer version, never downward; the old version stays (with `requiredBy`) only if
