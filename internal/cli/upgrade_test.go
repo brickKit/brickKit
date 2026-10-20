@@ -91,7 +91,7 @@ func TestUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	g.release(withConfig(comp{ID: "erp/api", Version: "2.0.0"}, "DB_HOST:x"))
 
 	r := g.mustRun(dir, "upgrade", "erp/api@2.0.0")
-	assert.Contains(t, r.stdout, "erp/api@1.0.0 runs beside erp/api@2.0.0, a separate deployment with its own config, because erp/old depends on it; "+
+	assert.Contains(t, r.stdout, "erp/api@1.0.0 runs beside erp/api@2.0.0, a separate deployment with its own config, kept for erp/old; "+
 		"if one version was meant, upgrade erp/old to versions that depend on erp/api@2.0.0", "FRR-008")
 	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
 	assert.Contains(t, decl, "id: erp/api\n    version: 2.0.0")

@@ -136,7 +136,7 @@ func TestAddDependencyOtherVersionCoexists(t *testing.T) {
 
 	g.mustRun(dir, "add", "erp/db@2.0.0")
 	r := g.mustRun(dir, "add", "erp/api@1.0.0")
-	assert.Contains(t, r.stdout, "erp/db@1.0.0 runs beside erp/db@2.0.0, a separate deployment with its own config, because erp/api depends on it; "+
+	assert.Contains(t, r.stdout, "erp/db@1.0.0 runs beside erp/db@2.0.0, a separate deployment with its own config, kept for erp/api; "+
 		"if one version was meant, upgrade erp/api to versions that depend on erp/db@2.0.0")
 
 	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
@@ -167,7 +167,7 @@ func TestAddCoexistenceNoteOnlyWhenVersionsDiffer(t *testing.T) {
 	assert.NotContains(t, r.stdout, "runs beside")
 
 	r = g.mustRun(dir, "add", "erp/web@1.0.0")
-	assert.Contains(t, r.stdout, "erp/db@2.0.0 runs beside erp/db@1.0.0, a separate deployment with its own config, because erp/web depends on it; "+
+	assert.Contains(t, r.stdout, "erp/db@2.0.0 runs beside erp/db@1.0.0, a separate deployment with its own config, kept for erp/web; "+
 		"if one version was meant, move the project to it: brickkit upgrade erp/db@2.0.0")
 }
 
