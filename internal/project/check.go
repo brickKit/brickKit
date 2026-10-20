@@ -3,6 +3,7 @@ package project
 import (
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -54,9 +55,15 @@ func (p *Project) checkCoverage() error {
 
 	var missing []string
 	for _, c := range p.Decl.Components {
-		if !claimed[c.Ref()] {
-			missing = append(missing, p.displayRef(c.ID, c.Version))
+		if claimed[c.Ref()] {
+			continue
 		}
+		ref := p.displayRef(c.ID, c.Version)
+		if len(c.RequiredBy) > 0 {
+			// 兼容版本说清为谁保留：缺条目的多半是依赖方没跟上、项目里才多出这个版本
+			ref = i18n.T(msgid.ProjectMissingEntryRequiredBy, ref, strings.Join(c.RequiredBy, i18n.T(msgid.ListSeparator)))
+		}
+		missing = append(missing, ref)
 	}
 	if len(missing) == 0 && len(extra) == 0 {
 		return nil

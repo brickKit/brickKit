@@ -36,6 +36,7 @@ func PlanAdd(p *project.Project, graph *resolver.Graph, targets ...resolver.Ref)
 	a.extendRequiredBy()
 	a.nestExisting()
 	a.noteMembersHostedElsewhere()
+	noteCoexistence(a.plan, a.defaultVersion)
 	for _, target := range targets {
 		a.fillMissingConfig(target)
 	}
@@ -116,10 +117,16 @@ func (a *adder) chooseDefaults(targets []resolver.Ref) {
 }
 
 func (a *adder) isDefault(ref resolver.Ref) bool {
-	if v, ok := a.defaults[ref.ID]; ok {
-		return v == ref.Version
+	v, ok := a.defaultVersion(ref.ID)
+	return ok && v == ref.Version
+}
+
+// defaultVersion 是加完之后这个组件 ID 的默认版本。
+func (a *adder) defaultVersion(id string) (string, bool) {
+	if v, ok := a.defaults[id]; ok {
+		return v, true
 	}
-	return a.p.Decl.IsDefault(ref.ID, ref.Version)
+	return a.p.Decl.DefaultVersion(id)
 }
 
 // neededBy 是需要这个版本的组件 ID（图里的依赖方 + 承载它的外壳），排好序、去重。

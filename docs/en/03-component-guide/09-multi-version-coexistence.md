@@ -96,3 +96,28 @@ line with `requiredBy` stays. `brickkit lint` points it out, with the command to
 ```text
 ℹ️ demo/hello@1.0.0 is in the project only for demo/caller, and by their current component.yaml none of them depends on it any more — brickkit remove demo/hello@1.0.0 takes it out
 ```
+
+## When nobody meant two versions
+
+Dependencies are exact versions, so when a component moves to a new version, every component that depends on it has to
+move with it. Forget one — `demo/hello` goes to 1.1.0, but `demo/caller` still declares `demo/hello@1.0.0` — and the
+project keeps a second `demo/hello` for it: another deployment, another config file, and, when that config points
+somewhere else, another set of data. That is rarely what anyone wanted, so whenever `add` or `upgrade` leaves a version
+running beside the default one, it says so, naming who it is kept for:
+
+```text
+ℹ️  demo/hello@1.0.0 runs beside demo/hello@1.1.0, a separate deployment with its own config, because demo/caller depends on it; if one version was meant, upgrade demo/caller to versions that depend on demo/hello@1.1.0
+```
+
+It is a note, not an error: side by side on purpose (a buffer while a dependent catches up, a gradual rollout) is a real
+use, and only you know which one you have. It is said once, when the second version starts running; another dependent
+joining a version that is already kept doesn't repeat it. To get back to one version:
+
+| The kept version is | What happened | Way back to one version |
+| --- | --- | --- |
+| Older than the default | A dependent didn't follow the upgrade | Release the dependent with its dependency moved to the default version, then `brickkit upgrade` it: the old version has no one left and goes |
+| Newer than the default | Something you added depends on a newer version | `brickkit upgrade <id>@<that version>` moves the project to it; the old one stays only while something still needs it |
+
+When a deploy file lacks the kept version's entry, the `DEPLOY_INCONSISTENT` error names who it is kept for too
+(`No entry for: demo/hello@1.0.0 (requiredBy: demo/caller)`) — before adding the entry, check whether that dependent
+should have moved instead.

@@ -149,6 +149,19 @@ func TestPlanAddDependencyAtOtherVersionGetsRequiredBy(t *testing.T) {
 	assert.Equal(t, []install.Entry{{ID: "erp/db@1.0.0"}, {ID: "erp/api"}}, plan.AddEntries)
 	require.Len(t, plan.AddConfigs, 1)
 	assert.True(t, plan.AddConfigs[0].Versioned)
+	require.Len(t, plan.Notes, 1, "两个版本并存：说一声为谁保留（FRR-008）")
+	assert.Contains(t, plan.Notes[0], "erp/db@1.0.0")
+	assert.Contains(t, plan.Notes[0], "erp/db@2.0.0")
+	assert.Contains(t, plan.Notes[0], "erp/api")
+}
+
+// 依赖方要的正是项目里的版本：不并存，不提醒。
+func TestPlanAddSameVersionNoCoexistenceNote(t *testing.T) {
+	p := proj(t, "  - {id: erp/db, version: 2.0.0}", "  - id: erp/db")
+	cat := catalog(mf("erp/api@1.0.0", "erp/db@2.0.0"), mf("erp/db@2.0.0"))
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/api@1.0.0"), ref("erp/api@1.0.0"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.Notes)
 }
 
 // 已有的兼容版本又多了一个依赖方：追加进 requiredBy；默认版本不写 requiredBy。
@@ -163,6 +176,7 @@ func TestPlanAddExistingNonDefaultAppendsDependent(t *testing.T) {
 	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/api@1.0.0"), ref("erp/api@1.0.0"))
 	require.NoError(t, err)
 	assert.Equal(t, []install.Line{{ID: "erp/db", Version: "1.0.0", RequiredBy: []string{"erp/api", "erp/old"}}}, plan.SetRequiredBy)
+	assert.Empty(t, plan.Notes, "并存早就有了：多一个依赖方不再提醒")
 }
 
 // 用户裁定（2026-09-27）：直接 add 另一个版本不是 add 的事——换默认版本是 upgrade。

@@ -90,7 +90,9 @@ func TestUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	editFile(t, filepath.Join(dir, "config", "erp-api.yaml"), "# DB_HOST: ", "DB_HOST: pg.internal  # ")
 	g.release(withConfig(comp{ID: "erp/api", Version: "2.0.0"}, "DB_HOST:x"))
 
-	g.mustRun(dir, "upgrade", "erp/api@2.0.0")
+	r := g.mustRun(dir, "upgrade", "erp/api@2.0.0")
+	assert.Contains(t, r.stdout, "erp/api@1.0.0 runs beside erp/api@2.0.0, a separate deployment with its own config, because erp/old depends on it; "+
+		"if one version was meant, upgrade erp/old to versions that depend on erp/api@2.0.0", "FRR-008")
 	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
 	assert.Contains(t, decl, "id: erp/api\n    version: 2.0.0")
 	assert.Contains(t, decl, "version: 1.0.0\n    requiredBy: [erp/old]")

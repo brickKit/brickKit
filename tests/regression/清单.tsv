@@ -78,3 +78,6 @@ R63	使用者移除了外壳编进的成员：升级外壳不把它加回来、�
 R64	移除过的成员成了新版本里某个组件的强依赖：升级外壳时它照常进来、由编进它的外壳承载，并提示是谁要它	.	./internal/install	TestPlanUpgradeShellHostsRemovedMemberThatBecameRequired
 R65	使用者移除的成员原本由另一个外壳编进、升级的外壳新编进了它：也不加回来	.	./internal/install	TestPlanUpgradeShellDoesNotReaddMemberAnotherShellOffered
 R66	使用者移除的成员因强依赖被升级加回来：提示点名强依赖它的组件与承载它的外壳；输出标出它在哪个外壳里，配置从归档恢复并报出（--dry-run 说"会恢复"）	.	./internal/cli	TestUpgradeShellBringsBackRemovedMemberThatBecameRequired
+R67	add 因依赖方的精确依赖保留另一个版本时，提示两个版本并存、为谁保留、怎样回到一个版本；部署文件缺这个版本的条目时报错带上它的 requiredBy	.	./internal/cli	TestAddDependencyOtherVersionCoexists
+R68	upgrade 因依赖方还要旧版本而留下它时，同样提示并存并点名依赖方；依赖方要的就是项目里的版本时不提示	.	./internal/cli	TestUpgradeKeepsOldVersionForDependent
+R69	依赖方要的版本比项目的默认版本新时，并存提示指向 brickkit upgrade 到那个版本；依赖方跟上了就没有提示	.	./internal/cli	TestAddCoexistenceNoteOnlyWhenVersionsDiffer

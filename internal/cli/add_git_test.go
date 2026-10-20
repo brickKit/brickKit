@@ -135,7 +135,9 @@ func TestAddDependencyOtherVersionCoexists(t *testing.T) {
 	dir := g.project()
 
 	g.mustRun(dir, "add", "erp/db@2.0.0")
-	g.mustRun(dir, "add", "erp/api@1.0.0")
+	r := g.mustRun(dir, "add", "erp/api@1.0.0")
+	assert.Contains(t, r.stdout, "erp/db@1.0.0 runs beside erp/db@2.0.0, a separate deployment with its own config, because erp/api depends on it; "+
+		"if one version was meant, upgrade erp/api to versions that depend on erp/db@2.0.0")
 
 	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
 	assert.Contains(t, decl, "version: 1.0.0\n    requiredBy: [erp/api]")
@@ -143,6 +145,30 @@ func TestAddDependencyOtherVersionCoexists(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, "config", "erp-db@1.0.0.yaml"))
 	assert.FileExists(t, filepath.Join(dir, "config", "erp-db.yaml"))
 	g.mustRun(dir, "up", "--dry-run")
+
+	// 部署文件少了兼容版本的条目：报错点名它为谁保留（FRR-008）
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "  - id: erp/db@1.0.0\n", "")
+	failed := g.run(dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, failed.code, failed.stdout+failed.stderr)
+	assert.Contains(t, failed.stderr, "erp/db@1.0.0 (requiredBy: erp/api)")
+}
+
+// 依赖方的精确依赖跟上了：不保留旧版本，也没有并存提醒；依赖方要的是更新的版本时，提醒指向 upgrade（FRR-008）。
+func TestAddCoexistenceNoteOnlyWhenVersionsDiffer(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/db", Version: "1.0.0"})
+	g.release(comp{ID: "erp/db", Version: "2.0.0"})
+	g.release(comp{ID: "erp/api", Version: "1.0.0", Requires: []string{"erp/db@1.0.0"}, Port: 8081})
+	g.release(comp{ID: "erp/web", Version: "1.0.0", Requires: []string{"erp/db@2.0.0"}, Port: 8082})
+	dir := g.project()
+
+	g.mustRun(dir, "add", "erp/db@1.0.0")
+	r := g.mustRun(dir, "add", "erp/api@1.0.0")
+	assert.NotContains(t, r.stdout, "runs beside")
+
+	r = g.mustRun(dir, "add", "erp/web@1.0.0")
+	assert.Contains(t, r.stdout, "erp/db@2.0.0 runs beside erp/db@1.0.0, a separate deployment with its own config, because erp/web depends on it; "+
+		"if one version was meant, move the project to it: brickkit upgrade erp/db@2.0.0")
 }
 
 // add 外壳时按它编进的成员版本写三份文件，P3f 的版本核对直接通过。

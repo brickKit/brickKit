@@ -6,7 +6,11 @@
 package install
 
 import (
+	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -106,4 +110,22 @@ func EntryID(id, version string, isDefault bool) string {
 // hasSchema 报告组件有没有要生成骨架的配置项（没有 configSchema 的组件不生成文件）。
 func hasSchema(m *manifest.Manifest) bool {
 	return m != nil && m.ConfigSchema != nil && len(m.ConfigSchema.Properties) > 0
+}
+
+// noteCoexistence：这次新进项目的兼容版本（带 requiredBy 的行）与同一组件的默认版本并存——两份部署、
+// 两份配置。这多半是依赖方的精确依赖没跟上上游，而不是想要两份：说一声为谁保留、只要一个版本该怎么做。
+// defaultOf 是这次操作之后各组件 ID 的默认版本（add 与 upgrade 共用）。
+func noteCoexistence(plan *Plan, defaultOf func(id string) (string, bool)) {
+	for _, l := range plan.AddLines {
+		def, ok := defaultOf(l.ID)
+		if len(l.RequiredBy) == 0 || !ok || def == l.Version {
+			continue
+		}
+		label := msgid.InstallNoteCoexistOlder
+		if manifest.CompareVersions(l.Version, def) > 0 {
+			label = msgid.InstallNoteCoexistNewer
+		}
+		plan.Notes = append(plan.Notes, i18n.T(label, l.Ref().String(), l.ID+"@"+def,
+			strings.Join(l.RequiredBy, i18n.T(msgid.ListSeparator))))
+	}
 }

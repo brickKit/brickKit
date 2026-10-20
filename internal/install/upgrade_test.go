@@ -61,6 +61,8 @@ func TestPlanUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	require.Len(t, plan.MigrateConfigs, 1)
 	assert.Equal(t, install.ConfigRef{ID: "erp/api", Version: "1.0.0"}, plan.MigrateConfigs[0].Source, "来源是升级之前的那份文件")
 	assert.Empty(t, plan.ArchiveConfigs)
+	require.Len(t, plan.Notes, 1, "旧版本为依赖方留下、与新版本并存：说一声（FRR-008）")
+	assert.Contains(t, plan.Notes[0], "erp/old")
 }
 
 // 新版本原本就是兼容版本（带 requiredBy 的行）：它转正，旧默认版本没人要了就移除。
@@ -81,6 +83,7 @@ func TestPlanUpgradePromotesExistingCompatibilityLine(t *testing.T) {
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "1.0.0"}}, plan.ArchiveConfigs)
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "2.0.0", Versioned: true}}, plan.RenameConfigs)
 	assert.Empty(t, plan.MigrateConfigs, "2.0.0 自己的配置已经在了")
+	assert.Empty(t, plan.Notes, "并存在升级前就有：不提醒")
 }
 
 // 新版本多了依赖：像 add 一样加进来。

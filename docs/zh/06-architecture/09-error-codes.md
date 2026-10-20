@@ -153,6 +153,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 - 部署文件对不上时，错误标题点名那份文件（如"deploy.yaml 与 brickkit.yaml 的组件对不上"）。团队改了 `brickkit.yaml` 而部署文件没跟上：补上或删掉列出的条目。
 - 本地模式下，标题是"deploy.local.yaml 已过期，与 brickkit.yaml 的组件对不上"：`brickkit local refresh`、手动补条目、或 `brickkit local off`。
+- 缺的是为依赖方保留的版本时，报错点名是谁留下了它：`缺少条目：demo/hello@1.0.0（requiredBy: demo/caller）`。很多时候该做的是让那个依赖方跟着升到新版本，而不是补条目，见[多版本共存](../03-component-guide/09-multi-version-coexistence.md#没人想要的并存)。
 
 ### PROJECT_EXISTS
 

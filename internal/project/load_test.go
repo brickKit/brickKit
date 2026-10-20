@@ -208,7 +208,8 @@ components:
 	values := detailValues(err)
 	assert.Contains(t, values, "old/thing")
 	assert.Contains(t, values, "ghost/member", "外壳下面的条目同样要对得上 brickkit.yaml")
-	assert.Contains(t, values, "people/basic@1.0.0", "several versions: missing entries name the exact version")
+	assert.Contains(t, values, i18n.T(msgid.ProjectMissingEntryRequiredBy, "people/basic@1.0.0", "erp/backend"),
+		"several versions: missing entries name the exact version, and a compatibility version who it is kept for")
 	assert.Contains(t, values, "people/basic@2.0.0")
 }
 
@@ -394,7 +395,8 @@ func TestLoadRequiredByVersionNeedsOwnEntry(t *testing.T) {
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeDeployInconsistent, clierr.As(err).Code)
-	assert.Contains(t, detailValues(err), "people/basic@1.0.0")
+	assert.Contains(t, detailValues(err), i18n.T(msgid.ProjectMissingEntryRequiredBy, "people/basic@1.0.0", "erp/backend"),
+		"缺条目的兼容版本点名为谁保留（FRR-008）")
 	require.NotEmpty(t, clierr.As(err).Hints)
 	assert.Contains(t, clierr.As(err).Hints[0], "requiredBy", "提示要说清裸 ID 只覆盖默认版本，不能再说它覆盖所有版本")
 }

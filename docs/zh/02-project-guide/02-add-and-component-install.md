@@ -132,7 +132,8 @@ components:
 ```
 
 两个版本同时运行，服务名分别是 `demo-hello-1-1-0` 和 `demo-hello-1-0-0`，互不冲突。没有 `requiredBy` 的那个是**默认版本**。
-详见 [多版本共存](../03-component-guide/09-multi-version-coexistence.md)。
+`add` 会用一行 ℹ️ 说出来，点名为谁保留——两个版本多半意味着某个依赖方没跟上，这一行也说了怎样回到一个版本。详见
+[多版本共存](../03-component-guide/09-multi-version-coexistence.md#没人想要的并存)。
 
 ## `--local`：把本地源里的组件一次加进来
 

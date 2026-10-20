@@ -24,6 +24,7 @@ brickkit upgrade --dry-run
 ```text
 📋 upgrade would do this:
    ⬆️  demo/hello: 1.0.0 → 1.1.0
+   ℹ️  demo/hello@1.0.0 runs beside demo/hello@1.1.0, a separate deployment with its own config, because demo/caller depends on it; if one version was meant, upgrade demo/caller to versions that depend on demo/hello@1.1.0
    ✅ demo/hello@1.0.0 (requiredBy: demo/caller)
 📝 config/demo-hello.yaml
    ⚠️  Conflict GREETING: your value Howdy, new default Hi
@@ -38,7 +39,9 @@ The preview really does the whole thing on a copy of the project's files, so an 
 preview too. Three things can be read from it:
 
 1. `demo/hello`'s default version moves from 1.0.0 to 1.1.0;
-2. `demo/caller@1.0.0` still depends on `demo/hello@1.0.0`, so 1.0.0 **stays**, marked with who needs it;
+2. `demo/caller@1.0.0` still depends on `demo/hello@1.0.0`, so 1.0.0 **stays**, marked with who needs it — two versions
+   now run side by side, and the ℹ️ line says what to do if you only wanted one (see
+   [Several versions side by side](../03-component-guide/09-multi-version-coexistence.md#when-nobody-meant-two-versions));
 3. you changed `GREETING` to "Howdy", and 1.1.0 changed its default from Hello to Hi — that's a conflict.
 
 ## What changed: release notes
@@ -94,6 +97,7 @@ brickkit upgrade
 GREETING of demo/hello: your value Howdy (1.0.0), new default Hi (1.1.0) — [m] keep yours / [n] take the new one / Enter keeps both as a conflict to resolve later: 
 
    ⬆️  demo/hello: 1.0.0 → 1.1.0
+   ℹ️  demo/hello@1.0.0 runs beside demo/hello@1.1.0, a separate deployment with its own config, because demo/caller depends on it; if one version was meant, upgrade demo/caller to versions that depend on demo/hello@1.1.0
    ✅ demo/hello@1.0.0 (requiredBy: demo/caller)
 📝 config/demo-hello.yaml
    ⚠️  Conflict GREETING: your value Howdy, new default Hi

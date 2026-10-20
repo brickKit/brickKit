@@ -22,6 +22,7 @@ brickkit upgrade --dry-run
 ```text
 📋 upgrade 会做这些：
    ⬆️  demo/hello：1.0.0 → 1.1.0
+   ℹ️  demo/hello@1.0.0 与 demo/hello@1.1.0 并存，各自一份部署、一份配置，因为 demo/caller 依赖它；本意只要一个版本的话，把 demo/caller 升到依赖 demo/hello@1.1.0 的版本
    ✅ demo/hello@1.0.0（requiredBy: demo/caller）
 📝 config/demo-hello.yaml
    ⚠️  冲突 GREETING：你的值 你好，新默认值 Hi
@@ -35,7 +36,8 @@ brickkit upgrade --dry-run
 预览是在项目文件的一份副本上真的做一遍，所以会失败的升级在预览里就会失败。这里能读出三件事：
 
 1. `demo/hello` 的默认版本从 1.0.0 移到 1.1.0；
-2. `demo/caller@1.0.0` 还依赖 `demo/hello@1.0.0`，所以 1.0.0 **留下来**，标上是谁要它；
+2. `demo/caller@1.0.0` 还依赖 `demo/hello@1.0.0`，所以 1.0.0 **留下来**，标上是谁要它——两个版本从此并存，ℹ️ 那一行说明
+   只想要一个版本时该怎么做（见[多版本共存](../03-component-guide/09-multi-version-coexistence.md#没人想要的并存)）；
 3. 你把 `GREETING` 改成了"你好"，而 1.1.0 把它的默认值从 Hello 改成了 Hi——这是一处冲突。
 
 ## 改了什么：发版说明
@@ -86,6 +88,7 @@ brickkit upgrade
 ```text
 demo/hello 的 GREETING：你的值 你好（1.0.0），新默认值 Hi（1.1.0）——[m] 留你的 / [n] 用新的 / 回车两行都留下、之后自己选：
    ⬆️  demo/hello：1.0.0 → 1.1.0
+   ℹ️  demo/hello@1.0.0 与 demo/hello@1.1.0 并存，各自一份部署、一份配置，因为 demo/caller 依赖它；本意只要一个版本的话，把 demo/caller 升到依赖 demo/hello@1.1.0 的版本
    ✅ demo/hello@1.0.0（requiredBy: demo/caller）
 📝 config/demo-hello.yaml
    ⚠️  冲突 GREETING：你的值 你好，新默认值 Hi

@@ -153,6 +153,7 @@ func PlanUpgrade(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 	u.nestIntoMovedShells()
 	u.noteMembersNotFollowing()
 	u.noteRemovedMembersBack()
+	noteCoexistence(u.plan, u.defaultVersion)
 	u.configs()
 	sortEntries(u.plan.AddEntries)
 	return u.plan, nil
@@ -188,15 +189,24 @@ func newUpgrader(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 
 // isDefault 报告 ref 在新世界里是不是默认版本。
 func (u *upgrader) isDefault(ref resolver.Ref) bool {
-	if m, ok := u.moves[ref.ID]; ok {
-		return m.To == ref.Version
+	v, ok := u.defaultVersion(ref.ID)
+	return ok && v == ref.Version
+}
+
+// defaultVersion 是新世界里这个组件 ID 的默认版本。
+func (u *upgrader) defaultVersion(id string) (string, bool) {
+	if m, ok := u.moves[id]; ok {
+		return m.To, true
 	}
-	if len(u.p.Decl.Versions(ref.ID)) > 0 {
-		return u.p.Decl.IsDefault(ref.ID, ref.Version)
+	if len(u.p.Decl.Versions(id)) > 0 {
+		return u.p.Decl.DefaultVersion(id)
 	}
 	// 新出现的组件：默认版本是新世界里它最高的版本
-	versions := u.newGraph.Versions(ref.ID)
-	return versions[len(versions)-1] == ref.Version
+	versions := u.newGraph.Versions(id)
+	if len(versions) == 0 {
+		return "", false
+	}
+	return versions[len(versions)-1], true
 }
 
 // entryID 是 ref 在新世界里的部署条目 id。

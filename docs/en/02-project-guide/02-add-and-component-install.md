@@ -143,7 +143,9 @@ components:
 ```
 
 Both versions run at once, as the services `demo-hello-1-1-0` and `demo-hello-1-0-0`, without clashing. The one without
-`requiredBy` is the **default version**. See [Several versions side by side](../03-component-guide/09-multi-version-coexistence.md).
+`requiredBy` is the **default version**. `add` says so in an ℹ️ line, naming who the version is kept for — more often
+than not, two versions mean a dependent hasn't caught up, and the line says how to get back to one. See
+[Several versions side by side](../03-component-guide/09-multi-version-coexistence.md#when-nobody-meant-two-versions).
 
 ## `--local`: add everything in the local sources at once
 
