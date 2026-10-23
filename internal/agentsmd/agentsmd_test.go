@@ -86,27 +86,71 @@ func TestRenderKinds(t *testing.T) {
 }
 
 func TestRenderEscapesCells(t *testing.T) {
-	out := Render(Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "x | y\nz", Docs: "BRICKKIT.md", Home: ""}}})
+	out := RenderComponents(Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "x | y\nz", Docs: "BRICKKIT.md", Home: ""}}})
 	assert.Contains(t, out, "| a/b | 1.0.0 | x \\| y z | BRICKKIT.md | — |\n")
 }
 
-func TestRenderSixtyRowsStaysSmall(t *testing.T) {
+// 维护区每次会话都加载：它不随组件数变长，组件表在 COMPONENTS.md（FRR-010）。
+func TestBlockDoesNotGrowWithComponents(t *testing.T) {
 	var rows []Row
-	for i := 0; i < 60; i++ {
-		rows = append(rows, Row{ID: "domain/component-name", Version: "1.0.26", Does: strings.Repeat("d", 40), Docs: "BRICKKIT.md +zh", Home: "https://git.example.com/domain-component-name"})
+	for i := 0; i < 70; i++ {
+		rows = append(rows, Row{ID: "domain/component-name", Version: "1.0.26", Does: strings.Repeat("d", 200), Docs: "BRICKKIT.md +zh", Home: "https://git.example.com/domain-component-name"})
 	}
-	assert.Less(t, len(Render(Content{Lang: "en", Project: true, Rows: rows})), 12_000)
+	for _, lang := range []string{"en", "zh"} {
+		for _, component := range []bool{false, true} {
+			one := Render(Content{Lang: lang, Component: component, Project: true, Rows: rows[:1]})
+			many := Render(Content{Lang: lang, Component: component, Project: true, Rows: rows})
+			assert.Equal(t, len(one)+1, len(many), "only the count changes (1 → 70)")
+			assert.NotContains(t, many, "domain/component-name")
+			assert.Contains(t, many, "`COMPONENTS.md`")
+		}
+	}
+	assert.Contains(t, Render(Content{Lang: "en", Project: true, Rows: rows}), "(70 now)")
+	assert.Contains(t, RenderComponents(Content{Lang: "en", Project: true, Rows: rows}), "| domain/component-name | 1.0.26 |")
 }
 
 func TestParseRowsRoundTrip(t *testing.T) {
 	want := Row{ID: "a/b", Version: "1.0.0", Does: "does | more", Docs: "BRICKKIT.md", Home: "https://h"}
-	doc := Render(Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "does | more", Docs: "BRICKKIT.md", Home: "https://h"}}})
-	b, err := Find(doc)
-	require.NoError(t, err)
-	got := ParseRows(doc, b)["a/b@1.0.0"]
+	doc := RenderComponents(Content{Lang: "en", Project: true, Rows: []Row{want}})
+	got := ParseRows(doc)["a/b@1.0.0"]
 	assert.Equal(t, want, got)
-	again := Render(Content{Lang: "en", Project: true, Rows: []Row{got}})
+	again := RenderComponents(Content{Lang: "en", Project: true, Rows: []Row{got}})
 	assert.Equal(t, doc, again, "a kept row renders back byte for byte")
+	assert.Equal(t, want, ParseRows(strings.ReplaceAll(doc, "\n", "\r\n"))["a/b@1.0.0"], "a CRLF checkout reads the same")
+}
+
+func TestComponentsFileRecordsItsLanguage(t *testing.T) {
+	root := t.TempDir()
+	// 没有 AGENTS.md：add 照样建出组件表，用此刻的 CLI 语言（测试里是 en），并记下来
+	res, err := Ensure(root, Content{Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0"}}}, ModeRewrite, nil)
+	require.NoError(t, err)
+	assert.True(t, res.AgentsMissing)
+	assert.True(t, res.ComponentsCreated)
+	lang, ok := ComponentsLang(root)
+	require.True(t, ok)
+	assert.Equal(t, "en", lang)
+
+	// 换一个 CLI 语言的同事：沿用文件记的，不来回改写
+	require.NoError(t, os.WriteFile(filepath.Join(root, "COMPONENTS.md"), []byte(RenderComponents(Content{Lang: "zh"})), 0o644))
+	res, err = Ensure(root, Content{Lang: "en", Project: true}, ModeRewrite, nil)
+	require.NoError(t, err)
+	assert.False(t, res.ComponentsRewritten)
+	assert.Equal(t, "zh", TableLang(root))
+
+	// 有了维护区就跟维护区
+	_, err = Ensure(root, Content{Lang: "en", Project: true}, ModeInit, nil)
+	require.NoError(t, err)
+	lang, _ = ComponentsLang(root)
+	assert.Equal(t, "en", lang)
+	got, _ := os.ReadFile(filepath.Join(root, "COMPONENTS.md"))
+	assert.Contains(t, string(got), "# Components")
+}
+
+func TestComponentsNotWrittenForAComponentRepository(t *testing.T) {
+	root := t.TempDir()
+	_, err := Ensure(root, Content{Lang: "en", Component: true}, ModeRepair, nil)
+	require.NoError(t, err)
+	assert.NoFileExists(t, filepath.Join(root, "COMPONENTS.md"))
 }
 
 func TestSkeletonHasRequiredSectionsThenBlock(t *testing.T) {
@@ -133,6 +177,7 @@ func TestEnsureModes(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, res.AgentsCreated)
 	assert.True(t, res.ClaudeCreated)
+	assert.True(t, res.ComponentsCreated)
 	claude, _ := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
 	assert.Equal(t, ClaudeContent, string(claude))
 
@@ -160,18 +205,22 @@ func TestEnsureModes(t *testing.T) {
 	claude, _ = os.ReadFile(filepath.Join(root, "CLAUDE.md"))
 	assert.Equal(t, "own\n@AGENTS.md\n", string(claude))
 
-	// rewrite：只改块里面
+	// rewrite：只改块里面（组件数），组件表整份改写
 	c.Rows = []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}
 	res, err = Ensure(root, c, ModeRewrite, nil)
 	require.NoError(t, err)
 	assert.True(t, res.BlockRewritten)
+	assert.True(t, res.ComponentsRewritten)
 	got, _ = os.ReadFile(filepath.Join(root, "AGENTS.md"))
 	assert.True(t, strings.HasPrefix(string(got), mine))
-	assert.Contains(t, string(got), "| a/b | 1.0.0 |")
+	assert.NotContains(t, string(got), "| a/b | 1.0.0 |")
+	table, _ := os.ReadFile(filepath.Join(root, "COMPONENTS.md"))
+	assert.Contains(t, string(table), "| a/b | 1.0.0 |")
 
 	res, err = Ensure(root, c, ModeRewrite, nil)
 	require.NoError(t, err)
 	assert.False(t, res.BlockRewritten, "nothing changed, nothing written")
+	assert.False(t, res.ComponentsRewritten)
 }
 
 func TestEnsureMalformedBlockIsNotTouched(t *testing.T) {
@@ -199,6 +248,8 @@ func TestEnsureKeepsRecordedLanguage(t *testing.T) {
 	require.NoError(t, err)
 	lang, _ = BlockLang(root)
 	assert.Equal(t, "en", lang, "skills update --lang switches it")
+	lang, _ = ComponentsLang(root)
+	assert.Equal(t, "en", lang, "the component table follows the block")
 }
 
 func TestEnsureReplacesLegacyAsset(t *testing.T) {
@@ -303,7 +354,19 @@ func TestEnsureRewritesInTheFileLineEnding(t *testing.T) {
 	_, err := Ensure(root, Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}}, ModeRewrite, nil)
 	require.NoError(t, err)
 	got, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
-	assert.Contains(t, string(got), "| a/b | 1.0.0 |")
+	assert.Contains(t, string(got), "(1 now)")
+	assert.Equal(t, 0, strings.Count(strings.ReplaceAll(string(got), "\r\n", ""), "\n"), "every line ends in CRLF")
+
+	// COMPONENTS.md 检出成 CRLF：内容没变就不写，变了也按 CRLF 写
+	table := strings.ReplaceAll(RenderComponents(Content{Lang: "en", Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}}), "\n", "\r\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "COMPONENTS.md"), []byte(table), 0o644))
+	res, err := Ensure(root, Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}}, ModeRewrite, nil)
+	require.NoError(t, err)
+	assert.False(t, res.ComponentsRewritten)
+	_, err = Ensure(root, Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.1", Does: "d", Docs: "—", Home: "—"}}}, ModeRewrite, nil)
+	require.NoError(t, err)
+	got, _ = os.ReadFile(filepath.Join(root, "COMPONENTS.md"))
+	assert.Contains(t, string(got), "| a/b | 1.0.1 |")
 	assert.Equal(t, 0, strings.Count(strings.ReplaceAll(string(got), "\r\n", ""), "\n"), "every line ends in CRLF")
 
 	mine := "# Mine\r\nnotes\r\n"

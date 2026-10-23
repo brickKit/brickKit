@@ -16,8 +16,9 @@ brickkit init my-shop
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 AGENTS.md            项目的 AI 导读；末尾的一段由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
+   📄 COMPONENTS.md        组件表，由 brickkit 维护
    📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 
@@ -191,8 +192,9 @@ my-shop/
 │   └── .archive/         已移除组件的配置（不提交）
 ├── components/           本地安装源：你正在开发、或为了改而克隆下来的组件源码（不提交）
 ├── shell/                本地安装源：外壳，项目自己的代码（提交）
-├── AGENTS.md             项目的 AI 导读，末尾是组件表（提交）
+├── AGENTS.md             项目的 AI 导读，末尾的一段由 brickkit 维护（提交）
 ├── CLAUDE.md             @AGENTS.md，让 Claude Code 读 AGENTS.md（提交）
+├── COMPONENTS.md         组件表，由 brickkit 生成（提交）
 ├── .claude/skills/       AI 助手技能（提交）
 └── .brickkit/            CLI 的缓存与生成物（不提交）
 ```
@@ -231,9 +233,18 @@ my-shop/
 
 - 平台规则的简短摘要：三层文件各管什么、`add` / `remove` / `upgrade` 会让它们一起改、配置项的键就是 `configSchema`
   里的变量名、技能在哪；
+- 指向组件表的一句：`COMPONENTS.md`、它现在列着几个组件、每一行有什么；
 - 一行说明组件的文档在哪——本地源里正好是这个版本时在源码目录里，否则在 `.brickkit/manifests/<id>/<version>/`，
-  文件是 `BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）——以及契约在 `.brickkit/artifacts/<服务名>/`；
-- 组件表。`brickkit add --local` 加进两个组件之后：
+  文件是 `BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）——以及契约在 `.brickkit/artifacts/<服务名>/`。
+
+项目有三个组件还是七十个，这一段都一样长：变的只有里面的组件数。
+
+**这一段记着自己的语言**（`lang=`）。语言在第一次写这一段时定下，之后每次改写都用它——不用跑命令那个人的 CLI 语言——
+这样 CLI 语言不同的两个同事不会来回改写对方的文件。要换，用 `brickkit skills update --lang en`，技能也跟着换。
+
+### 组件表：`COMPONENTS.md`
+
+组件表是项目根目录下单独的一份文件 `COMPONENTS.md`，由 brickkit 生成，要提交。`brickkit add --local` 加进两个组件之后：
 
 ```text
 | 组件 | 版本 | 干什么 | 文档 | 主页 |
@@ -248,24 +259,31 @@ my-shop/
 | 文档 | `BRICKKIT.md`，再加上它带的每一份译本（`BRICKKIT.md +zh`）；没带文档时是 `—` |
 | 主页 | 组件可选的 `metadata.repository`；没写时是 `—` |
 
-**这一段只放每台机器上都一样的事实。** 这份文件要提交：要是有一列"在这台机器上是不是本地源码"，它就会随最后一个跑命令的人变来变去，
-每个同事 `add` 一次都会多出一处 diff。某个组件的源码在不在本机，AI 自己去 `components/` 下看。
+**为什么单独一份。** `AGENTS.md` 每次会话都加载，而有的工具只加载它的一部分——Codex 最多读 32 KiB，AI 用工具读这份文件时
+也可能只看到开头一截。组件表一行三百字节上下，七十个组件就是两万字节左右，而这份文件还要装下团队自己写的几节。多数任务只碰一两个组件；
+组件表在任务需要时再读——找一项需求归哪个组件，或者按 ID、按 scope 查。代价：小项目里，组件列表要多打开一个文件才看得到，
+不在已经加载的那一页上。
 
-**这一段记着自己的语言**（`lang=`）。语言在第一次写这一段时定下，之后每次改写都用它——不用跑命令那个人的 CLI 语言——
-这样 CLI 语言不同的两个同事不会来回改写对方的文件。要换，用 `brickkit skills update --lang en`，技能也跟着换。
+**整份文件都归 brickkit。** 它和 `AGENTS.md` 不一样，没有人在里面写东西：每个维护它的命令都整份改写，缺了就重新写出来。
+第一行记着它的语言，与 `AGENTS.md` 那一段的相同；项目没有那一段时，沿用这份文件已经记着的语言。
+
+**它只放每台机器上都一样的事实。** 这份文件要提交：要是有一列"在这台机器上是不是本地源码"，它就会随最后一个跑命令的人变来变去，
+每个同事 `add` 一次都会多出一处 diff。某个组件的源码在不在本机，AI 自己去 `components/` 下看。
 
 ### 哪些命令会动它
 
-| 命令 | 对 `AGENTS.md` 与 `CLAUDE.md` 做什么 |
-| --- | --- |
-| `init` | 缺哪份建哪份。已有的 `AGENTS.md` 里有这一段就改写它；没有就只提醒 |
-| `add`、`remove`、`upgrade` | 只改写已有的那一段（组件表），别的不动；从不新建这一段，也不往你的文件里追加 |
-| `brickkit skills update` | 明确要求才做的修复：建出缺的文件，给没有这一段的 `AGENTS.md` 追加一段，给没有 `@AGENTS.md` 的 `CLAUDE.md` 追加这一行 |
+| 命令 | 对 `AGENTS.md` 与 `CLAUDE.md` 做什么 | 对 `COMPONENTS.md` |
+| --- | --- | --- |
+| `init` | 缺哪份建哪份。已有的 `AGENTS.md` 里有这一段就改写它；没有就只提醒 | 写出来 |
+| `add`、`remove`、`upgrade` | 只改写已有的那一段（组件数），别的不动；从不新建这一段，也不往你的文件里追加 | 改写；不在时写出来，并说一声 |
+| `brickkit skills update` | 明确要求才做的修复：建出缺的文件，给没有这一段的 `AGENTS.md` 追加一段，给没有 `@AGENTS.md` 的 `CLAUDE.md` 追加这一行 | 改写；不在时写出来 |
+
+`brickkit skills status` 会列出 `COMPONENTS.md` 是缺失、过期还是最新；项目里没有它时 `lint` 给出警告（`DOC_FILE_MISSING`）。
 
 补全一个已经有自己的 `AGENTS.md` 和 `CLAUDE.md` 的目录时，`init` 两份都不改，只说缺了什么：
 
 ```text
-⚠️ AGENTS.md 里没有可用的、由 brickkit 维护的一段，组件表不会自动更新
+⚠️ AGENTS.md 里没有可用的、由 brickkit 维护的一段，读它的 AI 看不到平台规则，也不知道组件表在 COMPONENTS.md
    原因：没有由 brickkit 维护的那一段
    建议：运行 brickkit skills update 把它加上（明确要求才加：别的命令不改你的文件）
 ⚠️ CLAUDE.md 里没有 @AGENTS.md，Claude Code 不会读 AGENTS.md
@@ -284,17 +302,24 @@ brickkit skills update
 
 ### 旧版本建的项目：原来那份 `BRICKKIT.md`
 
-早先的版本把组件表放在项目根的 `BRICKKIT.md` 里，叫"项目地图"。这份文件已经没有了：组件表现在在 `AGENTS.md` 末尾，
+早先的版本把组件表放在项目根的 `BRICKKIT.md` 里，叫"项目地图"。这份文件已经没有了：组件表现在在 `COMPONENTS.md` 里，
 `BRICKKIT.md` 只指组件自己的文档。项目根还留着旧地图（凭它的标记认出来）时，`init`、`brickkit skills update` 和 `lint`
 都会用警告码 `PROJECT_MAP_OBSOLETE` 报出来：
 
 ```text
-⚠️ 这里的 BRICKKIT.md 是旧版的项目地图：组件表现在在 AGENTS.md 末尾
+⚠️ 这里的 BRICKKIT.md 是旧版的项目地图：组件表现在在 COMPONENTS.md 里
    建议：把你自己写的内容挪进 AGENTS.md，再删掉 BRICKKIT.md（brickkit 不会替你删）
 ```
 
 它不会被自动删掉，因为里面可能有你自己写的东西。旧版本当作技能装进来、之后没人改过的 `AGENTS.md`（靠这台机器上旧的 `.brickkit/skills.lock`
 认出来），`init` 与 `brickkit skills update` 会把它换成新的骨架。
+
+`AGENTS.md` 那一段里还装着组件表本身的项目，不用手动做什么：下一次 `add`、`remove`、`upgrade` 或 `brickkit skills update`
+会把那一段改写成指路的那句，把组件表写进 `COMPONENTS.md`，并说一次：
+
+```text
+   ✅ 建了 COMPONENTS.md：组件表，AGENTS.md 末尾的一段指向它
+```
 
 ## 项目的其他文档
 
@@ -334,7 +359,7 @@ BrickKit 不规定它的目录——三个组件的项目可能一份都不需�
 | 项目为什么这么选、否掉了什么 | `docs/decisions/` 里的一份：写结论和理由，不再抄一遍规则全文 |
 | 生产上怎么运行 | `docs/operations/` |
 | 某个组件做什么、要什么、管什么 | 那个组件的 `BRICKKIT.md`，项目文档里不重复 |
-| 有哪些组件、各是什么版本 | `AGENTS.md` 末尾由 brickkit 维护的组件表 |
+| 有哪些组件、各是什么版本 | `COMPONENTS.md`，由 brickkit 维护 |
 
 ### 多种语言，以及 lint 查什么
 

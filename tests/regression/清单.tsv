@@ -82,3 +82,8 @@ R67	add 因依赖方的精确依赖保留另一个版本时，提示两个版本
 R68	upgrade 因依赖方还要旧版本而留下它时，同样提示并存并点名依赖方；依赖方要的就是项目里的版本时不提示	.	./internal/cli	TestUpgradeKeepsOldVersionForDependent
 R69	依赖方要的版本比项目的默认版本新时，并存提示指向 brickkit upgrade 到那个版本；依赖方跟上了就没有提示	.	./internal/cli	TestAddCoexistenceNoteOnlyWhenVersionsDiffer
 R70	Docker / Podman 的 HTTP 健康检查在任何镜像上都发 GET（不随 BusyBox / GNU wget 变成 HEAD），与 K8s 的 httpGet 一致	.	./internal/compose	TestHealthcheckSendsGetWithEveryWget
+R71	项目 AGENTS.md 的维护段不随组件数变长：组件表整份写在 COMPONENTS.md，维护段只写组件数、它在哪、怎么找	.	./internal/agentsmd	TestBlockDoesNotGrowWithComponents
+R72	add / remove / upgrade 改写 COMPONENTS.md，作者在 AGENTS.md 里写的一个字节都不动；它不在时建出来并说一次	.	./internal/cli	TestAddUpdatesAgentsTable
+R73	COMPONENTS.md 记着自己的语言：跟 AGENTS.md 维护段；没有维护段时沿用自己记的，CLI 语言不同的同事不会来回改写	.	./internal/agentsmd	TestComponentsFileRecordsItsLanguage
+R74	skills status 列出 COMPONENTS.md 缺失 / 过期 / 最新，skills update 建它、改写它；纯组件仓库没有它	.	./internal/cli	TestSkillsStatusAndUpdateKeepTheComponentTable
+R75	有 brickkit.yaml（项目、工作台）却没有 COMPONENTS.md 时 lint 警告 DOC_FILE_MISSING；生成的表不做文档检查	.	./internal/doccheck	TestComponentTableIsRequiredWhereThereIsABrickkitYaml

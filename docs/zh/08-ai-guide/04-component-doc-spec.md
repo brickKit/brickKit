@@ -7,8 +7,8 @@
 
 ### 在哪
 
-**`BRICKKIT.md`。** 项目 `AGENTS.md` 末尾的组件表写着每个组件带了哪些文档（"文档"一列：`BRICKKIT.md`；带译本时是 `BRICKKIT.md +zh`；
-没带是 `—`），表上面那一行给出它们在哪的规则：
+**`BRICKKIT.md`。** 项目的组件表 `COMPONENTS.md` 写着每个组件带了哪些文档（"文档"一列：`BRICKKIT.md`；带译本时是 `BRICKKIT.md +zh`；
+没带是 `—`），项目 `AGENTS.md` 末尾的一段给出它们在哪的规则：
 
 - 本地源里放着这个组件、正好是这个版本的源码时，是那个源码目录里的 `BRICKKIT.md`；
 - 否则是 `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`，由 `add` 或 `fetch` 缓存下来。
@@ -48,7 +48,7 @@
 
 ## 没有 `BRICKKIT.md` 时
 
-项目组件表里"文档"一列是"—"，说明组件没带文档。退而求其次：
+项目 `COMPONENTS.md` 里"文档"一列是"—"，说明组件没带文档。退而求其次：
 
 1. `component.yaml`：`metadata.description` 一句话定位；`dependencies`；`configSchema` 的 `description`、`default`、`required`。
 2. 契约文件（`artifacts`）：接口。

@@ -104,7 +104,7 @@ A short page whose main job is to send people to the right file. Three sections:
 | `Development` | How to clone it and run it with its dependencies, then a pointer to `AGENTS.md` |
 
 Its first line under the title is the same sentence as `metadata.description`. A project lists that sentence and the
-optional `metadata.repository` (the component's repository or page) in the component table of its own `AGENTS.md`.
+optional `metadata.repository` (the component's repository or page) in its component table, `COMPONENTS.md`.
 
 ## `docs/`
 
@@ -323,9 +323,10 @@ version (a local source's directory, a git tag, or the market) and caches them a
 .brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md
 ```
 
-The project's `AGENTS.md` ends with a component table maintained by brickkit: each component, its version, its
-`metadata.description`, which docs it carries (`BRICKKIT.md +zh`) and its `metadata.repository`. That table is where an AI
-in the project starts; it then reads only the `BRICKKIT.md` of the components the task touches. When a local source
+The project's `COMPONENTS.md` is a component table maintained by brickkit: each component, its version, its
+`metadata.description`, which docs it carries (`BRICKKIT.md +zh`) and its `metadata.repository`; the block at the end of
+the project's `AGENTS.md` points to it. That table is where an AI in the project finds the component a task belongs to;
+it then reads only the `BRICKKIT.md` of the components the task touches. When a local source
 holds that exact version, the copy in its source directory is the one being edited and the one to read.
 
 The cache follows the version it came from: fetching the version again drops a cached translation the version no
@@ -336,8 +337,8 @@ So the documents are part of the version, like the code. Working towards a new v
 them: bump `metadata.version` first, test it from the local source, `brickkit release` it — until then a machine
 without the source has no such version and leaves its row as it is. What breaks is editing a version that is already
 released: one version number then has two contents, the machine with the local source writes the new row into the
-project's `AGENTS.md`, a machine that takes the version from its tag writes the old one back, and `brickkit skills
-status` on each calls the other's block outdated. A released `BRICKKIT.md`, translation or `metadata.description`
+project's `COMPONENTS.md`, a machine that takes the version from its tag writes the old one back, and `brickkit skills
+status` on each calls the other's table outdated. A released `BRICKKIT.md`, translation or `metadata.description`
 changes in the next version.
 
 `brickkit publish` uploads `BRICKKIT.md` and its translations with the version: at most 16 translations, each at most

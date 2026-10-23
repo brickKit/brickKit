@@ -34,8 +34,9 @@ brickkit init my-shop
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 AGENTS.md            项目的 AI 导读；末尾的一段由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
+   📄 COMPONENTS.md        组件表，由 brickkit 维护
    📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 
@@ -56,8 +57,9 @@ my-shop/
 │   └── vars.yaml     公共变量（现在是空的）
 ├── components/       本地安装源：你自己的组件源码放这里
 ├── shell/            本地安装源：外壳组件
-├── AGENTS.md         项目的 AI 导读；末尾的组件表由 CLI 跟着更新
+├── AGENTS.md         项目的 AI 导读；末尾的一段由 CLI 跟着更新
 ├── CLAUDE.md         只有一行 @AGENTS.md，让 Claude Code 也读 AGENTS.md
+├── COMPONENTS.md     组件表，由 CLI 生成
 ├── .claude/skills/   AI 助手技能，一个任务一个目录
 ├── .brickkit/        CLI 的缓存与生成物（不进 Git）
 └── .gitignore

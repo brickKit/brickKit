@@ -27,9 +27,11 @@ const (
 type Result struct {
 	AgentsCreated, BlockAppended, BlockRewritten, LegacyReplaced bool
 	ClaudeCreated, ClaudeAppended                                bool
+	// ComponentsCreated、ComponentsRewritten：COMPONENTS.md 建了、改写了（Content.Project 时才有）。
+	ComponentsCreated, ComponentsRewritten bool
 	// Problem 非空：AGENTS.md 没有维护区（ErrNoBlock）或标记坏了（ErrMalformed），这次没改它。给人看的说法见 Reason。
 	Problem error
-	// AgentsMissing：改写模式下 AGENTS.md 根本不在——组件表没人维护了（init / skills update 会建）。
+	// AgentsMissing：改写模式下 AGENTS.md 根本不在——AI 读不到平台规则与组件表在哪（init / skills update 会建）。
 	AgentsMissing bool
 	// ClaudeMissingImport：CLAUDE.md 在，但不引 AGENTS.md，这次没改它。
 	ClaudeMissingImport bool
@@ -50,11 +52,27 @@ func BlockLang(root string) (string, bool) {
 	return b.Lang, true
 }
 
-// Ensure 让 root 下的 AGENTS.md 与 CLAUDE.md 符合 mode 允许的样子。
+// Ensure 让 root 下的 AGENTS.md 与 CLAUDE.md 符合 mode 允许的样子；c.Project 时 COMPONENTS.md 在每种模式下都写成最新。
 // isLegacy 判断已有的 AGENTS.md 是不是旧版 CLI 装的那份、没被改过（那时它是技能资产，见 skills.Installer.IsOldAgents）：
 // 是的话它本来就是 CLI 的文件，整份换成新骨架。为 nil 时不认旧文件。
 func Ensure(root string, c Content, mode Mode, isLegacy func([]byte) bool) (Result, error) {
 	var res Result
+	if err := ensureAgents(root, &c, mode, isLegacy, &res); err != nil {
+		return res, err
+	}
+	if c.Project {
+		if err := ensureComponents(root, c, &res); err != nil {
+			return res, err
+		}
+	}
+	if mode == ModeRewrite {
+		return res, nil
+	}
+	return res, ensureClaude(root, mode, &res)
+}
+
+// ensureAgents 是 Ensure 里 AGENTS.md 那一份；文件里已有维护区时，c.Lang 换成它记的语言（ForceLang 时不换）。
+func ensureAgents(root string, c *Content, mode Mode, isLegacy func([]byte) bool, res *Result) error {
 	path := filepath.Join(root, docspec.FileAgents)
 	title := c.Title
 	if title == "" {
@@ -65,50 +83,49 @@ func Ensure(root string, c Content, mode Mode, isLegacy func([]byte) bool) (Resu
 	case errors.Is(err, fs.ErrNotExist):
 		if mode == ModeRewrite {
 			res.AgentsMissing = true
-			return res, nil
+			return nil
 		}
-		if err := os.WriteFile(path, []byte(Skeleton(title, c)), filePerm); err != nil {
-			return res, err
+		if err := os.WriteFile(path, []byte(Skeleton(title, *c)), filePerm); err != nil {
+			return err
 		}
 		res.AgentsCreated = true
+		return nil
 	case err != nil:
-		return res, err
-	default:
-		doc := string(data)
-		eol := lineEnding(doc)
-		b, findErr := Find(doc)
-		switch {
-		case findErr == nil:
-			if !c.ForceLang {
-				c.Lang = b.Lang
-			}
-			if updated := Replace(doc, b, withEOL(Render(c), eol)); updated != doc {
-				if err := os.WriteFile(path, []byte(updated), filePerm); err != nil {
-					return res, err
-				}
-				res.BlockRewritten = true
-			}
-		case mode == ModeRewrite:
-			res.Problem = findErr // 不改，但要说出来：组件表从此没人维护
-			return res, nil
-		case errors.Is(findErr, ErrNoBlock) && isLegacy != nil && isLegacy(data):
-			if err := os.WriteFile(path, []byte(Skeleton(title, c)), filePerm); err != nil {
-				return res, err
-			}
-			res.LegacyReplaced = true
-		case errors.Is(findErr, ErrNoBlock) && mode == ModeRepair:
-			if err := os.WriteFile(path, []byte(withEOL(Append(strings.ReplaceAll(doc, "\r\n", "\n"), Render(c)), eol)), filePerm); err != nil {
-				return res, err
-			}
-			res.BlockAppended = true
-		default:
-			res.Problem = findErr
+		return err
+	}
+	doc := string(data)
+	eol := lineEnding(doc)
+	b, findErr := Find(doc)
+	switch {
+	case findErr == nil:
+		if !c.ForceLang {
+			c.Lang = b.Lang
 		}
+		if updated := Replace(doc, b, withEOL(Render(*c), eol)); updated != doc {
+			if err := os.WriteFile(path, []byte(updated), filePerm); err != nil {
+				return err
+			}
+			res.BlockRewritten = true
+		}
+		return nil
+	case mode == ModeRewrite:
+		res.Problem = findErr // 不改，但要说出来：维护区从此没人维护
+		return nil
+	case errors.Is(findErr, ErrNoBlock) && isLegacy != nil && isLegacy(data):
+		if err := os.WriteFile(path, []byte(Skeleton(title, *c)), filePerm); err != nil {
+			return err
+		}
+		res.LegacyReplaced = true
+		return nil
+	case errors.Is(findErr, ErrNoBlock) && mode == ModeRepair:
+		if err := os.WriteFile(path, []byte(withEOL(Append(strings.ReplaceAll(doc, "\r\n", "\n"), Render(*c)), eol)), filePerm); err != nil {
+			return err
+		}
+		res.BlockAppended = true
+		return nil
 	}
-	if mode == ModeRewrite {
-		return res, nil
-	}
-	return res, ensureClaude(root, mode, &res)
+	res.Problem = findErr
+	return nil
 }
 
 func ensureClaude(root string, mode Mode, res *Result) error {

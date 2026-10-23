@@ -1,4 +1,4 @@
-The AI guide to this project: what it is, the rules every component here follows, where to look. The component table at the end is maintained by brickkit.
+The AI guide to this project: what it is, the rules every component here follows, where to look. The block at the end is maintained by brickkit; the component table is COMPONENTS.md.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The AI guide to this project: what it is, the rules every component here follows
 
 ## Where to look
 
-<!-- TODO: a table: what you are doing (the words you would search for) → the file to read first; include where the detailed conventions, the decisions (a change that may go against one) and the operations docs are; last line: not here? the component table below, then the component's AGENTS.md -->
+<!-- TODO: a table: what you are doing (the words you would search for) → the file to read first; include where the detailed conventions, the decisions (a change that may go against one) and the operations docs are; last line: not here? COMPONENTS.md, then the component's AGENTS.md -->
 
 ## Pitfalls
 

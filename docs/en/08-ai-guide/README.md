@@ -4,7 +4,7 @@
 
 BrickKit's design keeps AI in mind throughout: components are small enough to read in one go, boundaries are written in
 files, addresses and variable names are computed by rule rather than guessed, every component carries a `BRICKKIT.md`
-written for the people using it, and every project's `AGENTS.md` ends with a table of its components. This module
+written for the people using it, and every project has a table of its components, `COMPONENTS.md`. This module
 covers how an AI makes use of all that: what to read, in what order, what it needn't read, and the workflow for writing
 and changing components.
 
@@ -15,14 +15,15 @@ There are three things written for AI, each covering one level:
 | File | Where | Covers |
 | --- | --- | --- |
 | The BrickKit repository's `AGENTS.md` / `AGENTS.zh.md` | This repository's root | What the BrickKit platform is and its principles — read it when discussing the platform itself |
-| A project's `AGENTS.md` and `.claude/skills/` | Every project (written by `brickkit init`) | How to work in this project: the team's conventions, a summary of the platform rules and the component table, five skills split by task |
+| A project's `AGENTS.md` and `.claude/skills/` | Every project (written by `brickkit init`) | How to work in this project: the team's conventions, a summary of the platform rules and a pointer to the component table (`COMPONENTS.md`), five skills split by task |
 | This module | The docs | The "why" behind the two above, and the complete practice |
 
 The one in the project is the one used every day: `brickkit init` installs `.claude/skills/` (`brickkit-assemble`,
 `brickkit-component`, `brickkit-deploy`, `brickkit-troubleshoot`, `brickkit-plan-change`) and writes `AGENTS.md` (the
-team's own guide, with a block at its end that the CLI keeps up to date) and `CLAUDE.md`; they're committed with the
-project, and after the CLI is upgraded `brickkit skills update` refreshes the skills and the block at the end of
-`AGENTS.md` (creating `AGENTS.md` / `CLAUDE.md` if they're missing). They deliberately don't copy command flags — for
+team's own guide, with a block at its end that the CLI keeps up to date), `CLAUDE.md` and the component table
+`COMPONENTS.md`; they're committed with the project, and after the CLI is upgraded `brickkit skills update` refreshes the
+skills, the block at the end of `AGENTS.md` and `COMPONENTS.md` (creating `AGENTS.md` / `CLAUDE.md` / `COMPONENTS.md` if
+they're missing). They deliberately don't copy command flags — for
 flags, ask `brickkit <command> --help`.
 
 A component developed in its own repository (a `component.yaml` and no `brickkit.yaml`) gets the part that makes sense

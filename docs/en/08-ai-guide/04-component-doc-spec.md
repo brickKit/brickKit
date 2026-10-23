@@ -9,9 +9,9 @@ and how it writes them.
 
 ### Where they are
 
-**`BRICKKIT.md`.** The component table at the end of the project's `AGENTS.md` says which docs each component carries
-(the Docs column: `BRICKKIT.md`, `BRICKKIT.md +zh` when it carries a translation, `—` when it carries none), and the line
-above the table gives the rule for where they are:
+**`BRICKKIT.md`.** The project's component table, `COMPONENTS.md`, says which docs each component carries (the Docs
+column: `BRICKKIT.md`, `BRICKKIT.md +zh` when it carries a translation, `—` when it carries none), and the block at the
+end of the project's `AGENTS.md` gives the rule for where they are:
 
 - when a local source holds the component's source at exactly this version, the `BRICKKIT.md` in that source directory;
 - otherwise `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`, cached by `add` or `fetch`.
@@ -55,7 +55,7 @@ one project are in that project's `AGENTS.md`, not repeated here.
 
 ## When there's no `BRICKKIT.md`
 
-The Docs column in the project's component table is "—": the component carries no docs. Fall back to:
+The Docs column in the project's `COMPONENTS.md` is "—": the component carries no docs. Fall back to:
 
 1. `component.yaml`: `metadata.description` for a one-line purpose; `dependencies`; the `description`, `default` and
    `required` of `configSchema`.

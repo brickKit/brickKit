@@ -1,6 +1,6 @@
 ---
 name: brickkit-plan-change
-description: Use when the user brings a new requirement, a feature or a change in a BrickKit project and you need to decide which component owns it, whether it is sound, and how to plan and make it across components. Covers finding the owner from the component table in AGENTS.md and each component's BRICKKIT.md, checking a requirement against boundaries, project conventions, recorded decisions, dependency direction and contract compatibility, the order to change components in, and what "done" means. Applies when the user says "add a feature", "new requirement", "where should this go", "plan this change", or asks whether something is a good idea.
+description: Use when the user brings a new requirement, a feature or a change in a BrickKit project and you need to decide which component owns it, whether it is sound, and how to plan and make it across components. Covers finding the owner from the component table in COMPONENTS.md and each component's BRICKKIT.md, checking a requirement against boundaries, project conventions, recorded decisions, dependency direction and contract compatibility, the order to change components in, and what "done" means. Applies when the user says "add a feature", "new requirement", "where should this go", "plan this change", or asks whether something is a good idea.
 ---
 
 # Judging and planning a change
@@ -13,7 +13,7 @@ description: Use when the user brings a new requirement, a feature or a change i
 
 ## 1. Find the owner
 
-1. The component table at the end of the project's `AGENTS.md`: its "What it does" column narrows the candidates.
+1. The project's component table, `COMPONENTS.md`: its "What it does" column narrows the candidates.
 2. Each candidate's `BRICKKIT.md`, section `Purpose`: what it **owns** and what it **does not own** — and every
    "does not own" names who does. Follow that pointer rather than guessing. The docs are under
    `.brickkit/manifests/<scope>/<name>/<version>/` (or in the component's source directory when a local source holds

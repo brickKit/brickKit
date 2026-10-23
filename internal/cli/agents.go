@@ -28,7 +28,7 @@ func renderAgentsResult(opts *Options, res agentsmd.Result) {
 		opts.Printf("%s", opts.render(agentsBlockWarning(res.Problem)))
 	}
 	if res.AgentsMissing {
-		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.CliAgentsMissing, docspec.FileAgents)).
+		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.CliAgentsMissing, docspec.FileAgents, docspec.FileComponents)).
 			WithHint(i18n.T(msgid.CliAgentsHintSkillsUpdate))))
 	}
 	if res.ClaudeMissingImport {
@@ -44,14 +44,22 @@ func agentsBlockWarning(problem error) *clierr.Error {
 	if errors.Is(problem, agentsmd.ErrMalformed) {
 		hint = i18n.T(msgid.CliAgentsHintFixMarkers)
 	}
-	return clierr.Warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.CliAgentsBlockMissing, docspec.FileAgents)).
+	return clierr.Warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.CliAgentsBlockMissing, docspec.FileAgents, docspec.FileComponents)).
 		WithDetail(i18n.T(msgid.LabelReason), agentsmd.Reason(problem)).
 		WithHint(hint)
 }
 
-// renderProjectMapObsolete 说项目根还留着旧版的项目地图 BRICKKIT.md：组件表现在在 AGENTS.md 末尾。
+// renderComponentsCreated 说这次建了 COMPONENTS.md：add / remove / upgrade、skills update 在它不在时建它
+// （CLI 升级后的第一次就是这样从 AGENTS.md 里搬出来的）。init 的创建清单里已经有它，不用这一句。
+func renderComponentsCreated(opts *Options, res agentsmd.Result) {
+	if res.ComponentsCreated {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliAgentsComponentsCreated, docspec.FileComponents, docspec.FileAgents))
+	}
+}
+
+// renderProjectMapObsolete 说项目根还留着旧版的项目地图 BRICKKIT.md：组件表现在在 COMPONENTS.md。
 // 从不替人删——那份文件里可能有他自己写的内容。
 func renderProjectMapObsolete(opts *Options) {
-	opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileAgents)).
+	opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileComponents)).
 		WithHint(i18n.T(msgid.CliInitHintMoveProjectMap, docspec.FileAgents, docspec.FileBrickkit))))
 }

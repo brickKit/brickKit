@@ -2,6 +2,7 @@ package agentsmd
 
 import (
 	"embed"
+	"strconv"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/docspec"
@@ -19,7 +20,7 @@ type Row struct {
 	Home        string // metadata.repository，没有时 "—"
 }
 
-// Content 决定维护区里有什么。
+// Content 决定维护区与 COMPONENTS.md 里有什么。
 type Content struct {
 	// Lang 是要用的语言；文件里已有维护区时以它记的为准，除非 ForceLang（skills update --lang）。
 	Lang      string
@@ -28,7 +29,8 @@ type Content struct {
 	Title string
 	// Component：这里是组件仓库（有 component.yaml），放组件作者要守的规则。
 	Component bool
-	// Project：这里有 brickkit.yaml，放平台规则（纯项目时）与组件表。
+	// Project：这里有 brickkit.yaml，维护区放平台规则（纯项目时）与指向 COMPONENTS.md 的一节，
+	// COMPONENTS.md 放组件表（Rows）。
 	Project bool
 	Rows    []Row
 }
@@ -43,29 +45,25 @@ func tmpl(lang, name string) string {
 }
 
 // Render 渲染整段维护区（含两端标记）。
-// 组件仓库放组件规则；纯项目放项目规则与组件表；两者都有（工作台）时放组件规则加组件表那一节。
+// 组件仓库放组件规则；纯项目放项目规则与"组件"一节；两者都有（工作台）时放组件规则加"组件"那一节。
+// 组件表本身在 COMPONENTS.md（RenderComponents）：维护区每次会话都加载，不随组件数变长。
 func Render(c Content) string {
 	var b strings.Builder
 	b.WriteString("<!-- brickkit:managed:begin lang=" + c.Lang + " -->\n")
-	b.WriteString(tmpl(c.Lang, "note.md")) // 维护区的说明与组件表的表头都在模板里，跟着维护区的语言
+	b.WriteString(tmpl(c.Lang, "note.md")) // 维护区的说明在模板里，跟着维护区的语言
 	b.WriteString("\n")
 	if c.Component {
 		b.WriteString(tmpl(c.Lang, "component.md"))
 	}
 	if c.Project {
 		project := tmpl(c.Lang, "project.md")
-		if c.Component { // 工作台：平台规则已经有了组件那份，只要组件表那一节
+		if c.Component { // 工作台：平台规则已经有了组件那份，只要"组件"那一节
 			if i := strings.Index(project, "\n## "); i >= 0 {
 				project = project[i+1:]
 			}
 			b.WriteString("\n")
 		}
-		b.WriteString(project)
-		b.WriteString("\n")
-		b.WriteString(tmpl(c.Lang, "table.md"))
-		for _, r := range c.Rows {
-			b.WriteString("| " + strings.Join([]string{cell(r.ID), cell(r.Version), cell(r.Does), cell(r.Docs), cell(r.Home)}, " | ") + " |\n")
-		}
+		b.WriteString(strings.ReplaceAll(project, "{{count}}", strconv.Itoa(len(c.Rows))))
 	}
 	b.WriteString(endMarker + "\n")
 	return b.String()

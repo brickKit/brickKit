@@ -29,6 +29,7 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 		}
 	}
 	out = append(out, claude(dir)...)
+	out = append(out, componentTable(dir)...) // 工作台
 	set := collect(dir, translatedKinds)
 	for _, f := range set.files {
 		d, _ := read(dir, f.rel)

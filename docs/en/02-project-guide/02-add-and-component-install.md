@@ -86,10 +86,10 @@ alike.
 **`.brickkit/artifacts/`**: the contract files the component declares (OpenAPI, proto and the like), which you'll use when
 writing a caller.
 
-**`AGENTS.md`**: the component table at its end — the block the CLI maintains — gets a row for each component added:
-version, what it does, which docs it carries, its home page (see
-[The project's `AGENTS.md`](01-init-and-project-creation.md#the-projects-agentsmd)). Nothing outside the block changes,
-and an `AGENTS.md` without the block is left as it is.
+**`COMPONENTS.md`**: the component table gets a row for each component added: version, what it does, which docs it
+carries, its home page (see [The component table](01-init-and-project-creation.md#the-component-table-componentsmd)).
+In `AGENTS.md` only the component count in the block the CLI maintains changes; nothing outside the block changes, and an
+`AGENTS.md` without the block is left as it is.
 
 If the project doesn't load after the changes (say, the new component conflicts with an existing one), `add` puts every
 changed file back — all of it, or nothing.

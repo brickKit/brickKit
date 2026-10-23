@@ -7,8 +7,8 @@ you are writing or changing.
 
 ## Writing a new component
 
-1. **Read the context.** The project root's `AGENTS.md` — the team's conventions, and the component table at its end — and
-   `brickkit.yaml`: what the project already has, the rules a new component must follow, and where it goes.
+1. **Read the context.** The project root's `AGENTS.md` — the team's conventions — the component table `COMPONENTS.md`
+   and `brickkit.yaml`: what the project already has, the rules a new component must follow, and where it goes.
 2. **Read the dependencies.** For every component the new one will call: its `BRICKKIT.md`, `configSchema` and contracts.
    Only direct dependencies.
 3. **Generate the skeleton.** `brickkit new <scope>/<name>` (`--path` for a repository of its own, `--contract

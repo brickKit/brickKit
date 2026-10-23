@@ -19,14 +19,14 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 <!-- llms:bundles:begin -->
 - [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
 - [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/README.md
-- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/01-init-and-project-creation.md … docs/en/02-project-guide/09-status-and-graph.md
-- [llms/en/03.md](llms/en/03.md): docs/en/02-project-guide/10-lint-and-checks.md … docs/en/03-component-guide/07-release-workflow.md
-- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/08-component-doc-spec.md … docs/en/05-migration/README.md
-- [llms/en/05.md](llms/en/05.md): docs/en/05-migration/01-migration-service.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/01-init-and-project-creation.md … docs/en/02-project-guide/08-remove-and-archive.md
+- [llms/en/03.md](llms/en/03.md): docs/en/02-project-guide/09-status-and-graph.md … docs/en/03-component-guide/06-artifacts-and-contracts.md
+- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/07-release-workflow.md … docs/en/04-shell/06-special-characters.md
+- [llms/en/05.md](llms/en/05.md): docs/en/04-shell/07-shell-upgrade.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/07-cache-design.md
 - [llms/en/07.md](llms/en/07.md): docs/en/06-architecture/08-security-and-signing.md … docs/en/06-architecture/09-error-codes.md
-- [llms/en/08.md](llms/en/08.md): docs/en/07-cli-reference/README.md … docs/en/09-patterns/README.md
-- [llms/en/09.md](llms/en/09.md): docs/en/09-patterns/01-component-design.md … docs/en/09-patterns/05-service-calling.md
+- [llms/en/08.md](llms/en/08.md): docs/en/07-cli-reference/README.md … docs/en/08-ai-guide/06-reading-brickkit.md
+- [llms/en/09.md](llms/en/09.md): docs/en/09-patterns/README.md … docs/en/09-patterns/05-service-calling.md
 - [llms/en/10.md](llms/en/10.md): docs/en/09-patterns/06-deployment-selection.md … docs/en/10-troubleshooting/06-shell-issues.md
 - [llms/en/11.md](llms/en/11.md): docs/en/10-troubleshooting/07-migration-issues.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->

@@ -78,8 +78,8 @@ project reads only its `component.yaml` and `BRICKKIT.md`. The specification nes
 - **The easy-to-get-wrong parts are derived by the platform.** Service addresses, variable names and deployment files
   aren't invented by the AI; assembly mistakes surface at `brickkit up --dry-run`.
 - **There is a clear reading path.** A project's `AGENTS.md` (the file AI coding tools read first) holds the project's
-  own conventions and ends with a table of its components and where each one's docs are, so an AI reads only the
-  component it needs.
+  own conventions and ends with where each component's docs are; one table, `COMPONENTS.md`, lists its components, so an
+  AI reads only the component it needs.
 
 See [For AI assistants](../08-ai-guide/README.md).
 

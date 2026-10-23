@@ -105,15 +105,15 @@ repository at the same version as the CLI. How to wire it up: [JSON Schemas](../
 Following method two in [JSON Schemas](../11-reference/05-json-schemas.md), map every deploy file with a glob like
 `["deploy.yaml", "deploy.*.yaml"]`.
 
-## The component table in `AGENTS.md` flips between two people
+## The component table in `COMPONENTS.md` flips between two people
 
 **Symptom**
 
-A row of the component table at the end of the project's `AGENTS.md` (its description, or `+zh` in the Docs cell) is
-one thing in one person's commit and back to the other in the next; on one machine `brickkit skills status` says:
+A row of the project's component table, `COMPONENTS.md` (its description, or `+zh` in the Docs cell), is one thing in
+one person's commit and back to the other in the next; on one machine `brickkit skills status` says:
 
 ```text
-   │ AGENTS.md │ block maintained by brickkit (lang=en) is outdated; update refreshes it │
+   │ COMPONENTS.md │ outdated (lang=en); update rewrites it │
 ```
 
 **Cause**

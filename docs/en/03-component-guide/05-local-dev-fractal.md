@@ -66,12 +66,12 @@ Now `brickkit up` can bring the dependencies up locally.
 
 A workbench has **one** `AGENTS.md`: the component's own. `init` leaves its sections (Code map, Build and test, Design
 decisions, Pitfalls, Before changing code) exactly as they are and rewrites only the block the CLI maintains at its end.
-In a workbench that block holds two things: the component rules it had before, and the workbench's component table —
-filled in by `add` as the dependencies come in, with where each one's documentation is cached
-(`.brickkit/manifests/<id>/<version>/`).
+In a workbench that block holds two things: the component rules it had before, and the pointer to the workbench's
+component table, `COMPONENTS.md` next to it — filled in by `add` as the dependencies come in — with where each one's
+documentation is cached (`.brickkit/manifests/<id>/<version>/`).
 
-So an AI working in the repository finds, in one file, how this component is built and what it must not break, and which
-dependencies it runs against and where to read about them. There is no second, project-style `AGENTS.md` with Overview
+So an AI working in the repository finds, from one file, how this component is built and what it must not break, and
+which dependencies it runs against and where to read about them. There is no second, project-style `AGENTS.md` with Overview
 and Conventions: the workbench isn't a project anyone else assembles.
 
 ## Adding the component itself

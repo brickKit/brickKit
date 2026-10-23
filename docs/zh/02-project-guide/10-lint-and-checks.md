@@ -120,7 +120,7 @@ brickkit lint
 | `DOC_OUT_OF_STEP` | `component.yaml` 里有的依赖、必填配置项、契约文件或外壳成员，文档里没提 |
 | `DOC_PLACEHOLDER` | 正文里还留着 `TODO`（或 `TBD`、`FIXME`）——骨架有意在每一节都留了一条 |
 | `DOC_TRANSLATION_DRIFT` | 译本（`BRICKKIT.zh.md`、`README.zh.md`、`docs/zh/` 下的一页）和它的原文对不上了，或者某一页在某棵 `docs/<语言>/` 树里缺了 |
-| `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有可用的、由 CLI 维护的那一段，组件表不会自动更新 |
+| `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有可用的、由 CLI 维护的那一段，读它的 AI 看不到平台规则，也不知道组件表在 `COMPONENTS.md` |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 里没有 `@AGENTS.md` |
 | `PROJECT_MAP_OBSOLETE` | 项目根还留着旧版的项目地图 `BRICKKIT.md` |
 

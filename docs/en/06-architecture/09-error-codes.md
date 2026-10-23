@@ -461,8 +461,10 @@ every finding also comes out as a JSON log line carrying its `error_code` and `f
 ### DOC_FILE_MISSING
 
 A required document is absent: in a component, `BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md` or `README.md`; in a project,
-`AGENTS.md` or `CLAUDE.md`. `brickkit new` writes all of them for a new component; for an existing one, write the
-missing file (`brickkit skills update` creates `AGENTS.md` and `CLAUDE.md` where they are missing).
+`AGENTS.md` or `CLAUDE.md`; in a project or a workbench (wherever there is a `brickkit.yaml`), `COMPONENTS.md`. `brickkit
+new` writes all of them for a new component; for an existing one, write the missing file (`brickkit skills update`
+creates `AGENTS.md`, `CLAUDE.md` and `COMPONENTS.md` where they are missing; `add`, `remove` and `upgrade` also write
+`COMPONENTS.md`).
 
 ### DOC_SECTION_MISSING
 
@@ -511,8 +513,8 @@ in step with the primary — the primary is the one that is right.
 
 ### AGENTS_BLOCK_MISSING
 
-`AGENTS.md` has no usable block maintained by brickkit (none, or its markers are broken), so its component table and
-platform rules are not kept up to date. `brickkit skills update` appends one; `init`, `add`, `remove` and `upgrade`
+`AGENTS.md` has no usable block maintained by brickkit (none, or its markers are broken), so an AI reading it sees
+neither the platform rules nor where the component table (`COMPONENTS.md`) is. `brickkit skills update` appends one; `init`, `add`, `remove` and `upgrade`
 never change your file.
 
 ### CLAUDE_IMPORT_MISSING
@@ -523,5 +525,5 @@ never change your file.
 ### PROJECT_MAP_OBSOLETE
 
 The project root still has the old project map `BRICKKIT.md` (the one with brickkit's markers). The component table now
-lives at the end of `AGENTS.md`: move any notes of your own into `AGENTS.md`, then delete `BRICKKIT.md` — it is never
+lives in `COMPONENTS.md`: move any notes of your own into `AGENTS.md`, then delete `BRICKKIT.md` — it is never
 deleted for you.

@@ -1,7 +1,7 @@
 package cli
 
 // 组件文档从头到尾走一遍，照着 be-assembly-standard 那种项目的用法：init 一个项目、new 两个组件、
-// 填好其中一个的文档（带一份中文译本）、add --local，再看 AGENTS.md 的组件表与 lint 的文档检查。
+// 填好其中一个的文档（带一份中文译本）、add --local，再看 COMPONENTS.md 的组件表与 lint 的文档检查。
 
 import (
 	"os"
@@ -51,9 +51,9 @@ func TestComponentDocsEndToEnd(t *testing.T) {
 	r := runWith(t, func(o *Options) { o.Engine = newFakeEngine() }, shop, "add", "--local", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	agents := readFile(t, filepath.Join(shop, "AGENTS.md"))
-	assert.Regexp(t, `\| erp/sales \| 0\.1\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, agents)
-	assert.Regexp(t, `\| mdm/customer \| 0\.1\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, agents)
+	table := readFile(t, filepath.Join(shop, "COMPONENTS.md"))
+	assert.Regexp(t, `\| erp/sales \| 0\.1\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, table)
+	assert.Regexp(t, `\| mdm/customer \| 0\.1\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, table)
 
 	lint := runIn(t, shop, "lint")
 	require.Equal(t, clierr.ExitOK, lint.code, "documentation problems are warnings: "+lint.stdout)
@@ -74,7 +74,7 @@ func TestComponentDocsEndToEnd(t *testing.T) {
 	t.Setenv("BRICKKIT_LANG", "zh")
 	r = runWith(t, func(o *Options) { o.Engine = newFakeEngine() }, shop, "add", "--local", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	agents = readFile(t, filepath.Join(shop, "AGENTS.md"))
+	agents := readFile(t, filepath.Join(shop, "AGENTS.md"))
 	assert.Contains(t, agents, "<!-- brickkit:managed:begin lang=en -->")
 	assert.Equal(t, 1, strings.Count(agents, "## Components"), "still the English template, rendered once")
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/mdtext"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // doc 是一份读进来的文档。rel 是相对检查根目录的路径（斜杠分隔），给人看。
@@ -146,6 +147,16 @@ func links(root string, d doc, portable bool) []*clierr.Error {
 		}
 	}
 	return out
+}
+
+// componentTable 查 root 有 brickkit.yaml（项目或工作台）时组件表 COMPONENTS.md 在不在。
+// 它整份由 CLI 生成，内容不查；过期与否由 skills status 比对。
+func componentTable(root string) []*clierr.Error {
+	if !exists(filepath.Join(root, projfile.FileName)) || exists(filepath.Join(root, docspec.FileComponents)) {
+		return nil
+	}
+	return []*clierr.Error{warn(clierr.CodeDocFileMissing, i18n.T(msgid.DoccheckFileMissing, docspec.FileComponents), docspec.FileComponents, 0).
+		WithHint(i18n.T(msgid.DoccheckHintComponentTable))}
 }
 
 // claude 查 CLAUDE.md 有没有 @AGENTS.md。

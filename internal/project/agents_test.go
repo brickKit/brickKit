@@ -41,8 +41,8 @@ func TestAgentsRowsFromCache(t *testing.T) {
 func TestAgentsRowsKeepCellsWhenCacheMissing(t *testing.T) {
 	root := t.TempDir()
 	l := project.NewLayout(root)
-	old := agentsmd.Render(agentsmd.Content{Lang: "en", Project: true, Rows: []agentsmd.Row{{ID: "a/b", Version: "1.0.0", Does: "kept", Docs: "BRICKKIT.md", Home: "https://h"}}})
-	require.NoError(t, os.WriteFile(l.AgentsPath(), []byte("# P\n\n"+old), 0o644))
+	old := agentsmd.RenderComponents(agentsmd.Content{Lang: "en", Project: true, Rows: []agentsmd.Row{{ID: "a/b", Version: "1.0.0", Does: "kept", Docs: "BRICKKIT.md", Home: "https://h"}}})
+	require.NoError(t, os.WriteFile(l.ComponentTablePath(), []byte(old), 0o644))
 	decl := &projfile.File{Project: "p", Components: []projfile.Component{{ID: "a/b", Version: "1.0.0"}, {ID: "c/d", Version: "2.0.0"}}}
 	c := project.AgentsContent(l, decl, "en")
 	assert.Equal(t, "kept", c.Rows[0].Does, "a fresh clone has no cache yet: the committed cells stay")
@@ -64,9 +64,11 @@ func TestWriteAgentsBlockReplacesOnlyTheBlock(t *testing.T) {
 	res, err := project.WriteAgentsBlock(l, decl)
 	require.NoError(t, err)
 	assert.True(t, res.BlockRewritten)
+	assert.True(t, res.ComponentsRewritten)
 	got := readText(t, l.AgentsPath())
 	assert.Contains(t, got, "Notes written by hand.")
-	assert.Contains(t, got, "| erp/backend | 2.0.0 | The ERP backend | BRICKKIT.md | — |")
+	assert.Contains(t, got, "(1 now)")
+	assert.Contains(t, readText(t, l.ComponentTablePath()), "| erp/backend | 2.0.0 | The ERP backend | BRICKKIT.md | — |")
 }
 
 func TestWriteAgentsBlockLeavesFileWithoutBlock(t *testing.T) {
@@ -86,6 +88,11 @@ func TestWriteAgentsBlockLeavesFileWithoutBlock(t *testing.T) {
 	_, err = project.WriteAgentsBlock(l, decl)
 	require.NoError(t, err)
 	assert.NoFileExists(t, l.AgentsPath(), "add / remove / upgrade never create it: that is init's job")
+
+	require.NoError(t, os.Remove(l.ComponentTablePath()))
+	res, err = project.WriteAgentsBlock(l, decl)
+	require.NoError(t, err)
+	assert.True(t, res.ComponentsCreated, "COMPONENTS.md is wholly the CLI's: a missing one is written again")
 }
 
 func TestObsoleteProjectMap(t *testing.T) {
@@ -113,8 +120,8 @@ func TestAgentsDocsCellKeptWhenTheCacheDoesNotKnow(t *testing.T) {
 	root := t.TempDir()
 	l := project.NewLayout(root)
 	cacheComponent(t, l, "a/b", "1.0.0", "metadata: {id: a/b, version: 1.0.0, description: d}\n", "BRICKKIT.md") // 没有记录：旧缓存
-	old := agentsmd.Render(agentsmd.Content{Lang: "en", Project: true, Rows: []agentsmd.Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "BRICKKIT.md +zh", Home: "—"}}})
-	require.NoError(t, os.WriteFile(l.AgentsPath(), []byte("# P\n\n"+old), 0o644))
+	old := agentsmd.RenderComponents(agentsmd.Content{Lang: "en", Project: true, Rows: []agentsmd.Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "BRICKKIT.md +zh", Home: "—"}}})
+	require.NoError(t, os.WriteFile(l.ComponentTablePath(), []byte(old), 0o644))
 	decl := &projfile.File{Project: "p", Components: []projfile.Component{{ID: "a/b", Version: "1.0.0"}}}
 	assert.Equal(t, "BRICKKIT.md +zh", project.AgentsContent(l, decl, "en").Rows[0].Docs)
 

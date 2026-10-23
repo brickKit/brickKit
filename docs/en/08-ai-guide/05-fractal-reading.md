@@ -9,12 +9,12 @@ once.
 
 | Level | Entry point | What you know after reading it |
 | --- | --- | --- |
-| The project | The project's `AGENTS.md` (and `.claude/skills/`) | The team's conventions and pitfalls; at its end, the platform rules in brief and the component table — which components exist, what each does, where their docs and contracts are |
+| The project | The project's `AGENTS.md` (and `.claude/skills/`), then `COMPONENTS.md` when the task needs it | The team's conventions and pitfalls; at its end, the platform rules in brief and where each component's docs and contracts are. `COMPONENTS.md` is the component table: which components exist and what each does |
 | A component, to use it | The component's `BRICKKIT.md` | What it owns and doesn't, what to prepare, how to configure it, how to call it |
 | A component, to change it | The component's own `AGENTS.md`, in its source directory | Where its code is, how to build and test it, why it is designed the way it is |
 
-Each level points at the next: the project's `AGENTS.md` ends with the table and the rule for where each component's
-`BRICKKIT.md` is; a component's `BRICKKIT.md` is all a caller needs, and its `AGENTS.md` takes over only when the code
+Each level points at the next: the project's `AGENTS.md` ends with the rule for where each component's `BRICKKIT.md` is
+and a pointer to the component table; a component's `BRICKKIT.md` is all a caller needs, and its `AGENTS.md` takes over only when the code
 itself is to change.
 
 A component under development is itself a project too (its own workbench), so the same levels repeat inside the

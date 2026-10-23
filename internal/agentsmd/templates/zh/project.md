@@ -10,4 +10,6 @@
 
 ## 组件
 
+`COMPONENTS.md` 列出本项目的组件（现有 {{count}} 个），每个一行：ID、版本、干什么、带哪些文档、主页。它由 brickkit 维护；找一项任务归哪个组件时读它，或在里面按 ID、按 scope 搜。
+
 组件的文档是 `BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）：本地源里正好是这个版本时在源码目录里，否则在 `.brickkit/manifests/<id>/<version>/`；契约在 `.brickkit/artifacts/<服务名>/`（ID 和版本用 `-` 连起来，其中的 `/` 和 `.` 也都换成 `-`：`erp/backend` 1.0.0 → `erp-backend-1-0-0`）。要改某个组件，读它自己的 `AGENTS.md`。

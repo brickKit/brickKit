@@ -73,7 +73,7 @@ type Metadata struct {
 	Vendor      string `yaml:"vendor,omitempty"`
 	License     string `yaml:"license,omitempty"`
 	APIDocs     string `yaml:"apiDocs,omitempty"`
-	// Repository 是组件仓库或主页的地址，可选。项目 AGENTS.md 的组件表把它写进"主页"一列，
+	// Repository 是组件仓库或主页的地址，可选。项目的组件表 COMPONENTS.md 把它写进"主页"一列，
 	// 网页上读项目仓库的人（那里没有 .brickkit/）也能点到每个组件。
 	Repository string `yaml:"repository,omitempty"`
 }

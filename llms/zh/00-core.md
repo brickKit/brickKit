@@ -64,7 +64,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | 组件的依赖、能力声明、`configSchema` | `.brickkit/manifests/<scope>/<name>/<版本>/component.yaml`，本地源组件读源码里的 `component.yaml` |
 | 一个事件谁在发布、谁在订阅（经消息系统传的事件不是依赖） | `brickkit deps` 最后的事件清单，来自各组件 `component.yaml` 的 `events`；`brickkit graph` 把它画成带标签的虚线 |
 | 依赖组件怎么用、负责什么不负责什么、配置项什么意思 | `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）；本地源里正好是这个版本时，读源码目录里那份 |
-| 项目里有哪些组件、各干什么 | 项目 `AGENTS.md` 末尾的组件表（`add` / `remove` / `upgrade` 维护） |
+| 项目里有哪些组件、各干什么 | 项目根的 `COMPONENTS.md`：CLI 生成的组件表（`init`、`add`、`remove`、`upgrade`、`skills update` 维护） |
 | 怎么改一个组件：代码地图、构建与测试、易错点 | 组件自己的 `AGENTS.md` |
 
 ### 3.2 关键规则
@@ -77,7 +77,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
 - `$var:NAME` 从 `config/vars.yaml`（或部署文件的 `vars:`）取值；`${NAME}` 从进程环境与 `.env` 取值；`file://路径` 读文件；`$endpoint:<id>[/路径]` 是另一个组件的地址，按 `*_ENDPOINT` 的规则算（可以写在 `vars.yaml` 里；不进启动顺序，可以成环）。没有隐式的环境变量覆盖。
 - `brickkit up` 绝不构建镜像：本地该有的镜像没有时，它报错并告诉你跑 `brickkit build`。
-- `brickkit init <名字>` 新建目录；不带名字的 `brickkit init` 在当前目录补全缺的文件，`.gitignore` 缺必需条目时大声警告。已有的文件一个字节都不动——唯一的例外是 `AGENTS.md` 末尾由 brickkit 维护的那一段，它会原地改写。缺 `AGENTS.md`（作者自己的 AI 导读，末尾一段由 brickkit 维护）和 `CLAUDE.md`（`@AGENTS.md`）时会写上；没有项目级的 `BRICKKIT.md`。
+- `brickkit init <名字>` 新建目录；不带名字的 `brickkit init` 在当前目录补全缺的文件，`.gitignore` 缺必需条目时大声警告。已有的文件一个字节都不动——例外都是 brickkit 自己的：`AGENTS.md` 末尾由它维护的那一段（原地改写），以及它整份生成的组件表 `COMPONENTS.md`。缺 `AGENTS.md`（作者自己的 AI 导读，末尾一段由 brickkit 维护）和 `CLAUDE.md`（`@AGENTS.md`）时会写上；没有项目级的 `BRICKKIT.md`。
 
 ### 3.3 分形架构（套娃机制）
 
@@ -92,7 +92,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 ### 3.4 AI 的三层路由
 
 1. 读本文件，理解规范和检索路径。
-2. 读项目的 `AGENTS.md`：项目约定，以及末尾的组件表——项目里有哪些组件、各干什么。
+2. 读项目的 `AGENTS.md`：项目约定，以及末尾的平台规则、各组件的文档在哪；问题没点名组件时，再读 `COMPONENTS.md`——项目里有哪些组件、各干什么。
 3. 按需读某个组件的 `BRICKKIT.md`（`.brickkit/manifests/` 下），理解那一个组件；要改它，读它自己的 `AGENTS.md`。
 4. 来了新需求：[`docs/zh/08-ai-guide/03-judging-a-requirement.md`](../../docs/zh/08-ai-guide/03-judging-a-requirement.md)——归哪个组件、合不合理、按什么顺序改。
 
@@ -230,7 +230,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | 包 | 管什么 |
 | --- | --- |
 | `internal/cli/` | 命令树：每条命令一个文件、参数、输出；报错里的路径按使用者所在的目录显示（`shown.go`）；TAB 补全的候选（`complete.go`） |
-| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目 `AGENTS.md` 末尾的组件表（`agents.go`） |
+| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；`AGENTS.md` 末尾那一段与 `COMPONENTS.md` 的内容（`agents.go`） |
 | `internal/project/projecttest/` | 测试辅助：用几行 YAML 搭一个三层项目并装载它 |
 | `internal/projfile/` | `brickkit.yaml`：安装源、组件、版本、`kind: shell` |
 | `internal/deployfile/` | 部署文件（`deploy.yaml`、`deploy.local.yaml`、`-f`）：字段、校验、`focus`、本地修改的差异 |
@@ -245,7 +245,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
 | `internal/docspec/` | 组件与项目文档规范本身（写成数据）：文件、小节、各语言的标题、译本的文件名 |
 | `internal/doccheck/` | lint 的文档检查：文件、小节、代码地图路径、链接、清单里的事实、占位、译本 |
-| `internal/agentsmd/` | `AGENTS.md` 末尾由 CLI 维护的那一段（平台规则、组件表、记下的语言），以及 `AGENTS.md` / `CLAUDE.md` 的骨架 |
+| `internal/agentsmd/` | `AGENTS.md` 末尾由 CLI 维护的那一段（平台规则、指向组件表的一句、记下的语言）、组件表 `COMPONENTS.md`（`components.go`），以及 `AGENTS.md` / `CLAUDE.md` 的骨架 |
 | `internal/engine/` | Docker、Podman、kubectl：探测与调用 |
 | `internal/procsup/` | 在前台监管 `mode: local` 的本机进程 |
 | `internal/runcmd/` | 从组件源码推出在本机怎么启动它 |
@@ -388,8 +388,8 @@ graph LR
 - **边界是契约文件，不用猜。** AI 写调用方时读依赖的契约和 `BRICKKIT.md`，不需要读依赖的实现。
 - **容易写错的东西由平台派生。** 服务地址、变量名、部署文件都不用 AI 编；装配错误在
   `brickkit up --dry-run` 时就暴露。
-- **有明确的读取路线。** 项目根目录的 `AGENTS.md`（AI 编程工具最先读的那份文件）写着项目自己的约定，末尾一张表列出
-  有哪些组件、各自的文档在哪，AI 只读用得到的那个组件。
+- **有明确的读取路线。** 项目根目录的 `AGENTS.md`（AI 编程工具最先读的那份文件）写着项目自己的约定，末尾写明各组件的文档在哪；
+  一张组件表 `COMPONENTS.md` 列出有哪些组件，AI 只读用得到的那个组件。
 
 详见 [AI 专属指南](../../docs/zh/08-ai-guide/README.md)。
 
@@ -451,8 +451,9 @@ brickkit init my-shop
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 AGENTS.md            项目的 AI 导读；末尾的一段由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
+   📄 COMPONENTS.md        组件表，由 brickkit 维护
    📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 
@@ -473,8 +474,9 @@ my-shop/
 │   └── vars.yaml     公共变量（现在是空的）
 ├── components/       本地安装源：你自己的组件源码放这里
 ├── shell/            本地安装源：外壳组件
-├── AGENTS.md         项目的 AI 导读；末尾的组件表由 CLI 跟着更新
+├── AGENTS.md         项目的 AI 导读；末尾的一段由 CLI 跟着更新
 ├── CLAUDE.md         只有一行 @AGENTS.md，让 Claude Code 也读 AGENTS.md
+├── COMPONENTS.md     组件表，由 CLI 生成
 ├── .claude/skills/   AI 助手技能，一个任务一个目录
 ├── .brickkit/        CLI 的缓存与生成物（不进 Git）
 └── .gitignore
@@ -714,7 +716,7 @@ brickkit down
 | **成员**（Member） | 被外壳承载的组件；它没有自己的容器，但仍然有自己的配置和迁移 |
 | **分形架构** | 组件开发时本身是一个项目，被使用时是一个黑盒，见 [分形架构](../../docs/zh/00-intro/06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | 组件写给使用者（人和 AI）的文档：它负责什么、部署前要准备什么、配置是什么意思、有哪些契约。它跟着每个版本走（译本叫 `BRICKKIT.<语言>.md`），会缓存进使用它的项目，见 [组件的文档](../../docs/zh/03-component-guide/08-component-doc-spec.md) |
-| **`AGENTS.md`** | AI 编程工具最先读的导读（`CLAUDE.md` 里写着 `@AGENTS.md`，Claude Code 也就读到它）。项目的 `AGENTS.md` 写团队约定，末尾是一张项目组件表，由 CLI 跟着更新；组件的 `AGENTS.md` 写给开发这个组件的人，见 [创建项目](../../docs/zh/02-project-guide/01-init-and-project-creation.md#项目的-agentsmd) |
+| **`AGENTS.md`** | AI 编程工具最先读的导读（`CLAUDE.md` 里写着 `@AGENTS.md`，Claude Code 也就读到它）。项目的 `AGENTS.md` 写团队约定，末尾一段由 CLI 跟着更新，指向项目的组件表 `COMPONENTS.md`；组件的 `AGENTS.md` 写给开发这个组件的人，见 [创建项目](../../docs/zh/02-project-guide/01-init-and-project-creation.md#项目的-agentsmd) |
 | **本地模式** | `brickkit local on` 之后，运行和检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）改读个人的 `deploy.local.yaml`，不再读 `deploy.yaml`；`graph`、`deps` 始终读 `deploy.yaml`，见 [本地调试工作流](../../docs/zh/02-project-guide/03-local-debug-workflow.md) |
 
 ## 贯穿全局的命名规则
@@ -833,7 +835,7 @@ brickkit init --yes
 - 组件仓库里的 `init` 不建 `components/` 与 `shell/`，也不声明那两个本地源——那是装配型项目的目录约定，
   组件仓库用不上。
 - 组件自己的文档（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`）一个字节都不动；只改写 `AGENTS.md` 末尾那段由 CLI
-  维护的区块，这时它除了组件规则，还多了工作台的组件表。工作台只有一份 `AGENTS.md`，不是两份。
+  维护的区块，这时它除了组件规则，还多了指向工作台组件表的一句（组件表是旁边写出的 `COMPONENTS.md`）。工作台只有一份 `AGENTS.md`，不是两份。
 - 之后用 `brickkit add` 把这个组件的依赖加进工作台，`brickkit up` 就能在本地拉起完整的依赖树联调。
   这时 `brickkit.yaml` 是作者的**本地工作台**，要不要提交由作者决定。
 
@@ -917,7 +919,7 @@ brickkit init --yes
 | 层级 | 文件 | 职责 | 谁写 |
 | --- | --- | --- | --- |
 | 定义层（平台） | BrickKit 仓库根目录的 `AGENTS.md` / `AGENTS.zh.md` | 规定文档的结构和 AI 的读取路线 | 平台维护 |
-| 实例层（项目） | 项目根目录的 `AGENTS.md` | 团队约定、查找路由、易错点；末尾是平台规则摘要和项目组件表，写明各自的文档和契约在哪 | 各节由作者写；组件表由 `init`、`add`、`remove`、`upgrade` 改写 |
+| 实例层（项目） | 项目根目录的 `AGENTS.md` 与 `COMPONENTS.md` | `AGENTS.md`：团队约定、查找路由、易错点，末尾是平台规则摘要，写明各组件的文档和契约在哪；`COMPONENTS.md`：项目的组件表 | 各节由作者写；末尾那一段与 `COMPONENTS.md` 由 `init`、`add`、`remove`、`upgrade` 改写 |
 | 内容层（组件） | 组件仓库根目录的 `BRICKKIT.md` 与 `AGENTS.md` | `BRICKKIT.md`：定位、部署前准备、依赖、配置含义、契约；`AGENTS.md`：代码地图、构建与测试、设计取舍 | `new` 生成骨架，作者填写 |
 
 写法细则见 [组件的文档](../../docs/zh/03-component-guide/08-component-doc-spec.md)。
@@ -926,7 +928,8 @@ brickkit init --yes
 
 ```mermaid
 graph TD
-    P["项目的 AGENTS.md<br/>团队约定、平台规则、组件表"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
+    P["项目的 AGENTS.md<br/>团队约定、平台规则、文档在哪"] -.-> T["COMPONENTS.md<br/>组件表，任务需要时再读"]
+    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
     P -.-> C2["其它组件的 BRICKKIT.md<br/>用不到就不读"]
     C1 -.-> D["组件源码里它自己的 AGENTS.md<br/>只在要改它的代码时读"]
 ```
@@ -957,8 +960,9 @@ my-shop/
 │   └── .archive/          remove 时归档的配置，重新 add 时恢复（默认不进 Git）
 ├── components/            本地安装源：组件源码（各自是独立的 Git 仓库，默认不进项目的 Git）
 ├── shell/                 本地安装源：外壳组件
-├── AGENTS.md              项目的 AI 导读；末尾的组件表由 CLI 维护（进 Git）
+├── AGENTS.md              项目的 AI 导读；末尾的一段由 CLI 维护（进 Git）
 ├── CLAUDE.md              只有一行 @AGENTS.md，让 Claude Code 也读 AGENTS.md（进 Git）
+├── COMPONENTS.md          组件表，由 CLI 生成（进 Git）
 ├── .claude/skills/        AI 助手技能 brickkit-*（进 Git）
 ├── .env                   本机的环境变量值，${VAR} 从这里取（不进 Git）
 ├── .secrets/              file:// 引用的密钥文件（不进 Git）
@@ -1002,7 +1006,8 @@ my-shop/
 | 某个组件拿到哪些环境变量 | `config/<组件>.yaml`，里面 `$var:` 引用的值在 `config/vars.yaml` 或部署文件的 `vars:` |
 | 某个组件需要哪些配置、有什么依赖 | 它的 `component.yaml`：`.brickkit/manifests/<scope>/<name>/<版本>/` 下，本地源组件在源码目录里 |
 | 某个组件怎么用 | 它的 `BRICKKIT.md`（译本叫 `BRICKKIT.<语言>.md`），位置同上 |
-| 团队约定，以及项目里有哪些组件、文档在哪 | 项目根的 `AGENTS.md`：前面是作者写的几节，末尾是组件表 |
+| 团队约定，以及各组件的文档在哪 | 项目根的 `AGENTS.md`：前面是作者写的几节，末尾是 brickkit 维护的一段 |
+| 项目里有哪些组件、各干什么 | 项目根的 `COMPONENTS.md`，由 brickkit 生成 |
 
 **为什么没有"合并视图"命令**（一条命令把三层合成一份给你看）：它会成为第四份需要理解、需要信任的东西，
 也需要额外维护它与实际生效配置的一致性。按需读取事实的权威来源；一个结果涉及几处输入时，再沿引用与派生规则追溯——这是
@@ -1019,7 +1024,8 @@ my-shop/
 | `config/`（含 `vars.yaml`） | ✅ | 配置是项目的一部分；密钥不要直接写进去，用 `${VAR}` 或 `file://` |
 | `config/.archive/` | ❌ | 已移除组件的旧配置，只为以后重新 `add` 时恢复用，属于本机 |
 | `components/` | ❌（默认） | 里面每个组件是独立的 Git 仓库，有自己的历史；要让源码随项目一起提交，`brickkit init --hooks` 装上提交前检查 |
-| `AGENTS.md`、`CLAUDE.md` | ✅ | 团队写的项目 AI 导读；末尾的组件表只放每台机器上都一样的事实 |
+| `AGENTS.md`、`CLAUDE.md` | ✅ | 团队写的项目 AI 导读 |
+| `COMPONENTS.md` | ✅ | brickkit 生成的组件表；只放每台机器上都一样的事实 |
 | `.claude/skills/` | ✅ | AI 助手技能；每份文件最后一行记着是哪个版本的 CLI 写的，同事新克隆下来也分得清有没有被改过 |
 | `deploy.local.yaml` | ❌ | 个人的临时部署方式（"我正在调这个组件"），不是团队决定 |
 | `.env`、`.secrets/` | ❌ | 本机的密钥与环境变量值、`file://` 引用的密钥文件 |

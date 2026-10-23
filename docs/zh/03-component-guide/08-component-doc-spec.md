@@ -88,7 +88,7 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 | `文档` | 一张表：想知道什么 → 能回答它的那份文件（`BRICKKIT.md`、契约、`component.yaml`、`AGENTS.md`） |
 | `开发` | 克隆下来怎么连同依赖一起跑起来，再指向 `AGENTS.md` |
 
-标题下的第一句与 `metadata.description` 是同一句话。项目会把这句话和可选的 `metadata.repository`（组件的仓库或主页）列进自己 `AGENTS.md` 末尾的组件表。
+标题下的第一句与 `metadata.description` 是同一句话。项目会把这句话和可选的 `metadata.repository`（组件的仓库或主页）列进自己的组件表 `COMPONENTS.md`。
 
 ## `docs/`
 
@@ -288,8 +288,8 @@ demo/hello 挂了时降级而不是报错：名言是内容，问候语只是点
 .brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md
 ```
 
-项目的 `AGENTS.md` 末尾有一张由 brickkit 维护的组件表：每个组件、版本、它的 `metadata.description`、带着哪些文档（`BRICKKIT.md +zh`）、
-它的 `metadata.repository`。项目里的 AI 从这张表开始，然后只读任务碰到的那几个组件的 `BRICKKIT.md`。本地源里正好是这个版本时，
+项目的 `COMPONENTS.md` 是一张由 brickkit 维护的组件表：每个组件、版本、它的 `metadata.description`、带着哪些文档（`BRICKKIT.md +zh`）、
+它的 `metadata.repository`；项目 `AGENTS.md` 末尾的一段指向它。项目里的 AI 靠这张表找到任务归哪个组件，然后只读任务碰到的那几个组件的 `BRICKKIT.md`。本地源里正好是这个版本时，
 源码目录里那份才是正在改的、该读的那份。
 
 缓存跟着它来自的那个版本走：重新取这个版本时，版本里已经没有的译本会从缓存删掉；文件旁边的 `docs.list` 记着缓存里有哪几份。
@@ -297,8 +297,8 @@ demo/hello 挂了时降级而不是报错：名言是内容，问候语只是点
 
 所以文档和代码一样，是版本的一部分。正常的改法是朝一个新版本改：先升 `metadata.version`，从本地源测，再 `brickkit release`——
 发布之前，没有这份源码的机器根本没有这个版本，表里那一行原样不动。出问题的是**原地改一个已经发布的版本**：一个版本号对应了两份内容，
-有本地源的机器把新的那一行写进项目的 `AGENTS.md`，从 tag 取这个版本的机器又把旧的写回去，两边的 `brickkit skills status`
-都说对方写的维护段过期了。已经发布的 `BRICKKIT.md`、译本或 `metadata.description`，改在下一个版本里。
+有本地源的机器把新的那一行写进项目的 `COMPONENTS.md`，从 tag 取这个版本的机器又把旧的写回去，两边的 `brickkit skills status`
+都说对方写的组件表过期了。已经发布的 `BRICKKIT.md`、译本或 `metadata.description`，改在下一个版本里。
 
 `brickkit publish` 把 `BRICKKIT.md` 和译本随版本一起上传：译本最多 16 份，每份不超过 256 KiB，全部加起来不超过 1 MiB。续传一次中断的发布时，每一份都要与 draft 登记的比对，有一份不同就停下。
 市场太旧、存不了译本时，版本照样发布但不带译本，`publish` 会警告。

@@ -51,8 +51,9 @@ type CompletePlan struct {
 	// GitignoreMissing：.gitignore 已存在但缺的必需条目——绝不替使用者改，只大声警告。
 	GitignoreMissing []string
 	// AgentsNew、ClaudeNew：AGENTS.md、CLAUDE.md 不在，会按骨架建出来（列进计划，确认前让人看到）。
-	AgentsNew, ClaudeNew bool
-	// ObsoleteMap：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 AGENTS.md 末尾）。
+	// ComponentsNew：COMPONENTS.md 不在，会生成出来。
+	AgentsNew, ClaudeNew, ComponentsNew bool
+	// ObsoleteMap：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 COMPONENTS.md）。
 	ObsoleteMap bool
 	// IsLegacyAgents 判断已有的 AGENTS.md 是不是旧版 CLI 装的那份、没被改过（由命令层在 Apply 之前填，可为 nil）：
 	// 文件恰好是旧版 CLI 装的那份、没被改过时，整份换成新骨架。
@@ -136,6 +137,7 @@ func planComplete(l Layout, name string, sources []projfile.Source) (*CompletePl
 
 	plan.AgentsNew = !exists(l.AgentsPath())
 	plan.ClaudeNew = !exists(l.path(docspec.FileClaude))
+	plan.ComponentsNew = !exists(l.ComponentTablePath())
 	plan.ObsoleteMap = ObsoleteProjectMap(l)
 	return plan, nil
 }

@@ -63,7 +63,7 @@ brickkit init --yes
 - 组件仓库里的 `init` 不建 `components/` 与 `shell/`，也不声明那两个本地源——那是装配型项目的目录约定，
   组件仓库用不上。
 - 组件自己的文档（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`）一个字节都不动；只改写 `AGENTS.md` 末尾那段由 CLI
-  维护的区块，这时它除了组件规则，还多了工作台的组件表。工作台只有一份 `AGENTS.md`，不是两份。
+  维护的区块，这时它除了组件规则，还多了指向工作台组件表的一句（组件表是旁边写出的 `COMPONENTS.md`）。工作台只有一份 `AGENTS.md`，不是两份。
 - 之后用 `brickkit add` 把这个组件的依赖加进工作台，`brickkit up` 就能在本地拉起完整的依赖树联调。
   这时 `brickkit.yaml` 是作者的**本地工作台**，要不要提交由作者决定。
 
@@ -147,7 +147,7 @@ brickkit init --yes
 | 层级 | 文件 | 职责 | 谁写 |
 | --- | --- | --- | --- |
 | 定义层（平台） | BrickKit 仓库根目录的 `AGENTS.md` / `AGENTS.zh.md` | 规定文档的结构和 AI 的读取路线 | 平台维护 |
-| 实例层（项目） | 项目根目录的 `AGENTS.md` | 团队约定、查找路由、易错点；末尾是平台规则摘要和项目组件表，写明各自的文档和契约在哪 | 各节由作者写；组件表由 `init`、`add`、`remove`、`upgrade` 改写 |
+| 实例层（项目） | 项目根目录的 `AGENTS.md` 与 `COMPONENTS.md` | `AGENTS.md`：团队约定、查找路由、易错点，末尾是平台规则摘要，写明各组件的文档和契约在哪；`COMPONENTS.md`：项目的组件表 | 各节由作者写；末尾那一段与 `COMPONENTS.md` 由 `init`、`add`、`remove`、`upgrade` 改写 |
 | 内容层（组件） | 组件仓库根目录的 `BRICKKIT.md` 与 `AGENTS.md` | `BRICKKIT.md`：定位、部署前准备、依赖、配置含义、契约；`AGENTS.md`：代码地图、构建与测试、设计取舍 | `new` 生成骨架，作者填写 |
 
 写法细则见 [组件的文档](../03-component-guide/08-component-doc-spec.md)。
@@ -156,7 +156,8 @@ brickkit init --yes
 
 ```mermaid
 graph TD
-    P["项目的 AGENTS.md<br/>团队约定、平台规则、组件表"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
+    P["项目的 AGENTS.md<br/>团队约定、平台规则、文档在哪"] -.-> T["COMPONENTS.md<br/>组件表，任务需要时再读"]
+    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
     P -.-> C2["其它组件的 BRICKKIT.md<br/>用不到就不读"]
     C1 -.-> D["组件源码里它自己的 AGENTS.md<br/>只在要改它的代码时读"]
 ```

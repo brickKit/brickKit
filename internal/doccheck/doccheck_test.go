@@ -262,6 +262,32 @@ func TestProjectChecks(t *testing.T) {
 	}, codes(Project(root)))
 }
 
+// 有 brickkit.yaml（项目、工作台）就要有组件表 COMPONENTS.md；它的内容是 CLI 生成的，不查（FRR-010）。
+func TestComponentTableIsRequiredWhereThereIsABrickkitYaml(t *testing.T) {
+	for _, workbench := range []bool{false, true} {
+		root := t.TempDir()
+		check := func() []*clierr.Error { return Project(root) }
+		if workbench {
+			require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("x"), 0o644))
+			check = func() []*clierr.Error { return Component(root, nil) }
+		}
+		hasTableWarning := func() bool {
+			for _, w := range check() {
+				if w.Code == clierr.CodeDocFileMissing && strings.Contains(w.Message, "COMPONENTS.md") {
+					return true
+				}
+			}
+			return false
+		}
+		assert.False(t, hasTableWarning(), "no brickkit.yaml, no component table")
+		require.NoError(t, os.WriteFile(filepath.Join(root, "brickkit.yaml"), []byte("project: p\n"), 0o644))
+		assert.True(t, hasTableWarning())
+		require.NoError(t, os.WriteFile(filepath.Join(root, "COMPONENTS.md"), []byte("| TODO | [x](nowhere.md) |\n"), 0o644))
+		assert.False(t, hasTableWarning())
+		assert.NotContains(t, messages(check()), "nowhere.md", "the generated table is not checked")
+	}
+}
+
 func TestProjectInWorkbenchLeavesDocsToComponent(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("x"), 0o644))

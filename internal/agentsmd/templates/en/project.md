@@ -10,4 +10,6 @@ This project is assembled with [BrickKit](https://github.com/brickKit/brickKit):
 
 ## Components
 
+`COMPONENTS.md` lists the project's components ({{count}} now), one row each: ID, version, what it does, which docs it carries, home. It is maintained by brickkit; read it to find the component a task belongs to, or search it for an ID or a scope.
+
 A component's documentation is `BRICKKIT.md` (translations `BRICKKIT.<lang>.md`) in its source directory when a local source holds this version, otherwise in `.brickkit/manifests/<id>/<version>/`; its contracts are in `.brickkit/artifacts/<service name>/` (the ID and the version joined by `-`, with every `/` and `.` as `-`: `erp/backend` 1.0.0 → `erp-backend-1-0-0`). To change a component, read its own `AGENTS.md`.

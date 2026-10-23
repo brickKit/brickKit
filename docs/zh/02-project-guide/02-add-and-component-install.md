@@ -80,9 +80,9 @@ components:
 
 **`.brickkit/artifacts/`**：组件声明的契约文件（OpenAPI、proto 之类），写调用方时用得上。
 
-**`AGENTS.md`**：末尾的组件表（由 CLI 维护的那一段）给每个加进来的组件添一行：版本、干什么、带了哪些文档、主页
-（见 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)）。那一段之外的内容不动；没有那一段的 `AGENTS.md`
-原样不动。
+**`COMPONENTS.md`**：组件表给每个加进来的组件添一行：版本、干什么、带了哪些文档、主页
+（见 [组件表](01-init-and-project-creation.md#组件表componentsmd)）。`AGENTS.md` 里只有 CLI 维护的那一段里的组件数会变；
+那一段之外的内容不动，没有那一段的 `AGENTS.md` 原样不动。
 
 改完之后项目装载不了（比如新组件与已有的冲突），`add` 把改过的文件全部还原——要么全做，要么一个都不改。
 

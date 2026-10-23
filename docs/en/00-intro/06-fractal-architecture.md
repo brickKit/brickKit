@@ -66,8 +66,9 @@ A few things worth noticing:
 - `init` in a component repository creates neither `components/` nor `shell/`, and declares neither local source —
   that's the directory convention of an assembling project, which a component repository has no use for.
 - The component's own documents (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`) are kept byte for byte; only the
-  block maintained by the CLI at the end of `AGENTS.md` is rewritten, and it now carries the workbench's component table
-  as well as the component rules. A workbench has one `AGENTS.md`, not two.
+  block maintained by the CLI at the end of `AGENTS.md` is rewritten, and it now points to the workbench's component
+  table (`COMPONENTS.md`, written next to it) as well as carrying the component rules. A workbench has one `AGENTS.md`,
+  not two.
 - From here, `brickkit add` brings the component's dependencies into the workbench, and `brickkit up` brings the whole
   dependency tree up locally for integration. At this point `brickkit.yaml` is the author's **local workbench**;
   whether to commit it is the author's call.
@@ -156,7 +157,7 @@ The documentation is fractal too, appearing at three levels:
 | Level | File | Job | Written by |
 | --- | --- | --- | --- |
 | Definition (the platform) | `AGENTS.md` / `AGENTS.zh.md` at the root of the BrickKit repository | Sets the document structure and the AI's reading path | Maintained with the platform |
-| Instance (the project) | `AGENTS.md` at the project root | The team's conventions, where to look and pitfalls; at its end, a summary of the platform rules and the table of the project's components, with where their docs and contracts are | The author writes the sections; the table is rewritten by `init`, `add`, `remove` and `upgrade` |
+| Instance (the project) | `AGENTS.md` and `COMPONENTS.md` at the project root | `AGENTS.md`: the team's conventions, where to look and pitfalls; at its end, a summary of the platform rules and where each component's docs and contracts are. `COMPONENTS.md`: the table of the project's components | The author writes the sections; the block and `COMPONENTS.md` are rewritten by `init`, `add`, `remove` and `upgrade` |
 | Content (the component) | `BRICKKIT.md` and `AGENTS.md` at the component repository root | `BRICKKIT.md`: purpose, preparation, dependencies, what its config means, contracts; `AGENTS.md`: code map, build and test, design decisions | Skeletons from `new`, filled in by the author |
 
 How to write them: [A component's documentation](../03-component-guide/08-component-doc-spec.md).
@@ -165,7 +166,8 @@ How to write them: [A component's documentation](../03-component-guide/08-compon
 
 ```mermaid
 graph TD
-    P["the project's AGENTS.md<br/>conventions, platform rules, the component table"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
+    P["the project's AGENTS.md<br/>conventions, platform rules, where docs are"] -.-> T["COMPONENTS.md<br/>the component table, when the task needs it"]
+    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
     P -.-> C2["other components' BRICKKIT.md<br/>not read unless needed"]
     C1 -.-> D["the component's own AGENTS.md, in its source<br/>only to change its code"]
 ```

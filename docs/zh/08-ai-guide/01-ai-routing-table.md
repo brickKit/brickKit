@@ -8,7 +8,8 @@ BrickKit 项目里每个问题都只有一个答案来源。先按问题找文�
 | --- | --- |
 | 项目用了哪些组件、各是哪个版本、从哪里取 | `brickkit.yaml` |
 | 项目是什么、每个组件都要守的约定、到哪找东西、易错点 | 项目根的 `AGENTS.md`：团队自己写的那几节 |
-| 有哪些组件、各干什么、文档和契约在哪 | 项目 `AGENTS.md` 末尾的组件表（由 CLI 维护的那一段） |
+| 有哪些组件、各干什么 | 项目根的 `COMPONENTS.md`（CLI 生成） |
+| 组件的文档和契约在哪 | 项目 `AGENTS.md` 末尾由 CLI 维护的那一段 |
 | 谁依赖谁 | `brickkit deps`（不在 `brickkit.yaml` 里） |
 | 部署到哪、哪些组件跑、怎么跑 | 当前生效的部署文件：`brickkit local status` 告诉你是 `deploy.yaml` 还是 `deploy.local.yaml` |
 | 某个组件拿到的配置值 | `config/<scope>-<name>.yaml`——组件 ID 里的 `/` 换成 `-`，比如 `config/demo-hello.yaml`（兼容版本是 `config/<scope>-<name>@<版本>.yaml`），`$var:` 引用去 `config/vars.yaml` 与部署文件的 `vars:` |
@@ -41,7 +42,7 @@ BrickKit 项目里每个问题都只有一个答案来源。先按问题找文�
 
 ## 什么时候读
 
-- **开始一个任务前**：项目根的 `AGENTS.md`（团队约定，末尾一张表就知道有哪些组件）、`brickkit.yaml`。
+- **开始一个任务前**：项目根的 `AGENTS.md`（团队约定）、`COMPONENTS.md`（一张表就知道有哪些组件）、`brickkit.yaml`。
 - **要用一个组件时**：它的 `BRICKKIT.md`、`component.yaml`、契约。
 - **要改一个组件的代码时**：再加上它源码目录里自己的 `AGENTS.md`。
 - **来了一个新需求时**：动手之前先看 [判断需求、制定计划](03-judging-a-requirement.md)。

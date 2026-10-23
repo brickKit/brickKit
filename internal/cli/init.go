@@ -109,6 +109,7 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	opts.Printf("   📁 %-21s%s\n", project.DirBrickkit+"/", i18n.T(msgid.CliInitCliWorkingDirectory))
 	opts.Printf("   📄 %-21s%s\n", docspec.FileAgents, i18n.T(msgid.CliInitAgentsGuide))
 	opts.Printf("   📄 %-21s%s\n", docspec.FileClaude, i18n.T(msgid.CliInitClaudeImport))
+	opts.Printf("   📄 %-21s%s\n", docspec.FileComponents, i18n.T(msgid.CliInitComponentsTable))
 	if err := finishInit(opts, layout, f, false); err != nil {
 		return err
 	}
@@ -212,6 +213,9 @@ func renderCompletePlan(opts *Options, plan *project.CompletePlan) {
 	if plan.ClaudeNew {
 		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileClaude))
 	}
+	if plan.ComponentsNew {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileComponents))
+	}
 	for _, rel := range plan.Skip {
 		opts.Printf("   ⏭️  %s\n", i18n.T(msgid.CliInitPlanSkip, rel))
 	}
@@ -220,7 +224,7 @@ func renderCompletePlan(opts *Options, plan *project.CompletePlan) {
 	}
 }
 
-// finishInit 是两种模式共同的收尾：技能、提交前检查、项目文档的组件表。
+// finishInit 是两种模式共同的收尾：技能、提交前检查、组件表与 AGENTS.md 末尾的一段。
 // check 为真时（补全式）先做收尾校验：装载失败说明补全了但还跑不起来，命令以失败结束。
 func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) error {
 	if !f.noSkills {

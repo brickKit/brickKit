@@ -5,7 +5,7 @@
 
 ## 写一个新组件
 
-1. **读上下文。** 项目根的 `AGENTS.md`（团队约定，末尾是组件表）与 `brickkit.yaml`：项目里已经有什么、新组件要守哪些规矩、放在哪。
+1. **读上下文。** 项目根的 `AGENTS.md`（团队约定）、组件表 `COMPONENTS.md` 与 `brickkit.yaml`：项目里已经有什么、新组件要守哪些规矩、放在哪。
 2. **读依赖。** 新组件要调用的每个组件：它的 `BRICKKIT.md`、`configSchema`、契约。只读直接依赖。
 3. **生成骨架。** `brickkit new <scope>/<name>`（独立仓库用 `--path`，要契约占位用 `--contract openapi|proto`）。
 4. **先写 `component.yaml`。** `dependencies`（精确版本）、`configSchema`（键就是环境变量名，密钥标 `secret: true`，平台推导不出的写成必填）、

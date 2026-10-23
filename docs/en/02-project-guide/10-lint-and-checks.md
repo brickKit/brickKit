@@ -131,7 +131,7 @@ documentation checks use these:
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required config key, contract file or shell member the document doesn't mention |
 | `DOC_PLACEHOLDER` | A `TODO` (or `TBD`, `FIXME`) is still in the text — the skeletons leave one in every section on purpose |
 | `DOC_TRANSLATION_DRIFT` | A translation (`BRICKKIT.zh.md`, `README.zh.md`, a page under `docs/zh/`) is out of step with its primary file, or a page is missing from one of the `docs/<lang>/` trees |
-| `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no usable block maintained by the CLI, so its component table isn't kept up to date |
+| `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no usable block maintained by the CLI, so it carries neither the platform rules nor the pointer to `COMPONENTS.md` |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` doesn't contain `@AGENTS.md` |
 | `PROJECT_MAP_OBSOLETE` | The project root still has the old project map `BRICKKIT.md` |
 

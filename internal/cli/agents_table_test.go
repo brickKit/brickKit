@@ -24,12 +24,20 @@ func TestAddUpdatesAgentsTable(t *testing.T) {
 	g.release(comp{ID: "erp/api", Version: "1.0.0"}, map[string]string{"BRICKKIT.md": "# erp/api\n"})
 	dir := agentsProject(t, g, managedAgents)
 
-	g.mustRun(dir, "add", "erp/api@1.0.0")
+	r := g.run(dir, "add", "erp/api@1.0.0")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "created COMPONENTS.md", "the first add after the table moved out of AGENTS.md says so")
+	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, readFile(t, filepath.Join(dir, "COMPONENTS.md")))
 	doc := readFile(t, filepath.Join(dir, "AGENTS.md"))
-	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, doc)
+	assert.Contains(t, doc, "(1 now)")
+	assert.NotContains(t, doc, "| erp/api |", "the block points to COMPONENTS.md; it holds no rows")
 	assert.Contains(t, doc, "hand-written intro")
 	assert.Contains(t, doc, "hand-written tail")
 	assert.Contains(t, doc, "lang=en")
+
+	r = g.run(dir, "remove", "erp/api")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "created COMPONENTS.md", "said once, when it is created")
 }
 
 func TestRemoveUpdatesAgentsTable(t *testing.T) {
@@ -39,10 +47,10 @@ func TestRemoveUpdatesAgentsTable(t *testing.T) {
 	dir := agentsProject(t, g, managedAgents)
 	g.mustRun(dir, "add", "erp/api@1.0.0")
 	g.mustRun(dir, "add", "erp/web@1.0.0")
-	require.Contains(t, readFile(t, filepath.Join(dir, "AGENTS.md")), "| erp/web |")
+	require.Contains(t, readFile(t, filepath.Join(dir, "COMPONENTS.md")), "| erp/web |")
 
 	g.mustRun(dir, "remove", "erp/web")
-	doc := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	doc := readFile(t, filepath.Join(dir, "COMPONENTS.md"))
 	assert.NotContains(t, doc, "| erp/web |")
 	assert.Contains(t, doc, "| erp/api | 1.0.0 |")
 }
@@ -55,7 +63,7 @@ func TestUpgradeUpdatesAgentsTable(t *testing.T) {
 	g.release(comp{ID: "erp/api", Version: "2.0.0"})
 
 	g.mustRun(dir, "upgrade", "erp/api", "--yes")
-	doc := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	doc := readFile(t, filepath.Join(dir, "COMPONENTS.md"))
 	assert.Contains(t, doc, "| erp/api | 2.0.0 |")
 	assert.NotContains(t, doc, "| erp/api | 1.0.0 |")
 }
@@ -88,7 +96,7 @@ func TestAgentsTableForLocalComponent(t *testing.T) {
 	})
 	r := runWith(t, func(o *Options) { o.Engine = newFakeEngine() }, dir, "add", "--local", "--yes")
 	require.Equal(t, 0, r.code, r.stdout+r.stderr)
-	doc := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	doc := readFile(t, filepath.Join(dir, "COMPONENTS.md"))
 	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, doc)
 	assert.NotContains(t, doc, "components/erp/api/")
 }
@@ -100,7 +108,7 @@ func TestAgentsTableListsDocTranslations(t *testing.T) {
 	dir := agentsProject(t, g, managedAgents)
 
 	g.mustRun(dir, "add", "erp/api@1.0.0")
-	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, readFile(t, filepath.Join(dir, "AGENTS.md")))
+	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, readFile(t, filepath.Join(dir, "COMPONENTS.md")))
 	assert.FileExists(t, filepath.Join(dir, ".brickkit", "manifests", "erp", "api", "1.0.0", "BRICKKIT.zh.md"))
 }
 

@@ -277,3 +277,40 @@ func TestSkillsStatusSaysWhenTheBlockIsOutdated(t *testing.T) {
 	assert.Contains(t, st.stdout, "block maintained by brickkit present (lang=en)")
 	assert.NotContains(t, st.stdout, "need refreshing")
 }
+
+// COMPONENTS.md 在 skills status 里有自己的一行：没有、过期、最新；update 建它、改写它，组件表跟着维护区的语言（FRR-010）。
+func TestSkillsStatusAndUpdateKeepTheComponentTable(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
+	table := filepath.Join(dir, "COMPONENTS.md")
+	require.FileExists(t, table)
+	st := runIn(t, dir, "skills", "status")
+	assert.Regexp(t, `COMPONENTS\.md[\s│]+up to date \(lang=en\)`, st.stdout)
+
+	require.NoError(t, os.Remove(table))
+	st = runIn(t, dir, "skills", "status")
+	assert.Regexp(t, `COMPONENTS\.md[\s│]+missing; update creates it`, st.stdout)
+	assert.Contains(t, st.stdout, "1 file needs refreshing")
+	r := runIn(t, dir, "skills", "update")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "created COMPONENTS.md")
+
+	require.NoError(t, os.WriteFile(table, []byte("stale\n"), 0o644))
+	st = runIn(t, dir, "skills", "status")
+	assert.Regexp(t, `COMPONENTS\.md[\s│]+outdated \(lang=en\); update rewrites it`, st.stdout)
+
+	require.Equal(t, 0, runIn(t, dir, "skills", "update", "--lang", "zh").code)
+	assert.Contains(t, readFile(t, table), "# 组件")
+	st = runIn(t, dir, "skills", "status")
+	assert.Regexp(t, `COMPONENTS\.md[\s│]+up to date \(lang=zh\)`, st.stdout)
+	assert.NotContains(t, st.stdout, "refreshing")
+}
+
+// 纯组件仓库没有 brickkit.yaml，也就没有组件表：status 不列 COMPONENTS.md，update 不建它。
+func TestSkillsInComponentRepoHasNoComponentTable(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{"component.yaml": comp{ID: "people/basic", Version: "1.0.0"}.yamlText()})
+	require.Equal(t, 0, runIn(t, dir, "skills", "update").code)
+	assert.NoFileExists(t, filepath.Join(dir, "COMPONENTS.md"))
+	assert.NotContains(t, runIn(t, dir, "skills", "status").stdout, "COMPONENTS.md")
+}

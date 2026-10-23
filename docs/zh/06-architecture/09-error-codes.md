@@ -425,8 +425,9 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 ### DOC_FILE_MISSING
 
-缺了必需的文档：组件里是 `BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md` 或 `README.md`；项目里是 `AGENTS.md` 或 `CLAUDE.md`。
-新组件用 `brickkit new` 会全部写好；已有的组件把缺的那份补上（`brickkit skills update` 会建出缺的 `AGENTS.md` 和 `CLAUDE.md`）。
+缺了必需的文档：组件里是 `BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md` 或 `README.md`；项目里是 `AGENTS.md` 或 `CLAUDE.md`；
+项目和工作台（有 `brickkit.yaml` 的地方）还要有 `COMPONENTS.md`。新组件用 `brickkit new` 会全部写好；已有的组件把缺的那份补上
+（`brickkit skills update` 会建出缺的 `AGENTS.md`、`CLAUDE.md` 与 `COMPONENTS.md`；`add`、`remove`、`upgrade` 也会写 `COMPONENTS.md`）。
 
 ### DOC_SECTION_MISSING
 
@@ -466,7 +467,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 ### AGENTS_BLOCK_MISSING
 
-`AGENTS.md` 里没有可用的、由 brickkit 维护的一段（没有，或者标记坏了），组件表和平台规则因此不会自动更新。
+`AGENTS.md` 里没有可用的、由 brickkit 维护的一段（没有，或者标记坏了），读它的 AI 因此看不到平台规则，也不知道组件表（`COMPONENTS.md`）在哪。
 `brickkit skills update` 会追加一段；`init`、`add`、`remove`、`upgrade` 从不改你的文件。
 
 ### CLAUDE_IMPORT_MISSING
@@ -475,5 +476,5 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 ### PROJECT_MAP_OBSOLETE
 
-项目根还留着旧版的项目地图 `BRICKKIT.md`（带 brickkit 标记的那一份）。组件表现在在 `AGENTS.md` 末尾：把你自己写的内容挪进
+项目根还留着旧版的项目地图 `BRICKKIT.md`（带 brickkit 标记的那一份）。组件表现在在 `COMPONENTS.md` 里：把你自己写的内容挪进
 `AGENTS.md`，再删掉 `BRICKKIT.md`——brickkit 不会替你删。

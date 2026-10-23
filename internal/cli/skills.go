@@ -169,6 +169,12 @@ func runSkillsStatus(opts *Options) error {
 	if agentsStale {
 		stale++
 	}
+	if state, stale1, ok := componentsStatus(in.Root); ok {
+		t.add(docspec.FileComponents, state)
+		if stale1 {
+			stale++
+		}
+	}
 	opts.Printf("%s", t.render("   "))
 	if stale > 0 {
 		opts.Printf("\n%s\n", i18n.TN(msgid.CliSkillsFilesNeedRefreshing, stale, stale))
@@ -199,7 +205,8 @@ func runSkillsUpdate(opts *Options, lang string) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(res.Lang)))
 		renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	}
-	agentsChanged := ares.AgentsCreated || ares.BlockAppended || ares.BlockRewritten || ares.LegacyReplaced || ares.ClaudeCreated || ares.ClaudeAppended
+	agentsChanged := ares.AgentsCreated || ares.BlockAppended || ares.BlockRewritten || ares.LegacyReplaced || ares.ClaudeCreated || ares.ClaudeAppended ||
+		ares.ComponentsCreated || ares.ComponentsRewritten
 	if len(res.Written) == 0 && len(res.Skipped) == 0 && !agentsChanged && ares.Problem == nil {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsAiAssistantSkillsAreUp, version.Display()))
 		renderObsoleteMapIfAny(opts, in.Root)
@@ -226,6 +233,7 @@ func runSkillsUpdate(opts *Options, lang string) error {
 	if ares.ClaudeCreated {
 		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileClaude))
 	}
+	renderComponentsCreated(opts, ares)
 	renderAgentsResult(opts, ares)
 	renderObsoleteMapIfAny(opts, in.Root)
 	logging.Info(i18n.T(msgid.LogSkillsRefreshed),
@@ -240,7 +248,7 @@ func wrapSkillsError(cause error) error {
 		WithCause(cause)
 }
 
-// agentsContentFor 是 skills update 要让 AGENTS.md 维护区变成的样子：有 brickkit.yaml 就带组件表
+// agentsContentFor 是 skills update 要让 AGENTS.md 维护区（与 COMPONENTS.md）变成的样子：有 brickkit.yaml 就带组件表
 // （工作台同时带组件规则），纯组件仓库只放组件规则。force 为真（--lang）时用 lang 换掉维护区记的语言。
 func agentsContentFor(root, lang string, force bool) agentsmd.Content {
 	layout := project.NewLayout(root)
@@ -267,13 +275,33 @@ func agentsStatus(root string) (state string, stale bool) {
 	if err != nil {
 		return i18n.T(msgid.CliSkillsAgentsBlockNone), true
 	}
-	// 与此刻的 CLI 会写出的那一段比：CLI 升级后平台规则或组件表变了，update 会刷新
+	// 与此刻的 CLI 会写出的那一段比：CLI 升级后平台规则或组件数变了，update 会刷新
 	want := agentsContentFor(root, b.Lang, false)
 	want.Lang = b.Lang
 	if strings.ReplaceAll(string(data[b.Start:b.End]), "\r\n", "\n") != agentsmd.Render(want) {
 		return i18n.T(msgid.CliSkillsAgentsBlockOutdated, b.Lang), true
 	}
 	return i18n.T(msgid.CliSkillsAgentsBlockOk, b.Lang), false
+}
+
+// componentsStatus 是 skills status 里 COMPONENTS.md 那一行：与此刻的 CLI 会写出的那一份比。
+// 没有 brickkit.yaml（纯组件仓库）时没有组件表，ok 为 false、不列这一行。
+func componentsStatus(root string) (state string, stale, ok bool) {
+	layout := project.NewLayout(root)
+	decl, err := projfile.ParseFile(layout.DeclPath())
+	if err != nil {
+		return "", false, false
+	}
+	data, err := os.ReadFile(layout.ComponentTablePath())
+	if err != nil {
+		return i18n.T(msgid.CliSkillsAgentsMissing), true, true
+	}
+	want := project.AgentsContent(layout, decl, "")
+	want.Lang = agentsmd.TableLang(root)
+	if strings.ReplaceAll(string(data), "\r\n", "\n") != agentsmd.RenderComponents(want) {
+		return i18n.T(msgid.CliSkillsComponentsOutdated, want.Lang), true, true
+	}
+	return i18n.T(msgid.CliSkillsComponentsOk, want.Lang), false, true
 }
 
 func renderObsoleteMapIfAny(opts *Options, root string) {

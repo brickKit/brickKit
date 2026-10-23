@@ -18,6 +18,8 @@ const (
 	FileAgents   = "AGENTS.md"
 	FileClaude   = "CLAUDE.md"
 	FileReadme   = "README.md"
+	// FileComponents 是项目的组件表：整份由 CLI 生成，AGENTS.md 的维护区只指向它。
+	FileComponents = "COMPONENTS.md"
 	// ClaudeImport 是 CLAUDE.md 的全部内容：Claude Code 读 CLAUDE.md，其他工具读 AGENTS.md，内容只写一份。
 	ClaudeImport = "@AGENTS.md"
 	DirDocs      = "docs"

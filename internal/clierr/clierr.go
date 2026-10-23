@@ -148,7 +148,7 @@ const (
 	CodeAgentsBlockMissing Code = "AGENTS_BLOCK_MISSING"
 	// CodeClaudeImportMissing：CLAUDE.md 里没有 @AGENTS.md，Claude Code 不会读 AGENTS.md。
 	CodeClaudeImportMissing Code = "CLAUDE_IMPORT_MISSING"
-	// CodeProjectMapObsolete：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 AGENTS.md 末尾）。
+	// CodeProjectMapObsolete：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 COMPONENTS.md）。
 	CodeProjectMapObsolete Code = "PROJECT_MAP_OBSOLETE"
 )
 

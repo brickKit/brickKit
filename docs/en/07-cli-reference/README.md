@@ -123,8 +123,8 @@ the file list of a complete project, create what's missing, leave what exists:
 | `brickkit init` | Complete | Add whatever the current directory lacks: bring an existing project in, or give a component repository its own local workbench |
 
 A complete project has `brickkit.yaml`, `deploy.yaml`, `config/vars.yaml`, the two local sources `components/` and
-`shell/`, `AGENTS.md` (the project's AI guide, ending with the component table the CLI maintains), `CLAUDE.md` (exactly
-`@AGENTS.md`) and `.gitignore`. `deploy.local.yaml` is never created here; `brickkit local on` creates it when you want
+`shell/`, `AGENTS.md` (the project's AI guide, ending with a block the CLI maintains), `CLAUDE.md` (exactly
+`@AGENTS.md`), `COMPONENTS.md` (the component table the CLI generates) and `.gitignore`. `deploy.local.yaml` is never created here; `brickkit local on` creates it when you want
 it.
 
 The rules in completion mode:
@@ -174,8 +174,9 @@ brickkit init --hooks                 # only the pre-commit check
    📁 components/          Component source (configured as the local install source local-dev)
    📁 shell/               Shells (kind: shell), project code (the local install source local-shells)
    📁 .brickkit/           CLI working directory
-   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
+   📄 AGENTS.md            the project's AI guide; the block at its end is maintained by brickkit
    📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
+   📄 COMPONENTS.md        the component table, maintained by brickkit
    📁 .claude/skills/      AI assistant skills (5)
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 
@@ -223,8 +224,9 @@ brickkit skills <command> [arguments]
 The state of each skill file (read-only). No flags of its own.
 
 The first line of the output names the skills' language and says where it is recorded: the block at the end of
-`AGENTS.md`. Then one row per skill file, and a last row for `AGENTS.md` — whether the file is there and has its block,
-and the language the block records (`lang=en`). Here a teammate edited one skill and `AGENTS.md` was deleted:
+`AGENTS.md`. Then one row per skill file, a row for `AGENTS.md` — whether the file is there and has its block, and the
+language the block records (`lang=en`) — and, in a project or a workbench, a last row for `COMPONENTS.md`: missing,
+outdated or up to date, with its language. Here a teammate edited one skill and `AGENTS.md` was deleted:
 
 ```text
 Skill language: en (recorded in AGENTS.md, in the block maintained by brickkit; brickkit skills update --lang to change it)
@@ -237,6 +239,7 @@ Skill language: en (recorded in AGENTS.md, in the block maintained by brickkit; 
    │ .claude/skills/brickkit-plan-change/SKILL.md  │ up to date                       │
    │ .claude/skills/brickkit-troubleshoot/SKILL.md │ up to date                       │
    │ AGENTS.md                                     │ missing; update creates it       │
+   │ COMPONENTS.md                                 │ up to date (lang=en)             │
    └───────────────────────────────────────────────┴──────────────────────────────────┘
 
 1 file needs refreshing: brickkit skills update
@@ -244,11 +247,14 @@ Skill language: en (recorded in AGENTS.md, in the block maintained by brickkit; 
 
 A skill file's status is `up to date`, `outdated`, `missing`, `hand-edited` (skipped by `update`) or `untracked` (no
 record line). The `AGENTS.md` row also says when the block's text is older than what this CLI writes — the platform
-rules changed, or a project's component table no longer matches `brickkit.yaml`; `update` rewrites the block in place.
+rules changed, or the component count no longer matches `brickkit.yaml`; `update` rewrites the block in place. The
+`COMPONENTS.md` row says `outdated` when the table no longer matches `brickkit.yaml` and the cached manifests; `update`
+rewrites the whole file.
 
 ### `brickkit skills update`
 
-Install what's missing and refresh what's out of date; skip what you edited.
+Install what's missing and refresh what's out of date; skip what you edited. In a project or a workbench it also
+rewrites `COMPONENTS.md`, or writes it when it is missing.
 
 | Flag | Meaning |
 | --- | --- |

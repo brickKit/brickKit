@@ -543,7 +543,7 @@ func TestLintNotesLocalSourceVersionDiffersFromPinned(t *testing.T) {
 		" is version 1.1.0, but the project pins 1.0.0 and keeps running that one — brickkit upgrade erp/api@1.1.0"
 	assert.Contains(t, r.stdout, note)
 	assert.NotContains(t, r.stdout, "erp/web: the source in")
-	assert.Contains(t, r.stdout, "10 warnings", "它是提示，不计入警告：这 10 条都是夹具缺的文档")
+	assert.Contains(t, r.stdout, "11 warnings", "它是提示，不计入警告：这 11 条都是夹具缺的文档")
 
 	r = runIn(t, filepath.Join(dir, "components", "erp", "web"), "lint")
 	assert.NotContains(t, r.stdout, "erp/api: the source in", "只查一个组件时只说它自己的")

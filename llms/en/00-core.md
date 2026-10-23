@@ -68,7 +68,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 | A component's dependencies, capabilities and `configSchema` | `.brickkit/manifests/<scope>/<name>/<version>/component.yaml`; for a component from a local source, the `component.yaml` in its source directory |
 | Who publishes or subscribes to an event (events sent through a messaging system are not dependencies) | `brickkit deps` — the list at the end, from `events` in each `component.yaml`; `brickkit graph` draws the same as labelled dashed edges |
 | How to use a dependency, what it owns and doesn't, what its config items mean | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` (translations `BRICKKIT.<lang>.md`); for a local source at that version, the one in its source directory |
-| Which components the project has and what each does | The component table at the end of the project's `AGENTS.md` (maintained by `add` / `remove` / `upgrade`) |
+| Which components the project has and what each does | `COMPONENTS.md` at the project root: the component table the CLI generates (`init`, `add`, `remove`, `upgrade`, `skills update`) |
 | How to change a component: its code map, build and test, pitfalls | The component's own `AGENTS.md` |
 
 ### 3.2 Rules that matter
@@ -81,7 +81,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file; `$endpoint:<id>[/path]` is another component's address, worked out like `*_ENDPOINT` (it may sit in `vars.yaml`; it adds no start order and may form cycles). The environment never overrides a value implicitly.
 - `brickkit up` never builds an image: when an image that has to be built locally is missing, it stops and tells you to run `brickkit build`.
-- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing, and warns loudly when `.gitignore` lacks a required entry. It never touches a byte of an existing file — the one exception is the block maintained by brickkit at the end of `AGENTS.md`, which it rewrites in place. It writes the project's `AGENTS.md` (the author's AI guide, ending with that block) and `CLAUDE.md` (`@AGENTS.md`) when they are missing; there is no project-level `BRICKKIT.md`.
+- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing, and warns loudly when `.gitignore` lacks a required entry. It never touches a byte of an existing file — the exceptions are brickkit's own: the block it maintains at the end of `AGENTS.md`, rewritten in place, and `COMPONENTS.md`, the component table it generates whole. It writes the project's `AGENTS.md` (the author's AI guide, ending with that block) and `CLAUDE.md` (`@AGENTS.md`) when they are missing; there is no project-level `BRICKKIT.md`.
 
 ### 3.3 Fractal structure
 
@@ -96,7 +96,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 ### 3.4 How an AI should read a project
 
 1. This file: the rules and where things live.
-2. The project's `AGENTS.md`: its conventions, and at its end the component table — which components exist and what each does.
+2. The project's `AGENTS.md`: its conventions, and at its end the platform rules and where each component's docs are; when the question doesn't name its components, `COMPONENTS.md` — which components exist and what each does.
 3. On demand, one component's `BRICKKIT.md` (under `.brickkit/manifests/`) to understand that component; to change it, its own `AGENTS.md`.
 4. A new requirement: [`docs/en/08-ai-guide/03-judging-a-requirement.md`](../../docs/en/08-ai-guide/03-judging-a-requirement.md) — which component owns it, whether it is sound, the order to change things in.
 
@@ -235,7 +235,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | Package | Owns |
 | --- | --- |
 | `internal/cli/` | The command tree: one file per command, flags, output; errors shown relative to where you stand (`shown.go`); TAB completion candidates (`complete.go`) |
-| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the component table in the project's `AGENTS.md` (`agents.go`) |
+| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the content of the `AGENTS.md` block and of `COMPONENTS.md` (`agents.go`) |
 | `internal/project/projecttest/` | Test helper: a three-layer project built from a few lines of YAML, then loaded |
 | `internal/projfile/` | `brickkit.yaml`: sources, components, versions, `kind: shell` |
 | `internal/deployfile/` | Deploy files (`deploy.yaml`, `deploy.local.yaml`, `-f`): fields, validation, `focus`, the local-change diff |
@@ -250,7 +250,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/deploy/` | Naming rules and file headers shared by both targets |
 | `internal/docspec/` | The component and project documentation spec as data: files, sections, heading names per language, translation names |
 | `internal/doccheck/` | lint's documentation checks: files, sections, code-map paths, links, manifest facts, placeholders, translations |
-| `internal/agentsmd/` | The CLI-maintained block at the end of `AGENTS.md` (platform rules, component table, recorded language), and the `AGENTS.md` / `CLAUDE.md` skeletons |
+| `internal/agentsmd/` | The CLI-maintained block at the end of `AGENTS.md` (platform rules, the pointer to the component table, recorded language), the component table `COMPONENTS.md` (`components.go`), and the `AGENTS.md` / `CLAUDE.md` skeletons |
 | `internal/engine/` | Docker, Podman and kubectl: detection and invocation |
 | `internal/procsup/` | Supervising `mode: local` processes in the foreground |
 | `internal/runcmd/` | Working out how to start a component from its source |
@@ -412,8 +412,8 @@ project reads only its `component.yaml` and `BRICKKIT.md`. The specification nes
 - **The easy-to-get-wrong parts are derived by the platform.** Service addresses, variable names and deployment files
   aren't invented by the AI; assembly mistakes surface at `brickkit up --dry-run`.
 - **There is a clear reading path.** A project's `AGENTS.md` (the file AI coding tools read first) holds the project's
-  own conventions and ends with a table of its components and where each one's docs are, so an AI reads only the
-  component it needs.
+  own conventions and ends with where each component's docs are; one table, `COMPONENTS.md`, lists its components, so an
+  AI reads only the component it needs.
 
 See [For AI assistants](../../docs/en/08-ai-guide/README.md).
 
@@ -477,8 +477,9 @@ brickkit init my-shop
    📁 components/          Component source (configured as the local install source local-dev)
    📁 shell/               Shells (kind: shell), project code (the local install source local-shells)
    📁 .brickkit/           CLI working directory
-   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
+   📄 AGENTS.md            the project's AI guide; the block at its end is maintained by brickkit
    📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
+   📄 COMPONENTS.md        the component table, maintained by brickkit
    📁 .claude/skills/      AI assistant skills (5)
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 
@@ -499,8 +500,9 @@ my-shop/
 │   └── vars.yaml     shared variables (empty for now)
 ├── components/       a local install source: your own components' source goes here
 ├── shell/            a local install source: shell components
-├── AGENTS.md         the project's AI guide; the component table at its end is kept up to date by the CLI
+├── AGENTS.md         the project's AI guide; the CLI keeps the block at its end up to date
 ├── CLAUDE.md         one line, @AGENTS.md, so Claude Code reads AGENTS.md too
+├── COMPONENTS.md     the component table, generated by the CLI
 ├── .claude/skills/   AI assistant skills, one directory per task
 ├── .brickkit/        the CLI's caches and generated files (not in Git)
 └── .gitignore
@@ -747,7 +749,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **Member** | A component hosted by a shell; it has no container of its own but still has its own config and migrations |
 | **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](../../docs/en/00-intro/06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | A component's documentation for the people and AIs who use it: what it owns, what to prepare, what its config means, its contracts. It travels with every version (translations as `BRICKKIT.<lang>.md`) and is cached into the projects that use it; see [A component's documentation](../../docs/en/03-component-guide/08-component-doc-spec.md) |
-| **`AGENTS.md`** | The guide an AI coding tool reads first (`CLAUDE.md` holds `@AGENTS.md` so Claude Code reads it too). A project's `AGENTS.md` holds the team's conventions and ends with a table of the project's components, kept up to date by the CLI; a component's `AGENTS.md` is for whoever develops that component; see [Creating a project](../../docs/en/02-project-guide/01-init-and-project-creation.md#the-projects-agentsmd) |
+| **`AGENTS.md`** | The guide an AI coding tool reads first (`CLAUDE.md` holds `@AGENTS.md` so Claude Code reads it too). A project's `AGENTS.md` holds the team's conventions and ends with a block the CLI keeps up to date, pointing to the project's component table, `COMPONENTS.md`; a component's `AGENTS.md` is for whoever develops that component; see [Creating a project](../../docs/en/02-project-guide/01-init-and-project-creation.md#the-projects-agentsmd) |
 | **Local mode** | After `brickkit local on`, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read the personal `deploy.local.yaml` instead of `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`; see [Local debugging](../../docs/en/02-project-guide/03-local-debug-workflow.md) |
 
 ## The naming rules everything builds on
@@ -872,8 +874,9 @@ A few things worth noticing:
 - `init` in a component repository creates neither `components/` nor `shell/`, and declares neither local source —
   that's the directory convention of an assembling project, which a component repository has no use for.
 - The component's own documents (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`) are kept byte for byte; only the
-  block maintained by the CLI at the end of `AGENTS.md` is rewritten, and it now carries the workbench's component table
-  as well as the component rules. A workbench has one `AGENTS.md`, not two.
+  block maintained by the CLI at the end of `AGENTS.md` is rewritten, and it now points to the workbench's component
+  table (`COMPONENTS.md`, written next to it) as well as carrying the component rules. A workbench has one `AGENTS.md`,
+  not two.
 - From here, `brickkit add` brings the component's dependencies into the workbench, and `brickkit up` brings the whole
   dependency tree up locally for integration. At this point `brickkit.yaml` is the author's **local workbench**;
   whether to commit it is the author's call.
@@ -962,7 +965,7 @@ The documentation is fractal too, appearing at three levels:
 | Level | File | Job | Written by |
 | --- | --- | --- | --- |
 | Definition (the platform) | `AGENTS.md` / `AGENTS.zh.md` at the root of the BrickKit repository | Sets the document structure and the AI's reading path | Maintained with the platform |
-| Instance (the project) | `AGENTS.md` at the project root | The team's conventions, where to look and pitfalls; at its end, a summary of the platform rules and the table of the project's components, with where their docs and contracts are | The author writes the sections; the table is rewritten by `init`, `add`, `remove` and `upgrade` |
+| Instance (the project) | `AGENTS.md` and `COMPONENTS.md` at the project root | `AGENTS.md`: the team's conventions, where to look and pitfalls; at its end, a summary of the platform rules and where each component's docs and contracts are. `COMPONENTS.md`: the table of the project's components | The author writes the sections; the block and `COMPONENTS.md` are rewritten by `init`, `add`, `remove` and `upgrade` |
 | Content (the component) | `BRICKKIT.md` and `AGENTS.md` at the component repository root | `BRICKKIT.md`: purpose, preparation, dependencies, what its config means, contracts; `AGENTS.md`: code map, build and test, design decisions | Skeletons from `new`, filled in by the author |
 
 How to write them: [A component's documentation](../../docs/en/03-component-guide/08-component-doc-spec.md).
@@ -971,7 +974,8 @@ How to write them: [A component's documentation](../../docs/en/03-component-guid
 
 ```mermaid
 graph TD
-    P["the project's AGENTS.md<br/>conventions, platform rules, the component table"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
+    P["the project's AGENTS.md<br/>conventions, platform rules, where docs are"] -.-> T["COMPONENTS.md<br/>the component table, when the task needs it"]
+    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
     P -.-> C2["other components' BRICKKIT.md<br/>not read unless needed"]
     C1 -.-> D["the component's own AGENTS.md, in its source<br/>only to change its code"]
 ```
@@ -1003,8 +1007,9 @@ my-shop/
 │   └── .archive/          config archived by remove, restored by a later add (not in Git by default)
 ├── components/            a local install source: component source (each its own Git repository, not in the project's Git by default)
 ├── shell/                 a local install source: shell components
-├── AGENTS.md              the project's AI guide; the table of components at its end is maintained by the CLI (in Git)
+├── AGENTS.md              the project's AI guide; the block at its end is maintained by the CLI (in Git)
 ├── CLAUDE.md              one line, @AGENTS.md, so Claude Code reads AGENTS.md too (in Git)
+├── COMPONENTS.md          the component table, generated by the CLI (in Git)
 ├── .claude/skills/        the AI assistant skills, brickkit-* (in Git)
 ├── .env                   this machine's environment values, where ${VAR} is looked up (not in Git)
 ├── .secrets/              secret files referenced with file:// (not in Git)
@@ -1049,7 +1054,8 @@ one file and in the end everyone edits it and no one can read it — that's the 
 | Which environment variables a component gets | `config/<component>.yaml`; values its `$var:` references point to are in `config/vars.yaml` or the deploy file's `vars:` |
 | What config a component needs and what it depends on | Its `component.yaml`: under `.brickkit/manifests/<scope>/<name>/<version>/`, or in the source directory for a local-source component |
 | How to use a component | Its `BRICKKIT.md` (translations as `BRICKKIT.<lang>.md`), in the same place |
-| The team's conventions, and which components the project has with where their docs are | `AGENTS.md` at the project root: the author's sections, then the component table |
+| The team's conventions, and where each component's docs are | `AGENTS.md` at the project root: the author's sections, then the block maintained by brickkit |
+| Which components the project has and what each does | `COMPONENTS.md` at the project root, generated by brickkit |
 
 **Why there is no "merged view" command** (one command folding the three layers into one for you to look at): it would
 be a fourth thing to understand and to trust, requiring additional work to keep it consistent with the effective config.
@@ -1067,7 +1073,8 @@ What really gets generated (`compose.yaml`, Kubernetes manifests) is in
 | `config/` (including `vars.yaml`) | ✅ | Configuration is part of the project; don't write secrets into it directly — use `${VAR}` or `file://` |
 | `config/.archive/` | ❌ | Old config of removed components, kept only to restore on a later `add`; it belongs to this machine |
 | `components/` | ❌ (by default) | Each component in it is its own Git repository with its own history; to commit source with the project, `brickkit init --hooks` installs a pre-commit check |
-| `AGENTS.md`, `CLAUDE.md` | ✅ | The project's AI guide, written by the team; the component table at the end holds only facts that are the same on every machine |
+| `AGENTS.md`, `CLAUDE.md` | ✅ | The project's AI guide, written by the team |
+| `COMPONENTS.md` | ✅ | The component table, generated by brickkit; it holds only facts that are the same on every machine |
 | `.claude/skills/` | ✅ | The AI assistant skills; each file ends with a line recording which CLI version wrote it, so a teammate's fresh clone can tell whether it was edited |
 | `deploy.local.yaml` | ❌ | Your temporary personal way of deploying ("I'm debugging this component"), not a team decision |
 | `.env`, `.secrets/` | ❌ | This machine's secrets and environment values, and the secret files `file://` refers to |
@@ -1244,7 +1251,7 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | --- | --- | --- |
 | `apiVersion`, `kind` | ✅ | `brickkit/v1`, `Component` |
 | `metadata.id` / `name` / `version` / `description` | ✅ | Component ID, name, exact version, description |
-| `metadata.vendor` / `license` / `apiDocs` / `repository` | | Publisher, licence, API docs address, the repository or home page (the "Home" column of a project's component table) |
+| `metadata.vendor` / `license` / `apiDocs` / `repository` | | Publisher, licence, API docs address, the repository or home page (the "Home" column of a project's `COMPONENTS.md`) |
 | `tags` | | Tags for search |
 | `artifacts[]` | | Contracts: `type`, `format`, `description`, `files` |
 | `dependencies.components[]` | | Dependencies: `id@version`; an optional one says `optional: true` |

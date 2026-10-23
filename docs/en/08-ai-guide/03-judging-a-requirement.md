@@ -10,13 +10,15 @@ order the change goes. This page is how an AI answers them from what is written,
 Read in this order, and stop as soon as you know enough:
 
 1. **The project's `AGENTS.md`** (already loaded — Claude Code reads it every session through `CLAUDE.md`): the
-   project's conventions and pitfalls, then, at the end, the component table with what each component does.
-2. **For each component the question touches, its `BRICKKIT.md`**: what it owns and doesn't, what it needs before
+   project's conventions and pitfalls, then, at the end, where each component's docs are.
+2. **The component table, `COMPONENTS.md`**, when the question doesn't already name its components: what each component
+   does.
+3. **For each component the question touches, its `BRICKKIT.md`**: what it owns and doesn't, what it needs before
    deploying, its dependencies, configuration and contracts. It is in `.brickkit/manifests/<id>/<version>/`, or in the
    component's source directory when a local source holds that version.
-3. **To change a component, its own `AGENTS.md`**: the code map says which file to start in; its pitfalls and
+4. **To change a component, its own `AGENTS.md`**: the code map says which file to start in; its pitfalls and
    "Before changing code" say what not to break.
-4. **The structure**: `brickkit deps <id>` and `brickkit graph` for who depends on whom and who publishes or subscribes
+5. **The structure**: `brickkit deps <id>` and `brickkit graph` for who depends on whom and who publishes or subscribes
    to which events; the contract files under `.brickkit/artifacts/`.
 
 Never load every component's documentation: only the ones the task touches. What each file holds is in
@@ -24,7 +26,7 @@ Never load every component's documentation: only the ones the task touches. What
 
 ## Find the owner
 
-The component table's "What it does" column narrows the candidates. Each candidate's `BRICKKIT.md` decides: its
+The "What it does" column of `COMPONENTS.md` narrows the candidates. Each candidate's `BRICKKIT.md` decides: its
 `Purpose` section lists what the component **owns** and what it **does not own** — and every "does not own" names who
 does instead. Follow that pointer; it is there exactly so nobody has to guess.
 

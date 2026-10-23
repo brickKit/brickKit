@@ -130,6 +130,9 @@ func (l Layout) CachedDocsKnown(id, version string) bool {
 // AgentsPath 是根目录的 AGENTS.md：项目（或组件）自己的 AI 导读，末尾一段由 CLI 维护。
 func (l Layout) AgentsPath() string { return l.path(docspec.FileAgents) }
 
+// ComponentTablePath 是项目的组件表 COMPONENTS.md。
+func (l Layout) ComponentTablePath() string { return l.path(docspec.FileComponents) }
+
 // CachedDocLangs 是缓存里这个组件版本带着的文档：有没有原文 BRICKKIT.md，以及各译本的语言（排好序）。
 // 名字不是合法译本的文件（BRICKKIT.zh-CN.md）不算。
 func (l Layout) CachedDocLangs(id, version string) (hasPrimary bool, langs []string) {

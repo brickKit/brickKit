@@ -608,8 +608,9 @@ func fillAgentsSkeleton(t *testing.T, dir string) {
 // 不经过 init 的测试项目也不该被项目文档检查的警告搅乱。
 func projectDocs(name string) map[string]string {
 	return map[string]string{
-		"AGENTS.md": "# " + name + "\n\n## Overview\nA test project.\n\n## Conventions\nNone.\n\n## Where to look\nThe component table.\n\n" +
+		"AGENTS.md": "# " + name + "\n\n## Overview\nA test project.\n\n## Conventions\nNone.\n\n## Where to look\nCOMPONENTS.md.\n\n" +
 			"## Pitfalls\nNone.\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n",
-		"CLAUDE.md": "@AGENTS.md\n",
+		"CLAUDE.md":     "@AGENTS.md\n",
+		"COMPONENTS.md": "<!-- brickkit:components lang=en -->\n# Components\n",
 	}
 }

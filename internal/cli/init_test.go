@@ -289,8 +289,9 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 components/          Component source (configured as the local install source local-dev)\n" +
 		"   📁 shell/               Shells (kind: shell), project code (the local install source local-shells)\n" +
 		"   📁 .brickkit/           CLI working directory\n" +
-		"   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit\n" +
+		"   📄 AGENTS.md            the project's AI guide; the block at its end is maintained by brickkit\n" +
 		"   📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it\n" +
+		"   📄 COMPONENTS.md        the component table, maintained by brickkit\n" +
 		"   📁 .claude/skills/      AI assistant skills (5)\n" +
 		"   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check\n" +
 		"\n" +

@@ -113,7 +113,7 @@ brickkit up -f deploy.prod.yaml
 | `brickkit init` | 补全式 | 当前目录缺什么补什么：已有项目接入，或组件仓库给自己建一个本地联调工作台 |
 
 完整的项目有 `brickkit.yaml`、`deploy.yaml`、`config/vars.yaml`、`components/` 与 `shell/` 两个本地源、`AGENTS.md`
-（项目的 AI 导读，末尾是由 CLI 维护的组件表）、`CLAUDE.md`（只有 `@AGENTS.md`）和 `.gitignore`。`deploy.local.yaml`
+（项目的 AI 导读，末尾一段由 CLI 维护）、`CLAUDE.md`（只有 `@AGENTS.md`）、`COMPONENTS.md`（CLI 生成的组件表）和 `.gitignore`。`deploy.local.yaml`
 从不在这里生成，要用时由 `brickkit local on` 生成。
 
 补全式的规矩：
@@ -158,8 +158,9 @@ brickkit init --hooks                 # 只装提交前检查
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 AGENTS.md            项目的 AI 导读；末尾的一段由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
+   📄 COMPONENTS.md        组件表，由 brickkit 维护
    📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 
@@ -200,8 +201,8 @@ brickkit skills <命令> [参数]
 
 查看每个技能文件的状态（只读）。没有自己的参数。
 
-输出第一行说技能用哪种语言、记在哪（`AGENTS.md` 末尾那一段）。然后每份技能文件一行，最后一行是 `AGENTS.md`——文件在不在、
-有没有那一段、那一段记的是哪种语言（`lang=zh`）。下面是一个同事改过一份技能、`AGENTS.md` 又被删掉了的项目：
+输出第一行说技能用哪种语言、记在哪（`AGENTS.md` 末尾那一段）。然后每份技能文件一行；一行 `AGENTS.md`——文件在不在、
+有没有那一段、那一段记的是哪种语言（`lang=zh`）；在项目或工作台里，最后一行是 `COMPONENTS.md`：缺失、过期还是最新，以及它的语言。下面是一个同事改过一份技能、`AGENTS.md` 又被删掉了的项目：
 
 ```text
 技能语言：zh（记在 AGENTS.md 的 brickkit 维护区里；brickkit skills update --lang 可以改）
@@ -214,17 +215,19 @@ brickkit skills <命令> [参数]
    │ .claude/skills/brickkit-plan-change/SKILL.md  │ 最新                  │
    │ .claude/skills/brickkit-troubleshoot/SKILL.md │ 最新                  │
    │ AGENTS.md                                     │ 缺失；update 会建出来 │
+   │ COMPONENTS.md                                 │ 最新（lang=zh）       │
    └───────────────────────────────────────────────┴───────────────────────┘
 
 有 1 个文件需要刷新：brickkit skills update
 ```
 
-技能文件的状态有 `最新`、`待更新`、`缺失`、`已手改`（`update` 跳过）、`未托管`（没有记录行）几种。`AGENTS.md` 那一行还会说维护段的文字是不是比当前 CLI 写的旧——平台规则变了，或者项目的组件表
-跟 `brickkit.yaml` 对不上了；`update` 会原地重写那一段。
+技能文件的状态有 `最新`、`待更新`、`缺失`、`已手改`（`update` 跳过）、`未托管`（没有记录行）几种。`AGENTS.md` 那一行还会说维护段的文字是不是比当前 CLI 写的旧——平台规则变了，或者组件数
+跟 `brickkit.yaml` 对不上了；`update` 会原地重写那一段。组件表跟 `brickkit.yaml` 与缓存的清单对不上时，`COMPONENTS.md` 那一行说
+过期，`update` 整份改写。
 
 ### `brickkit skills update`
 
-缺的装上、旧的刷新；手改过的跳过。
+缺的装上、旧的刷新；手改过的跳过。在项目或工作台里，它还会改写 `COMPONENTS.md`，缺了就写出来。
 
 | 参数 | 说明 |
 | --- | --- |

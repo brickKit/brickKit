@@ -121,7 +121,7 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 	return a.result, nil
 }
 
-// refreshProjectDoc 改写项目 AGENTS.md 末尾的组件表。add / remove / upgrade 在命令的
+// refreshProjectDoc 改写组件表 COMPONENTS.md 与项目 AGENTS.md 末尾的一段。add / remove / upgrade 在命令的
 // 最后调用——取完清单、下载完文档之后：表里的说明、文档语言都来自缓存，写早了就是空的。
 // 三份文件此刻已经正确，表写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
 func refreshProjectDoc(opts *Options, layout project.Layout) {
@@ -131,14 +131,15 @@ func refreshProjectDoc(opts *Options, layout project.Layout) {
 		res, err = project.WriteAgentsBlock(layout, decl)
 	}
 	if err == nil {
-		// 没有维护段、没有 AGENTS.md、还留着旧地图：组件表没人维护了，说一声怎么接上（不替作者改文件）
+		// 没有维护段、没有 AGENTS.md、还留着旧地图：AI 读不到平台规则与组件表在哪，说一声怎么接上（不替作者改文件）
+		renderComponentsCreated(opts, res)
 		renderAgentsResult(opts, res)
 		if project.ObsoleteProjectMap(layout) {
 			renderProjectMapObsolete(opts)
 		}
 	}
 	if err != nil {
-		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, docspec.FileAgents)).
+		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, docspec.FileComponents, docspec.FileAgents)).
 			WithDetail(i18n.T(msgid.LabelReason), clierr.As(err).Message)})
 	}
 }

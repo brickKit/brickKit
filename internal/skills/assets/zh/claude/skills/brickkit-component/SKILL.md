@@ -144,7 +144,7 @@ shell:
 | `AGENTS.md` | 开发它的 AI | 五节——`代码地图`（表格；路径用反引号，目录以 `/` 结尾）、`构建与测试`、`设计取舍`、`易错点`（不许 / 症状 / 原因）、`改代码前自查`——末尾是 brickkit 维护的一段 |
 | `CLAUDE.md` | Claude Code | 只有 `@AGENTS.md` 一行 |
 | `README.md` | GitHub 上的人 | `在项目里使用`、`文档`（一张表，每个问题指向能回答它的文件）、`开发` |
-| `component.yaml` | CLI | 依赖、配置项、端口、镜像；可选的 `metadata.repository` 是项目组件表里显示的链接 |
+| `component.yaml` | CLI | 依赖、配置项、端口、镜像；可选的 `metadata.repository` 是项目组件表（`COMPONENTS.md`）里显示的链接 |
 
 - 一个事实只写一处：依赖和配置项在 `component.yaml`，接口在契约文件，历史在 Git。文档讲它们说不清的部分，不再抄一遍。
 - `BRICKKIT.md` **不放相对链接**：它在别的项目缓存里是单独读的。文件名用行内代码写。
@@ -153,7 +153,7 @@ shell:
 - 固定小节按标题一字不差地认，中英文都行——英文原文的译本要用这些英文名：`BRICKKIT.md` Purpose / Before you deploy / Dependencies / Configuration / Contracts / Shell declaration；`AGENTS.md` Code map / Build and test / Design decisions / Pitfalls / Before changing code；`README.md` Use it in a project / Documentation / Development。
 - 外壳的 `外壳声明` 里的成员要与 `shell.members` 一致。
 - `brickkit lint` 都会查（警告；`--strict` 下算失败）：`DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`（代码地图里的路径没了——第一张表第一列的每个行内代码都当路径查，`main.go`、`Dockerfile` 也算；别的格子里只有含 `/` 的才算；以 `/` 开头的是路由，比如 `/healthz`，从不当路径）、`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`（`component.yaml` 里有、文档没提的依赖、必填键、契约文件或外壳成员）、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`。文档和代码在同一个提交里改：下一个 AI 读的就是你留下的。
-- 文档和代码一样是版本的一部分。朝新版本改——先升 `metadata.version`、测、再发布——发布前随便改。已经发布的版本不许原地改：把它当本地源的机器和从 tag 取它的机器会往项目 `AGENTS.md` 的组件表写不同的行，来回改。
+- 文档和代码一样是版本的一部分。朝新版本改——先升 `metadata.version`、测、再发布——发布前随便改。已经发布的版本不许原地改：把它当本地源的机器和从 tag 取它的机器会往项目的 `COMPONENTS.md` 写不同的行，来回改。
 
 **11. `deployment.resources` 只写 `requests`，`limits` 留给部署方。**
 

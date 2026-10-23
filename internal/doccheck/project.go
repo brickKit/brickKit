@@ -27,6 +27,7 @@ func Project(root string) []*clierr.Error {
 		}
 	}
 	out = append(out, claude(root)...)
+	out = append(out, componentTable(root)...)
 	set := collect(root, projectTranslatedKinds)
 	for _, f := range set.files {
 		d, _ := read(root, f.rel)
@@ -47,7 +48,7 @@ func Project(root string) []*clierr.Error {
 	}
 	out = append(out, set.translations(root)...)
 	if d, ok := read(root, docspec.FileBrickkit); ok && agentsmd.IsOldProjectMap([]byte(d.body)) {
-		out = append(out, warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileAgents), d.rel, 0).
+		out = append(out, warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileComponents), d.rel, 0).
 			WithHint(i18n.T(msgid.CliInitHintMoveProjectMap, docspec.FileAgents, docspec.FileBrickkit)))
 	}
 	return out

@@ -1,7 +1,7 @@
 // Package agentsmd 管 AGENTS.md 里由 CLI 维护的那一段：标记、语言、渲染、骨架、补全。
 //
 // AGENTS.md 是作者的 AI 导读（各家工具通用的那个文件），平台只占文件末尾一对标记之间的一段：
-// 平台规则与组件表。标记之外 CLI 一个字节都不写；标记里记着这段用的语言，谁跑命令都按它渲染，
+// 平台规则与指向组件表的一节；组件表本身是整份由 CLI 生成的 COMPONENTS.md（components.go）。标记之外 CLI 一个字节都不写；标记里记着这段用的语言，谁跑命令都按它渲染，
 // 免得两个 CLI 语言不同的同事把提交进 Git 的文件改来改去。
 package agentsmd
 
@@ -136,23 +136,6 @@ func Append(doc, rendered string) string {
 	default:
 		return doc + "\n\n" + rendered
 	}
-}
-
-// ParseRows 读出现有维护区里组件表的行（键 id@version，单元格已去掉转义）。缓存里缺某个组件时，
-// 新渲染的那一行沿用这里的单元格：新克隆的仓库还没取过组件，不能因此把已经写好的说明抹成"—"。
-func ParseRows(doc string, b Block) map[string]Row {
-	rows := map[string]Row{}
-	for _, l := range strings.Split(doc[b.Start:b.End], "\n") {
-		c := mdtext.TableCells(l)
-		if len(c) != 5 || !strings.Contains(c[0], "/") {
-			continue
-		}
-		for i := range c {
-			c[i] = strings.ReplaceAll(c[i], `\|`, "|")
-		}
-		rows[c[0]+"@"+c[1]] = Row{ID: c[0], Version: c[1], Does: c[2], Docs: c[3], Home: c[4]}
-	}
-	return rows
 }
 
 // markerLines 是全部标记所在的行号（从 1 起，排好序）。

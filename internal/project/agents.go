@@ -1,6 +1,6 @@
 package project
 
-// 本文件是项目 AGENTS.md 末尾那段由 CLI 维护的内容：平台规则与组件表。
+// 本文件是项目 AGENTS.md 末尾那段由 CLI 维护的内容（平台规则、指向组件表的一节）与组件表 COMPONENTS.md。
 // 表里只写对所有人都一样的事实（brickkit.yaml 与组件那个版本自己说的），见 agentsmd。
 
 import (
@@ -16,8 +16,8 @@ import (
 	"github.com/brickkit/brickkit/internal/projfile"
 )
 
-// AgentsContent 算出 l 下 AGENTS.md 维护区该有的内容。lang 只在文件里还没有维护区时用。
-// 缓存里缺某个组件版本时（新克隆的仓库），那一行沿用现有维护区里的单元格。
+// AgentsContent 算出 l 下 AGENTS.md 维护区与 COMPONENTS.md 该有的内容。lang 只在文件里还没有维护区时用。
+// 缓存里缺某个组件版本时（新克隆的仓库），那一行沿用现有 COMPONENTS.md 里的单元格。
 func AgentsContent(l Layout, decl *projfile.File, lang string) agentsmd.Content {
 	c := agentsmd.Content{Lang: lang, Project: true, Title: decl.Project}
 	if exists(filepath.Join(l.Root, manifest.FileName)) {
@@ -27,10 +27,8 @@ func AgentsContent(l Layout, decl *projfile.File, lang string) agentsmd.Content 
 		}
 	}
 	var previous map[string]agentsmd.Row
-	if data, err := os.ReadFile(l.AgentsPath()); err == nil {
-		if b, err := agentsmd.Find(string(data)); err == nil {
-			previous = agentsmd.ParseRows(string(data), b)
-		}
+	if data, err := os.ReadFile(l.ComponentTablePath()); err == nil {
+		previous = agentsmd.ParseRows(string(data))
 	}
 	for _, comp := range decl.Components {
 		row := agentsmd.Row{ID: comp.ID, Version: comp.Version, Does: "—", Docs: "—", Home: "—"}
@@ -72,9 +70,9 @@ func orDash(s string) string {
 	return s
 }
 
-// WriteAgentsBlock 改写项目 AGENTS.md 已有的维护区（add / remove / upgrade 之后）。
+// WriteAgentsBlock 改写项目 AGENTS.md 已有的维护区与 COMPONENTS.md（add / remove / upgrade 之后）。
 // 只要 brickkit.yaml：组件表里的事实都来自它和缓存，不必装载整个项目（装载会被配置冲突拦下）。
-// 没有文件、没有维护区都不建也不报：那是 init / skills update 的事。
+// AGENTS.md 没有文件、没有维护区都不建（那是作者的文件，归 init / skills update）；COMPONENTS.md 整份是 CLI 的，没有就建。
 func WriteAgentsBlock(l Layout, decl *projfile.File) (agentsmd.Result, error) {
 	return agentsmd.Ensure(l.Root, AgentsContent(l, decl, ""), agentsmd.ModeRewrite, nil)
 }
