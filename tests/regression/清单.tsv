@@ -81,3 +81,4 @@ R66	使用者移除的成员因强依赖被升级加回来：提示点名强依�
 R67	add 因依赖方的精确依赖保留另一个版本时，提示两个版本并存、为谁保留、怎样回到一个版本；部署文件缺这个版本的条目时报错带上它的 requiredBy	.	./internal/cli	TestAddDependencyOtherVersionCoexists
 R68	upgrade 因依赖方还要旧版本而留下它时，同样提示并存并点名依赖方；依赖方要的就是项目里的版本时不提示	.	./internal/cli	TestUpgradeKeepsOldVersionForDependent
 R69	依赖方要的版本比项目的默认版本新时，并存提示指向 brickkit upgrade 到那个版本；依赖方跟上了就没有提示	.	./internal/cli	TestAddCoexistenceNoteOnlyWhenVersionsDiffer
+R70	Docker / Podman 的 HTTP 健康检查在任何镜像上都发 GET（不随 BusyBox / GNU wget 变成 HEAD），与 K8s 的 httpGet 一致	.	./internal/compose	TestHealthcheckSendsGetWithEveryWget

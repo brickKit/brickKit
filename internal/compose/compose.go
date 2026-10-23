@@ -711,9 +711,14 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 		// 只写 wget 的话，python:slim / 各种 distroless 基础镜像上必然失败——
 		// 组件明明跑得好好的，平台却判它 unhealthy，依赖方永远等不到它，
 		// 而容器日志里写着"组件已就绪"。这是真跑起来撞到的。
+		//
+		// 两条都发 GET，与 K8s 的 httpGet 一致，组件只要答 GET。不用 `wget --spider`：
+		// BusyBox 的 --spider 发 GET，GNU wget（Debian / Ubuntu 镜像装的那个）发 HEAD，
+		// 只为 GET 注册了路由的组件在 Alpine 上健康、换个基础镜像就永远 unhealthy。
+		// 响应体丢进 /dev/null；非 2xx/3xx 时两者都返回非零。
 		return map[string]any{
 			"test": []string{"CMD-SHELL", fmt.Sprintf(
-				"wget -q --spider %s || curl -fsS %s || exit 1", url, url)},
+				"wget -q -O /dev/null %s || curl -fsS -o /dev/null %s || exit 1", url, url)},
 			"interval":     healthcheckInterval,
 			"timeout":      healthcheckTimeout,
 			"retries":      healthcheckRetries,

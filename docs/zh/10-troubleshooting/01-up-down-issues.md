@@ -110,13 +110,16 @@ Docker / Podman 下一个宿主机端口只能映射给一个容器。端口要�
 Docker 下，健康检查在容器**里面**执行，经由镜像里的 `/bin/sh`。`type: http` 执行的是：
 
 ```text
-wget -q --spider http://127.0.0.1:8080/healthz || curl -fsS http://127.0.0.1:8080/healthz || exit 1
+wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
 ```
 
 `type: tcp` 执行的是 `nc -z 127.0.0.1 8080`。所以 `type: http` 要求镜像里有 `/bin/sh` 加 `wget` 或 `curl`，`type: tcp` 要求有
 `/bin/sh` 加 `nc`。缺了，这条命令就永远失败，容器永远被判为不健康——不管组件本身多正常。`scratch`、distroless 镜像根本没有 shell，
 **两种类型都过不了**；基于 `busybox` 或 `alpine` 的镜像这些都有。另一种常见的：健康检查路径写错了（`component.yaml` 的
 `healthCheck.path` 与组件实际提供的不一致）。
+
+两条命令发的都是 `GET`，与 Kubernetes 的 `httpGet` 探针一样，所以这个路径只要答 `GET`。不用 `wget --spider`，是因为
+GNU wget（Debian、Ubuntu 镜像装的那个）用它发 `HEAD`，BusyBox 的发 `GET`：只为 `GET` 注册了路由的组件会在 Alpine 上健康、换成 Debian 系的镜像就永远不健康。
 
 检查打的是 `127.0.0.1`，不是 `localhost`：容器里 `localhost` 同时指向 `127.0.0.1` 和 `::1`，Alpine 的 `wget` 与 `nc` 取到的是 `::1`，
 而只监听 `0.0.0.0` 的服务（Python、Node 的常见写法）在 IPv6 上没人接。所以组件要监听 `0.0.0.0` 或 `::`——只监听 `localhost` 的服务，

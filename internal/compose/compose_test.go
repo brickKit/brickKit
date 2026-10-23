@@ -495,14 +495,28 @@ func TestHealthcheckFromManifest(t *testing.T) {
 	require.True(t, ok, "12.3 应有 healthcheck：%v", svc)
 
 	assert.Equal(t, []any{"CMD-SHELL",
-		"wget -q --spider http://127.0.0.1:8080/healthz || " +
-			"curl -fsS http://127.0.0.1:8080/healthz || exit 1"},
+		"wget -q -O /dev/null http://127.0.0.1:8080/healthz || " +
+			"curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1"},
 		health["test"])
 	assert.NotEmpty(t, health["interval"])
 	assert.NotEmpty(t, health["retries"])
 	// 127.0.0.1 而不是 localhost：Alpine 的 wget / nc 把 localhost 解析成 ::1，只监听 0.0.0.0 的服务
 	// （Python、Node 的常见写法）就被判成不健康——组件好好的。这是真跑起来撞到的
 	assert.NotContains(t, fmt.Sprint(health["test"]), "localhost")
+}
+
+// 健康检查在任何镜像上都发 GET，与 K8s 的 httpGet 一样（FRB-008）。
+// `wget --spider` 在 BusyBox 上发 GET、在 GNU wget（Debian / Ubuntu 镜像）上发 HEAD：
+// 只答 GET 的组件在 Alpine 上健康，换个基础镜像就永远 unhealthy。
+func TestHealthcheckSendsGetWithEveryWget(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+
+	health := serviceOf(t, b.parsed(), "people-basic-1-0-0")["healthcheck"].(map[string]any)
+	joined := strings.Join(stringsOf(t, health["test"]), " ")
+	assert.NotContains(t, joined, "--spider")
+	assert.NotContains(t, joined, "-I") // curl -I 发 HEAD
+	assert.Contains(t, joined, "wget -q -O /dev/null http://127.0.0.1:8080/healthz")
 }
 
 // 启动宽限期必须写进 healthcheck。

@@ -121,7 +121,7 @@ start. Meanwhile the component's own logs say it's ready and listening on its po
 On Docker, the health check runs **inside** the container, through the image's `/bin/sh`. For `type: http` it's:
 
 ```text
-wget -q --spider http://127.0.0.1:8080/healthz || curl -fsS http://127.0.0.1:8080/healthz || exit 1
+wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
 ```
 
 and for `type: tcp` it's `nc -z 127.0.0.1 8080`. So `type: http` needs `/bin/sh` plus `wget` or `curl` in the image, and
@@ -129,6 +129,10 @@ and for `type: tcp` it's `nc -z 127.0.0.1 8080`. So `type: http` needs `/bin/sh`
 unhealthy — however healthy the component itself is. `scratch` and distroless images have no shell at all, so **neither
 type** can pass there; images based on `busybox` or `alpine` have all of it. Another common cause: a wrong health check
 path (`healthCheck.path` in `component.yaml` differs from what the component actually serves).
+
+Both commands send `GET`, as a Kubernetes `httpGet` probe does, so the path only has to answer `GET`. The check
+doesn't use `wget --spider` because that sends `HEAD` with GNU wget — the one Debian and Ubuntu images install — and
+`GET` with BusyBox's, so a component with only a `GET` route would be healthy on Alpine and never on a Debian-based image.
 
 The check goes to `127.0.0.1`, not `localhost`: inside a container `localhost` points at both `127.0.0.1` and `::1`,
 Alpine's `wget` and `nc` pick `::1`, and a server listening only on `0.0.0.0` (the usual way in Python and Node) has

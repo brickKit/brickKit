@@ -80,9 +80,9 @@ func TestTrailingSlashStillMatches(t *testing.T) {
 
 // HEAD 必须和 GET 一样可用。
 //
-// 这是被真实部署打脸打出来的用例：compose 的 healthcheck 用
-// `wget -q --spider`，而 --spider 发的是 HEAD，结果每 10 秒一次 405，
-// 容器一直是 unhealthy。凡是能 GET 的地址都应该能 HEAD。
+// 这是被真实部署打脸打出来的用例：当时 compose 的 healthcheck 用
+// `wget -q --spider`，GNU wget 的 --spider 发的是 HEAD，结果每 10 秒一次 405，
+// 容器一直是 unhealthy。凡是能 GET 的地址都应该能 HEAD（RFC 9110）。
 func TestHeadIsAllowedWhereverGetIs(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
