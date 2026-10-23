@@ -28,7 +28,7 @@ description: Use when the user brings a new requirement, a feature or a change i
 | Project conventions | `Conventions` in the project's `AGENTS.md`, and the detailed rules it links | It breaks a convention: the person decides |
 | Recorded decisions | Where the project's `AGENTS.md` says decisions are kept (its `Where to look` table; `docs/decisions/` when it doesn't say), the component's `Design decisions` and `docs/` | It reverses a decision: quote it, the person decides |
 | Dependency direction | `brickkit deps <id>` / `brickkit graph` | A new dependency would make a cycle, or point against the direction the design allows |
-| Contract compatibility | The contract files under `artifacts` | Adding is a minor version; removing or changing meaning is a major version, and every consumer has to move |
+| Contract compatibility | The contract files under `artifacts` | Removing or changing meaning is an incompatible change, and every consumer has to move; how the version marks it follows the version rule below |
 | Who an event reaches | The list of events at the end of `brickkit deps` (from `events` in each `component.yaml`) | Changing or removing an event moves every component subscribed to it — they are not in the dependency tree, only in this list |
 
 ## 3. Decide the outcome
@@ -43,9 +43,15 @@ description: Use when the user brings a new requirement, a feature or a change i
 - **Order:** providers before consumers — the `📋 Start order (topological sort)` list that `brickkit up --dry-run`
   prints, dependencies first. (`brickkit deps` prints the other way round: each tree starts at a consumer, with
   its providers nested under it, so there the deepest entries come first.)
-- **Per component, one commit:** the contract, the code, and its `BRICKKIT.md` / `AGENTS.md` together. Then raise
-  `metadata.version` (patch for implementation only, minor for additions, major for breaking changes), release, and
-  `brickkit upgrade <id>@<version>` in the project.
+- **Raise the version first, then change:** before changing a component, raise its `metadata.version` and
+  `brickkit upgrade <id>@<new version>` in the project. `brickkit build` skips a version whose image already exists —
+  raise it at the end and what you test halfway is the old code; raise it first and you can rebuild that new version as
+  often as you like until it's released.
+- **Which number:** the version rule the component's or the project's `AGENTS.md` writes (in its conventions, or the
+  rules they link); when neither does, semantic versioning — patch for implementation only, minor for additions, major
+  for breaking changes.
+- **Per component, one commit:** the contract, the code, and its `BRICKKIT.md` / `AGENTS.md` together. Then release;
+  commit the project's upgrade after the component is released.
 - **Before changing a component's code:** read its `AGENTS.md` — the code map tells you where to start, `Pitfalls`
   and `Before changing code` what not to break.
 - **Test inside the project with a focus run:** `brickkit up` in the component's directory runs it from its source

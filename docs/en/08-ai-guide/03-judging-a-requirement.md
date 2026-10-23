@@ -38,7 +38,7 @@ does instead. Follow that pointer; it is there exactly so nobody has to guess.
 | Project conventions | `Conventions` in the project's `AGENTS.md`, and the detailed rules it links | The requirement breaks one |
 | Recorded decisions | Where the project's `AGENTS.md` says decisions are kept (its Where to look table; `docs/decisions/` when it doesn't say); the component's `Design decisions` and `docs/` | The requirement reverses one |
 | Dependency direction | `brickkit deps`, `brickkit graph` | A new dependency would make a cycle, or point against the direction the design allows |
-| Contract compatibility | The contract files listed under `artifacts` | It removes or changes the meaning of something callers use — a major version, and every caller moves |
+| Contract compatibility | The contract files listed under `artifacts` | It removes or changes the meaning of something callers use — an incompatible change, and every caller moves; the version marks it as the version rule says (the major, without a project rule) |
 | Who an event reaches | The list of events at the end of `brickkit deps` (from `events` in each `component.yaml`) | Changing or removing an event moves every component subscribed to it — they are not in the dependency tree, only in this list |
 
 A failed check is not a reason to say no. It is a decision that belongs to a person: changing a boundary, a convention
@@ -60,8 +60,12 @@ or a recorded decision is a choice about the system, not a coding detail.
   starts.
 - **Per component, one commit:** the contract, the code, and its `BRICKKIT.md` / `AGENTS.md` together. A doc that lags
   behind the code is how the next AI writes against a wrong description.
-- **The version:** raise `metadata.version` — the patch for an implementation-only change, the minor for an addition, the
-  major for a breaking change — then release, and `brickkit upgrade <id>@<version>` in the project.
+- **The version:** before changing a component, raise its `metadata.version` and `brickkit upgrade <id>@<new version>` in
+  the project; rebuild that version as often as you like until it's released. Which number follows the version rule the
+  component's or the project's `AGENTS.md` writes; without one, semantic versioning — the patch for an implementation-only
+  change, the minor for an addition, the major for a breaking change (see
+  [Releasing a new version](../03-component-guide/07-release-workflow.md#releasing-a-new-version)). When it's done, release
+  the component first, then commit the project's upgrade.
 - **Test inside the project with a focus run:** `brickkit up` in the component's directory runs it from its source plus
   what it needs (see [Developing inside the project](../02-project-guide/04-focus-run.md)).
 

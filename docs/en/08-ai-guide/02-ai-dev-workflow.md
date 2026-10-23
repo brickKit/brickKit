@@ -39,15 +39,18 @@ you are writing or changing.
    code map and pitfalls in `AGENTS.md`.
 2. **Judge whether it's a breaking change.** Removing an endpoint, changing a field's meaning, changing a config item's name
    or meaning, changing a default — all affect the people using it.
-3. **Change the code, the contract and the documents.** In the same commit: `BRICKKIT.md` when what users see changes,
-   `AGENTS.md` when the code map or a decision changes. Don't let the docs fall behind the implementation —
+3. **Raise the version first, then change.** Change `metadata.version` (the version's only source). Which number follows
+   the version rule the component's or the project's `AGENTS.md` writes; without one, semantic versioning: the patch for
+   implementation-only changes, the minor for additions, the major for breaking changes. Then `brickkit upgrade
+   <component>@<new version>` in the project; when there are config conflicts, a person decides which value to keep.
+   First, because `brickkit build` skips a version whose image already exists: raise it at the end, and what you test
+   halfway is the old code (see [Releasing a new version](../03-component-guide/07-release-workflow.md#releasing-a-new-version)).
+4. **Change the code, the contract and the documents, and test.** In the same commit: `BRICKKIT.md` when what users see
+   changes, `AGENTS.md` when the code map or a decision changes. Don't let the docs fall behind the implementation —
    `brickkit lint` says when a document no longer matches `component.yaml` (`DOC_OUT_OF_STEP`) or points at code that
-   moved (`DOC_PATH_MISSING`).
-4. **Raise the version.** Change `metadata.version` (the version's only source): the patch for implementation-only
-   changes, the minor for additions, the major for breaking changes.
-5. **Release.** Commit, push, `brickkit release`.
-6. **Upgrade in the project.** `brickkit upgrade <component>`; when there are config conflicts, a person decides which value
-   to keep.
+   moved (`DOC_PATH_MISSING`). Rebuild the new version as often as you like until it's released.
+5. **Release.** Commit, push, `brickkit release`. Commit the project's upgrade after that: until the release, a teammate
+   who pulls a `brickkit.yaml` naming the version can't find it.
 
 **Change defaults with care**: keys the project never wrote follow the new default automatically — which is what you want;
 keys it did write become a conflict, and it has to decide each one.

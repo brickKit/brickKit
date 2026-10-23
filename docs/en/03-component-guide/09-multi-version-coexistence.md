@@ -74,8 +74,9 @@ same way: the entry with the bare ID (`- id: demo/hello`) is the default version
   old version accept the columns the new one added, can the new version read what the old one wrote) is the component
   author's responsibility. The migration state table's primary key should include a component identifier, or two
   components sharing a database overwrite each other's migration records.
-- **Incompatible changes raise the major version.** Users decide whether they can upgrade by the version number; change
-  the interface quietly in a patch release, and callers break without knowing why.
+- **Incompatible changes show in the version number.** Users decide whether they can upgrade by the version number;
+  change the interface quietly in a patch release, and callers break without knowing why. Without a version rule of the
+  project's own, that means the major (see [Releasing a new version](07-release-workflow.md#releasing-a-new-version)).
 
 ## When coexistence is needed, and when it isn't
 

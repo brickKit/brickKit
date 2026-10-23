@@ -144,8 +144,16 @@ the remote.
 
 ## Releasing a new version
 
+Raise the version before you start the change, not after it: change `metadata.version` in `component.yaml`,
+`brickkit upgrade <id>@<new version>` in the project, then change the code and test it (see
+[Developing inside the project](../02-project-guide/04-focus-run.md#moving-versions-forward)). Until it's released, rebuild
+that new version as often as you like. Raise it only at the end, and a `brickkit build` halfway through sees an image of
+that version already there and skips it: `up` runs the code from before your change, and nothing says so.
+
+Changed and tested, release it:
+
 ```bash
-# 1. change component.yaml: version: 0.1.0 → 0.2.0 (and the contract's info.version with it)
+# 1. component.yaml already says version: 0.2.0 (and the contract's info.version with it)
 # 2. commit and push
 git commit -am "demo/quote 0.2.0: …"
 git push
@@ -153,9 +161,13 @@ git push
 brickkit release --notes-file ../notes-0.2.0.md
 ```
 
-Which number to raise: only the internals changed and the interface didn't — the patch (0.1.0 → 0.1.1); endpoints or
-config items were added and old callers still work — the minor; endpoints were removed or an existing field's meaning
-changed — the major, and users have to change their code when they upgrade.
+Which number to raise follows your version rule: when the component's `AGENTS.md` or the project's `AGENTS.md` conventions
+write one (say, a development stage that raises only the last number), follow it. When neither does, semantic versioning:
+only the internals changed and the interface didn't — the patch (0.1.0 → 0.1.1); endpoints or config items were added and
+old callers still work — the minor; endpoints were removed or an existing field's meaning changed — the major, and users
+have to change their code when they upgrade. The platform itself asks only two things: three numbers (`1.2.0`, no `v`,
+no suffix such as `-alpha`), and a new version higher than the old one — it compares versions as numbers, chains the
+migrations of a component's versions in version order, and `upgrade` lists the release notes it crosses by it.
 
 ## Release notes
 

@@ -155,7 +155,7 @@ shell:
 - `docs/` 下的每个文件都要能从 `AGENTS.md` 或 `README.md` 走到——一条链接，或用反引号写出它的路径（代码地图里的一行），直接写或写在走得到的文档里；写出一个目录（`docs/decisions/`）就走到了它下面的全部（`DOC_UNREACHABLE`）。
 - 有自己规则的目录（迁移：只追加；契约：改了 proto 要重新生成）可以放一份局部的 `AGENTS.md`：只写这些规则，有帮助的话加一张 `代码地图`（路径相对这个目录），旁边再放一份写着 `@AGENTS.md` 的 `CLAUDE.md`。没有固定小节；不重复根目录的规则。lint 查它的链接、路径、占位词和 `CLAUDE.md`。归档的旧导读要是还叫 `AGENTS.md`，在那个目录里就还是现行的说明：归档时改名。
 - `brickkit lint` 都会查（警告；`--strict` 下算失败）：`DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`（代码地图里的路径没了——第一张表第一列的每个行内代码都当路径查，`main.go`、`Dockerfile` 也算；别的格子里只有含 `/` 的才算；以 `/` 开头的是路由，比如 `/healthz`，从不当路径）、`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`（`component.yaml` 里有、文档没提的依赖、必填键、契约文件或外壳成员）、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`DOC_UNREACHABLE`、`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`。文档和代码在同一个提交里改：下一个 AI 读的就是你留下的。
-- 文档和代码一样是版本的一部分。朝新版本改——先升 `metadata.version`、测、再发布——发布前随便改。已经发布的版本不许原地改：把它当本地源的机器和从 tag 取它的机器会往项目的 `COMPONENTS.md` 写不同的行，来回改。
+- 文档和代码一样是版本的一部分。朝新版本改——动手前先升 `metadata.version`（提哪一位按组件或项目 `AGENTS.md` 写的版本规则，没写按语义化版本），在项目里 `brickkit upgrade <id>@<新版本>`，测，再发布——发布前随便改，同一个版本想重建几次就重建几次。已经发布的版本不许原地改：把它当本地源的机器和从 tag 取它的机器会往项目的 `COMPONENTS.md` 写不同的行，来回改。
 
 **11. `deployment.resources` 只写 `requests`，`limits` 留给部署方。**
 
@@ -174,7 +174,7 @@ shell:
 一片正常。先校验参数，再读环境变量、连数据库。迁移状态自己记；两个组件共用一个库时，状态表主键
 要带组件标识。
 
-**14. 发布新版本 = 改版本号、提交、推送、`brickkit release`。**
+**14. 发布新版本 = 提交（版本号动手前已经升好）、推送、`brickkit release`。**
 
 版本号只取 `metadata.version`。`release` 先检查：能通过校验、组件目录干净、有上游且没有未推送的
 提交、tag 不存在；然后打 tag 并推送，推送失败就删掉本地 tag。tag 是 `1.2.0`（没有 `v`），
