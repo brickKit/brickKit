@@ -82,3 +82,16 @@ func TestNestedFencesCloseOnlyOnAMatchingFence(t *testing.T) {
 	body = fence + "\n" + fence + "go\n[in](x.md)\n" + fence + "\n[out](y.md)\n"
 	assert.Equal(t, "y.md", Links(body)[len(Links(body))-1].Target)
 }
+
+// InlineCode 是手写的扫描：与 inlineCode 这个正则的配对必须一模一样（ProseLines 仍用正则删掉行内代码，两者要对得上）。
+func TestInlineCodeMatchesTheRegexp(t *testing.T) {
+	for _, line := range []string{
+		"", "no code", "`a`", "x `a` y `b` z", "a`b`c`d", "``", "```x```", "` `", "`unclosed", "`a``b`", "| `main.go` | `runMode` |",
+	} {
+		var want []string
+		for _, m := range inlineCode.FindAllString(line, -1) {
+			want = append(want, strings.Trim(m, "`"))
+		}
+		assert.Equal(t, want, InlineCode(line), line)
+	}
+}

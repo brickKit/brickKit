@@ -26,7 +26,7 @@ func Project(root string) []*clierr.Error {
 			out = append(out, warn(clierr.CodeDocFileMissing, i18n.T(msgid.DoccheckFileMissing, f), f, 0))
 		}
 	}
-	out = append(out, claude(root)...)
+	out = append(out, claude(root, docspec.FileClaude)...)
 	out = append(out, componentTable(root)...)
 	set := collect(root, projectTranslatedKinds)
 	for _, f := range set.files {
@@ -47,6 +47,11 @@ func Project(root string) []*clierr.Error {
 		out = append(out, placeholders(mine)...)
 	}
 	out = append(out, set.translations(root)...)
+	locals := localAgents(root)
+	for _, rel := range locals {
+		out = append(out, local(root, rel, false)...)
+	}
+	out = append(out, unreachable(root, set, entryDocs(set, locals))...)
 	if d, ok := read(root, docspec.FileBrickkit); ok && agentsmd.IsOldProjectMap([]byte(d.body)) {
 		out = append(out, warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileComponents), d.rel, 0).
 			WithHint(i18n.T(msgid.CliInitHintMoveProjectMap, docspec.FileAgents, docspec.FileBrickkit)))

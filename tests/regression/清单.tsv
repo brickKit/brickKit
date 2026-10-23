@@ -87,3 +87,8 @@ R72	add / remove / upgrade 改写 COMPONENTS.md，作者在 AGENTS.md 里写的�
 R73	COMPONENTS.md 记着自己的语言：跟 AGENTS.md 维护段；没有维护段时沿用自己记的，CLI 语言不同的同事不会来回改写	.	./internal/agentsmd	TestComponentsFileRecordsItsLanguage
 R74	skills status 列出 COMPONENTS.md 缺失 / 过期 / 最新，skills update 建它、改写它；纯组件仓库没有它	.	./internal/cli	TestSkillsStatusAndUpdateKeepTheComponentTable
 R75	有 brickkit.yaml（项目、工作台）却没有 COMPONENTS.md 时 lint 警告 DOC_FILE_MISSING；生成的表不做文档检查	.	./internal/doccheck	TestComponentTableIsRequiredWhereThereIsABrickkitYaml
+R76	组件或项目子目录里的局部 AGENTS.md 也查：链接、代码地图路径（相对它所在的目录）、占位词，旁边缺 CLAUDE.md 或没写 @AGENTS.md 都报；不要求固定小节	.	./internal/doccheck	TestLocalAgentsAreChecked
+R77	不当作局部说明的：docs/ 里的、放着 component.yaml 的子目录里的、Git 忽略的（不在 Git 里时隐藏目录里的）	.	./internal/doccheck	TestLocalAgentsSkipWhatIsNotTheComponents
+R78	项目自己的子目录里的局部 AGENTS.md 同样查，components/ 下的组件文档归组件自己	.	./internal/doccheck	TestLocalAgentsInAProject
+R79	docs/ 里从 AGENTS.md、README.md、局部 AGENTS.md 顺着链接与写出的路径走不到的文件报 DOC_UNREACHABLE；写出目录就到达它下面的全部	.	./internal/doccheck	TestUnreachableDocs
+R80	DOC_UNREACHABLE 的译本按原文算：到达任何一个语言版本就算到达，都没到达时只报原文一次	.	./internal/doccheck	TestUnreachableCountsTranslationsAsTheirPrimary

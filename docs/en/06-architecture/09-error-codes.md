@@ -464,7 +464,8 @@ A required document is absent: in a component, `BRICKKIT.md`, `AGENTS.md`, `CLAU
 `AGENTS.md` or `CLAUDE.md`; in a project or a workbench (wherever there is a `brickkit.yaml`), `COMPONENTS.md`. `brickkit
 new` writes all of them for a new component; for an existing one, write the missing file (`brickkit skills update`
 creates `AGENTS.md`, `CLAUDE.md` and `COMPONENTS.md` where they are missing; `add`, `remove` and `upgrade` also write
-`COMPONENTS.md`).
+`COMPONENTS.md`). Next to a local `AGENTS.md` (one in a subdirectory), the `CLAUDE.md` holding `@AGENTS.md` is required
+too: without it Claude Code, working in that directory, doesn't read the file.
 
 ### DOC_SECTION_MISSING
 
@@ -474,13 +475,14 @@ section under its heading.
 
 ### DOC_PATH_MISSING
 
-A path in the Code map of a component's `AGENTS.md` does not exist (the code moved, the map didn't). Correct the path in
-the map; a directory ends in `/`. A backticked token starting with `/` is read as an HTTP route, not a path, and is
+A path in the Code map of a component's `AGENTS.md` does not exist (the code moved, the map didn't); in a local
+`AGENTS.md` the paths are relative to its own directory. Correct the path in the map; a directory ends in `/`. A backticked token starting with `/` is read as an HTTP route, not a path, and is
 never checked.
 
 ### DOC_LINK_BROKEN
 
-A relative link in `README.md`, `AGENTS.md` or under `docs/` points at a file that does not exist. Fix the link or add the
+A relative link in `README.md`, `AGENTS.md` (the root one or a local one) or under `docs/` points at a file that does
+not exist. Fix the link or add the
 file.
 
 ### DOC_LINK_NOT_PORTABLE
@@ -511,6 +513,14 @@ relative links at all); with `docs/<lang>/` trees, a page of the primary tree is
 looks like a translation but its suffix isn't a lowercase language code (`README.zh-CN.md`). Bring the translation back
 in step with the primary — the primary is the one that is right.
 
+### DOC_UNREACHABLE
+
+A file in `docs/` can't be reached from `AGENTS.md` or `README.md` (or their translations, or a local `AGENTS.md`):
+nothing links to it or writes its path, neither directly nor from a page that is reached itself, so an AI working
+from those files never learns it exists. Link it, or write its path in backticks, in the Code map or Where to look of
+`AGENTS.md` or in a page already reached; writing its directory (`` `docs/decisions/` ``) counts for every file in it.
+A translation counts as its primary. A file that is no longer needed belongs in Git's history, not in `docs/`.
+
 ### AGENTS_BLOCK_MISSING
 
 `AGENTS.md` has no usable block maintained by brickkit (none, or its markers are broken), so an AI reading it sees
@@ -519,7 +529,8 @@ never change your file.
 
 ### CLAUDE_IMPORT_MISSING
 
-`CLAUDE.md` exists but has no `@AGENTS.md` line, so Claude Code doesn't read `AGENTS.md`. Add the line, or run
+`CLAUDE.md` — at the root, or next to a local `AGENTS.md` — exists but has no `@AGENTS.md` line, so Claude Code
+doesn't read the `AGENTS.md` beside it. Add the line, or run
 `brickkit skills update`.
 
 ### PROJECT_MAP_OBSOLETE

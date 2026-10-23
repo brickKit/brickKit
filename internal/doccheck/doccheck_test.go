@@ -2,6 +2,7 @@ package doccheck
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -239,13 +240,16 @@ func TestTranslations(t *testing.T) {
 	assert.Empty(t, Component(dir, m), "BRICKKIT translations cannot link (no relative links): not required")
 }
 
+// readmeWithDocs 是 goodReadme 加上一句写出 `docs/` 的话：docs/ 下的每个文件都走得到，测别的检查时不被 DOC_UNREACHABLE 搅进来。
+var readmeWithDocs = goodReadme + "\nDesign notes: `docs/`.\n"
+
 func TestTranslationSuffixNotALanguage(t *testing.T) {
 	dir, m := component(t, map[string]string{"README.zh-CN.md": goodReadme})
 	ws := Component(dir, m)
 	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
 	assert.Contains(t, ws[0].Format(), "README.zh-CN.md")
 
-	dir, m = component(t, map[string]string{"docs/v1.2-notes.md": "# notes\n"})
+	dir, m = component(t, map[string]string{"docs/v1.2-notes.md": "# notes\n", "README.md": readmeWithDocs})
 	assert.Empty(t, Component(dir, m), "a dotted name with no translation around is just a name")
 }
 
@@ -400,7 +404,8 @@ func TestProjectDocsAreChecked(t *testing.T) {
 	root := t.TempDir()
 	agents := "# P\n\n## Overview\nx\n\n## Conventions\nx\n\n## Where to look\nx\n\n## Pitfalls\nx\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n"
 	for rel, body := range map[string]string{
-		"AGENTS.md": agents, "CLAUDE.md": "@AGENTS.md\n", "components/erp/api/AGENTS.md": "# api\n",
+		"AGENTS.md": strings.Replace(agents, "## Where to look\nx", "## Where to look\n`docs/`", 1), "CLAUDE.md": "@AGENTS.md\n",
+		"components/erp/api/AGENTS.md": "# api\n", "components/erp/api/component.yaml": "x\n",
 		"docs/conventions.md": "# C\n\n[api](../components/erp/api/AGENTS.md) [gone](decisions/x.md)\n\nTBD\n",
 	} {
 		p := filepath.Join(root, filepath.FromSlash(rel))
@@ -415,22 +420,22 @@ func TestProjectDocsAreChecked(t *testing.T) {
 func TestLanguageTrees(t *testing.T) {
 	en := "# A\n\n[English](a.md) · [中文](../../zh/guide/a.md)\n\n## One\nx\n"
 	zh := "# A\n\n[English](../../en/guide/a.md) · [中文](a.md)\n\n## 一\nx\n"
-	dir, m := component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh})
+	dir, m := component(t, map[string]string{"README.md": readmeWithDocs, "docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh})
 	ws := Component(dir, m)
 	assert.Empty(t, ws, messages(ws))
 
-	dir, m = component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh + "\n## 二\n"})
+	dir, m = component(t, map[string]string{"README.md": readmeWithDocs, "docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh + "\n## 二\n"})
 	ws = Component(dir, m)
 	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
 	assert.Contains(t, ws[0].Format(), "docs/en/guide/a.md", "the section count names the primary")
 
-	dir, m = component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh, "docs/en/b.md": "# B\n", "docs/zh/c.md": "# C\n"})
+	dir, m = component(t, map[string]string{"README.md": readmeWithDocs, "docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh, "docs/en/b.md": "# B\n", "docs/zh/c.md": "# C\n"})
 	ws = Component(dir, m)
 	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift, clierr.CodeDocTranslationDrift}, codes(ws), messages(ws))
 	assert.Contains(t, messages(ws), "docs/zh/b.md", "a primary page missing from the zh tree")
 	assert.Contains(t, messages(ws), "docs/en/c.md", "a zh page with no primary")
 
-	dir, m = component(t, map[string]string{"docs/en/guide/a.md": "# A\n\n## One\nx\n", "docs/zh/guide/a.md": zh})
+	dir, m = component(t, map[string]string{"README.md": readmeWithDocs, "docs/en/guide/a.md": "# A\n\n## One\nx\n", "docs/zh/guide/a.md": zh})
 	ws = Component(dir, m)
 	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
 	assert.Contains(t, ws[0].Format(), "docs/zh/guide/a.md", "the primary does not link its zh version")
@@ -438,14 +443,124 @@ func TestLanguageTrees(t *testing.T) {
 
 // 只有主语言那棵在时才是语言树：docs/api/、docs/faq/ 的名字也像语言代码，但不是。
 func TestLanguageTreesNeedThePrimaryLanguage(t *testing.T) {
-	dir, m := component(t, map[string]string{"docs/api/a.md": "# A\n", "docs/faq/b.md": "# B\n"})
+	dir, m := component(t, map[string]string{"README.md": readmeWithDocs, "docs/api/a.md": "# A\n", "docs/faq/b.md": "# B\n"})
 	ws := Component(dir, m)
 	assert.Empty(t, ws, messages(ws))
 
 	// 主语言是维护段记下的 lang=：zh 项目的 docs/zh/ 是原文树
 	zhBlock := strings.Replace(goodAgents, "lang=en", "lang=zh", 1)
-	dir, m = component(t, map[string]string{"AGENTS.md": zhBlock, "docs/zh/a.md": "# A\n", "docs/en/b.md": "# B\n"})
+	dir, m = component(t, map[string]string{"README.md": readmeWithDocs, "AGENTS.md": zhBlock, "docs/zh/a.md": "# A\n", "docs/en/b.md": "# B\n"})
 	ws = Component(dir, m)
 	assert.Contains(t, messages(ws), "docs/en/a.md")
 	assert.Contains(t, messages(ws), "docs/zh/b.md")
+}
+
+// 局部的 AGENTS.md（FRR-011）：链接、代码地图（路径相对它所在的目录）、占位词照根目录那份查；旁边要有引入它的 CLAUDE.md。
+func TestLocalAgentsAreChecked(t *testing.T) {
+	local := "# Migrations\n\nAppend only.\n\n## Code map\n| Path | Owns |\n|---|---|\n| `0001_init.sql` | first |\n| `0002_gone.sql` | removed |\n\n" +
+		"See [the design](../../docs/nowhere.md) and [outside](../../../x.md).\n\nTODO more\n"
+	dir, m := component(t, map[string]string{"db/migrations/AGENTS.md": local, "db/migrations/0001_init.sql": "--\n"})
+	ws := Component(dir, m)
+	assert.ElementsMatch(t, []clierr.Code{
+		clierr.CodeDocPathMissing, clierr.CodeDocLinkBroken, clierr.CodeDocLinkNotPortable, clierr.CodeDocPlaceholder, clierr.CodeDocFileMissing,
+	}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "0002_gone.sql", "code map paths are relative to the local AGENTS.md")
+	assert.NotContains(t, messages(ws), "0001_init.sql")
+	assert.Contains(t, messages(ws), "db/migrations/CLAUDE.md")
+	assert.NotContains(t, messages(ws), "SECTION", "a local AGENTS.md has no fixed sections")
+
+	dir, m = component(t, map[string]string{"db/migrations/AGENTS.md": "# Migrations\n\nAppend only.\n", "db/migrations/CLAUDE.md": "hi\n"})
+	assert.Equal(t, []clierr.Code{clierr.CodeClaudeImportMissing}, codes(Component(dir, m)))
+
+	dir, m = component(t, map[string]string{"db/migrations/AGENTS.md": "# Migrations\n\nAppend only.\n", "db/migrations/CLAUDE.md": "@AGENTS.md\n"})
+	assert.Empty(t, Component(dir, m))
+}
+
+// 不当作局部说明的：docs/ 里的（按文档查）、放着 component.yaml 的子目录里的（另一个组件）、
+// 不在 Git 里时隐藏目录里的；在 Git 里时被忽略的。
+func TestLocalAgentsSkipWhatIsNotTheComponents(t *testing.T) {
+	bare := "# x\n\n[gone](nowhere.md)\n"
+	dir, m := component(t, map[string]string{
+		"docs/AGENTS.md": "# notes\n", "README.md": readmeWithDocs,
+		"plugins/inner/component.yaml": "x\n", "plugins/inner/AGENTS.md": bare,
+		".cache/AGENTS.md": bare,
+	})
+	assert.Empty(t, Component(dir, m), messages(Component(dir, m)))
+
+	dir, m = component(t, map[string]string{"node_modules/pkg/AGENTS.md": bare, "web/AGENTS.md": bare, ".gitignore": "node_modules/\n"})
+	gitInit(t, dir)
+	ws := Component(dir, m)
+	assert.Contains(t, messages(ws), "web/AGENTS.md")
+	assert.NotContains(t, messages(ws), "node_modules", "git-ignored: not the component's")
+}
+
+func TestLocalAgentsInAProject(t *testing.T) {
+	root := t.TempDir()
+	agents := "# P\n\n## Overview\nx\n\n## Conventions\nx\n\n## Where to look\nx\n\n## Pitfalls\nx\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n"
+	for rel, body := range map[string]string{
+		"AGENTS.md": agents, "CLAUDE.md": "@AGENTS.md\n",
+		"tools/AGENTS.md": "# tools\n\n[api](../components/erp/api/component.yaml) [gone](x.md)\n",
+		"components/erp/api/component.yaml": "x\n", "components/erp/api/AGENTS.md": "# not the project's\n",
+	} {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
+	}
+	ws := Project(root)
+	assert.ElementsMatch(t, []clierr.Code{clierr.CodeDocLinkBroken, clierr.CodeDocFileMissing}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "tools/CLAUDE.md")
+	assert.NotContains(t, messages(ws), "components/erp/api/CLAUDE.md", "a component's own docs are the component's")
+}
+
+// docs/ 里走不到的文件（FRR-012）：从 AGENTS.md、README.md（与译本）、局部 AGENTS.md 出发，顺着链接与写出的路径走；
+// 引用目录就到达它下面的全部；译本按原文算。
+func TestUnreachableDocs(t *testing.T) {
+	readme := goodReadme + "\n[Design](docs/design.md) · [decisions](docs/decisions/)\n"
+	dir, m := component(t, map[string]string{
+		"README.md":                  readme,
+		"docs/design.md":             "# D\n\nSee [the model](model.md).\n",
+		"docs/model.md":              "# M\n",
+		"docs/decisions/0001-x.md":   "# 1\n",
+		"docs/decisions/0002-y.md":   "# 2\n",
+		"db/AGENTS.md":               "# db\n\nRules: `docs/db-rules.md`.\n",
+		"db/CLAUDE.md":               "@AGENTS.md\n",
+		"docs/db-rules.md":           "# R\n",
+		"docs/lost.md":               "# lost\n",
+		"docs/also-lost/old-plan.md": "# old\n\n[design](../design.md)\n",
+	})
+	ws := Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocUnreachable, clierr.CodeDocUnreachable}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "docs/lost.md")
+	assert.Contains(t, messages(ws), "docs/also-lost/old-plan.md", "linking out of it does not make it reached")
+
+	// 路径写在一份不在 docs/ 里、但走得到的 Markdown 里也算
+	dir, m = component(t, map[string]string{
+		"AGENTS.md": strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n| `db/README.md` | the schema |", 1),
+		"db/README.md": "# db\n\n[rules](../docs/rules.md)\n", "docs/rules.md": "# R\n",
+	})
+	assert.Empty(t, Component(dir, m), messages(Component(dir, m)))
+}
+
+func TestUnreachableCountsTranslationsAsTheirPrimary(t *testing.T) {
+	en := "# A\n\n[English](a.md) · [中文](../zh/a.md)\n"
+	zh := "# A\n\n[English](../en/a.md) · [中文](a.md)\n"
+	files := map[string]string{"docs/en/a.md": en, "docs/zh/a.md": zh}
+	dir, m := component(t, files)
+	ws := Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocUnreachable}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "docs/en/a.md", "reported once, as the primary")
+
+	files["README.zh.md"] = strings.Replace(goodReadme, "## Use it in a project", "## 在项目里用", 1) + "\n[设计](docs/zh/a.md)\n"
+	files["README.md"] = goodReadme + "\n[中文](README.zh.md)\n"
+	files["README.zh.md"] += "\n[English](README.md)\n"
+	dir, m = component(t, files)
+	ws = Component(dir, m)
+	assert.NotContains(t, codes(ws), clierr.CodeDocUnreachable, messages(ws))
+}
+
+func gitInit(t *testing.T, dir string) {
+	t.Helper()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = dir
+	require.NoError(t, cmd.Run())
 }

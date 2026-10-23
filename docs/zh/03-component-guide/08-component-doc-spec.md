@@ -20,6 +20,7 @@
 | `CLAUDE.md` | ✅ | Claude Code | 只有一行 `@AGENTS.md` |
 | `README.md` | ✅ | GitHub 上的人 | 简短的介绍，和其余文件的指路表 |
 | `docs/` | 可选 | 要深入的人 | 设计、编号的决策记录、数据模型 |
+| 局部的 `AGENTS.md`（加 `CLAUDE.md`） | 可选 | 在那个目录里干活的 AI | 根目录的 `AGENTS.md` 没写的、某一个目录自己的规则与小地图——见[下文](#局部的-agentsmd) |
 | `CHANGELOG.md` | 可选，从不检查 | 任何人 | 有就在 README 里链上；使用方 `upgrade` 时看到的是版本的[发版说明](07-release-workflow.md#发版说明)，不是这个文件 |
 
 之所以要有 `CLAUDE.md`：Claude Code 读 `CLAUDE.md`，其他 AI 工具读 `AGENTS.md`。用一行把后者引进前者，内容只写一份。
@@ -93,7 +94,29 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 ## `docs/`
 
 可选。上面几份写不下时再建：`docs/design.md`（设计变了，先改它再改代码）、`docs/decisions/NNNN-<标题>.md`（一个决策一份；编号就是它的名字，见[决策怎么编号](../02-project-guide/01-init-and-project-creation.md#决策怎么编号)）、
-`docs/data-model.md`。里面的每个文件都要能从 `AGENTS.md` 或 `README.md` 链过去。组件的设计放在组件仓库里，才会跟着组件的版本走。
+`docs/data-model.md`。组件的设计放在组件仓库里，才会跟着组件的版本走。
+
+AI 只有顺着某样东西才找得到 `docs/` 里的文件，所以每个文件都要能从 `AGENTS.md` 或 `README.md` 走到：一条相对链接，或者用反引号写出它的路径
+（代码地图里的一行，比如 `` `docs/design.md` ``），直接写在那里，或写在一份本身走得到的文档里。写出一个目录（`` `docs/decisions/` ``）就走到了
+它下面的全部文件——AI 会去列那个目录。译本按原文算。哪里都走不到的文件，lint 报 `DOC_UNREACHABLE`。
+
+## 局部的 `AGENTS.md`
+
+**是什么。** 仓库某个子目录里的一份 `AGENTS.md`，写只在那里成立、上层都没有的事：迁移目录的"只追加，不改已经发布的迁移"，
+契约目录的"改了 proto 要重新生成并发布契约模块"，一个有十几种规则文件的包和它自己的小地图。Codex 和 Claude Code 在那个目录里干活时都会读到它——
+Claude Code 经由旁边一份只有一行 `@AGENTS.md` 的 `CLAUDE.md`，和根目录那份一样。
+
+**好处。** 局部的规则就在改动发生的地方，每次会话都加载的根目录 `AGENTS.md` 也不会随着每个目录的细节变长。**代价。** 多一份要保持属实的文件；
+它的链接和路径与根目录那份一样会过时。
+
+**怎么写。** 只写这个目录添的东西：它的规则，每条带上症状和原因；有帮助的话加一张 `代码地图` 表，路径相对这个目录。不重复根目录的规则——
+在那里干活的 AI 也读过根目录那份。没有固定小节，也没有 brickkit 维护的那一段。只有目录真有自己的规则时才建；多数目录没有。
+
+**lint 查什么。** 根目录以下的每一份 `AGENTS.md`，`docs/` 里的（那些是文档）和放着自己 `component.yaml` 的目录里的（另一个组件）除外：
+它的链接（不能链出组件）、`代码地图` 里的路径、占位词，以及旁边的 `CLAUDE.md`——缺了是 `DOC_FILE_MISSING`，有但没写 `@AGENTS.md`
+是 `CLAUDE_IMPORT_MISSING`。在 Git 仓库里，被 Git 忽略的文件不查（依赖目录、生成物）；不在 Git 里时跳过隐藏目录。项目自己的子目录照同一条规则查。
+
+归档的旧导读要是还叫 `AGENTS.md`，在它那个目录里干活的 AI 照样会把它当成现行的说明：归档时把它改个名。
 
 ## 写多种语言
 
@@ -138,14 +161,15 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 
 | 错误码 | 意思 |
 | --- | --- |
-| `DOC_FILE_MISSING` | 缺了一份必需的文档 |
+| `DOC_FILE_MISSING` | 缺了一份必需的文档，包括局部 `AGENTS.md` 旁边的 `CLAUDE.md` |
 | `DOC_SECTION_MISSING` | 缺了一个固定小节 |
-| `DOC_PATH_MISSING` | 代码地图里的某条路径已经不存在（哪些算路径：见上面 `代码地图` 那一行） |
+| `DOC_PATH_MISSING` | 代码地图里的某条路径已经不存在（哪些算路径：见上面 `代码地图` 那一行；局部的 `AGENTS.md` 里相对它所在的目录） |
 | `DOC_LINK_BROKEN` | 某条相对链接指向的东西不存在 |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接，或者文档链出了组件目录 |
 | `DOC_OUT_OF_STEP` | `component.yaml` 里的依赖、必填键、契约文件或外壳成员，文档该提的地方没提 |
 | `DOC_PLACEHOLDER` | 正文里（代码之外）还留着单独成词的 `TODO`、`TBD`、`FIXME`、`待补`、`待补充`、`后补`、`待填`、`待填写` 这些占位词 |
 | `DOC_TRANSLATION_DRIFT` | 译本没有原文、小节数不同、某一页在某棵 `docs/<语言>/` 树里缺了、某个语言版本没链接其余每一份，或者文件的语言后缀不是小写语言代码（`README.zh-CN.md`） |
+| `DOC_UNREACHABLE` | `docs/` 里的某个文件从 `AGENTS.md`、`README.md` 走不到（见 [`docs/`](#docs)） |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有由 brickkit 维护的那一段 |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 没有引入 `AGENTS.md` |
 

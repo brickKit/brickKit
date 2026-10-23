@@ -23,6 +23,7 @@ them in more than one language, and what `brickkit lint` checks. `brickkit new` 
 | `CLAUDE.md` | ✅ | Claude Code | Exactly one line, `@AGENTS.md` |
 | `README.md` | ✅ | People on GitHub | A short introduction and a map of the other files |
 | `docs/` | Optional | Whoever goes deep | Design, numbered decisions, a data model |
+| A local `AGENTS.md` (+ `CLAUDE.md`) | Optional | The AI working in that directory | The rules and the small map of one directory that the root `AGENTS.md` doesn't hold — see [below](#a-local-agentsmd) |
 | `CHANGELOG.md` | Optional, never checked | Anyone | Link it from the README if you keep one; projects see a version's [release notes](07-release-workflow.md#release-notes) on `upgrade`, not this file |
 
 `CLAUDE.md` exists because Claude Code reads `CLAUDE.md` and other AI tools read `AGENTS.md`: one line imports the
@@ -111,8 +112,40 @@ optional `metadata.repository` (the component's repository or page) in its compo
 Optional. Create it when the files above can't hold something: `docs/design.md` (revise it before the code when the
 design changes), `docs/decisions/NNNN-<title>.md` (one decision per file; the number is its name — see
 [Numbering decisions](../02-project-guide/01-init-and-project-creation.md#numbering-decisions)),
-`docs/data-model.md`. Link every file in it from `AGENTS.md` or `README.md`. A component's design lives in the
-component repository, so it travels with the component's versions.
+`docs/data-model.md`. A component's design lives in the component repository, so it travels with the component's
+versions.
+
+An AI finds a file in `docs/` only by following something to it, so every file has to be reachable from `AGENTS.md`
+or `README.md`: a relative link, or its path written in backticks (a Code map row such as `` `docs/design.md` ``),
+directly or from a page that is itself reachable. Naming a directory (`` `docs/decisions/` ``) reaches every file under
+it — the AI lists the directory. A translation counts as its primary. lint reports a file nothing leads to as
+`DOC_UNREACHABLE`.
+
+## A local `AGENTS.md`
+
+**What it is.** An `AGENTS.md` in a subdirectory of the repository, holding what is true there and nowhere above: the
+migrations directory's "append only, never edit a released migration", the contract directory's "regenerate and publish
+the contract module after changing the proto", a package with a dozen kinds of rule files and its own small map. Codex
+and Claude Code read it when they work in that directory — Claude Code through a `CLAUDE.md` next to it holding
+`@AGENTS.md`, the same one line as at the root.
+
+**What it buys.** The local rule sits where the change happens, and the root `AGENTS.md`, loaded in every session,
+doesn't grow with every directory's details. **What it costs.** One more file to keep true; its links and paths go stale
+like the root's.
+
+**How to write it.** Only what the directory adds: its rules, each with the symptom and the reason, and, if it helps, a
+`Code map` table whose paths are relative to that directory. Don't repeat the root's rules — an AI working there has
+read the root too. There are no fixed sections and no block maintained by brickkit. Create one only when a directory
+really has rules of its own; most don't.
+
+**What lint checks.** Every `AGENTS.md` below the root, except under `docs/` (those are documents) and in a directory
+holding its own `component.yaml` (another component): its links (none may leave the component), the paths in its
+`Code map`, placeholders, and the `CLAUDE.md` next to it — missing is `DOC_FILE_MISSING`, present without
+`@AGENTS.md` is `CLAUDE_IMPORT_MISSING`. In a Git repository a file Git ignores is not checked (a dependency directory,
+generated output); outside Git, hidden directories are skipped. A project's own subdirectories follow the same rule.
+
+An archived copy of an old guide that is still named `AGENTS.md` is a live guide to any AI working in its directory:
+when you archive one, rename it.
 
 ## More than one language
 
@@ -171,14 +204,15 @@ comparison with the manifest (`DOC_OUT_OF_STEP`) is skipped.
 
 | Code | Means |
 | --- | --- |
-| `DOC_FILE_MISSING` | A required document is absent |
+| `DOC_FILE_MISSING` | A required document is absent, including the `CLAUDE.md` next to a local `AGENTS.md` |
 | `DOC_SECTION_MISSING` | A fixed section is absent |
-| `DOC_PATH_MISSING` | A Code map path no longer exists (which tokens count as paths: the `Code map` row above) |
+| `DOC_PATH_MISSING` | A Code map path no longer exists (which tokens count as paths: the `Code map` row above; in a local `AGENTS.md`, relative to its directory) |
 | `DOC_LINK_BROKEN` | A relative link points at nothing |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link, or a doc links out of the component |
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, contract file or shell member the doc doesn't mention where it belongs |
 | `DOC_PLACEHOLDER` | `TODO`, `TBD`, `FIXME` (or their Chinese counterparts) is still in the text, outside code, as a word of its own |
 | `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, a page is missing from one of the `docs/<lang>/` trees, a language version doesn't link every other one, or a file's language suffix isn't a lowercase language code (`README.zh-CN.md`) |
+| `DOC_UNREACHABLE` | A file in `docs/` can't be reached from `AGENTS.md` or `README.md` (see [`docs/`](#docs)) |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no block maintained by brickkit |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` doesn't import `AGENTS.md` |
 

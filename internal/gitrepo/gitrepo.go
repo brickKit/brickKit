@@ -256,6 +256,26 @@ func submodulesIn(dir string) map[string]Submodule {
 	return byPath
 }
 
+// ListFiles 列出 dir 下 Git 认为属于工作区的文件：已跟踪的，加上没被忽略的未跟踪文件（路径相对 dir、斜杠分隔）。
+// 被 .gitignore 忽略的、嵌套在里面的另一个仓库里的都不在其中。pathspec 照 git 的写法（":(glob)**/AGENTS.md"）。
+// git 没能列出来（dir 不在 Git 工作区里，或者机器上没有 git）时返回 ErrNotRepo：调用方退回自己走目录树。
+// 只跑一条 git 命令——lint 对每个组件都调它，先问一遍"是不是仓库"会让这一步的耗时翻倍。
+func ListFiles(dir string, pathspec ...string) ([]string, error) {
+	out, err := query(dir, append([]string{"ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"}, pathspec...)...)
+	if err != nil {
+		return nil, ErrNotRepo
+	}
+	seen := map[string]bool{}
+	var files []string
+	for _, f := range strings.Split(string(out), "\x00") {
+		if f != "" && !seen[f] {
+			seen[f] = true
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}
+
 // query 在仓库里跑一条只读的 git 命令。
 //
 // 不读使用者的全局 / 系统配置：别人的 core.* 设置不该影响这些查询

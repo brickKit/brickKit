@@ -159,9 +159,9 @@ func componentTable(root string) []*clierr.Error {
 		WithHint(i18n.T(msgid.DoccheckHintComponentTable))}
 }
 
-// claude 查 CLAUDE.md 有没有 @AGENTS.md。
-func claude(root string) []*clierr.Error {
-	d, ok := read(root, docspec.FileClaude)
+// claude 查 root 下的 CLAUDE.md（rel：根目录那份，或局部 AGENTS.md 旁边那份）有没有 @AGENTS.md。
+func claude(root, rel string) []*clierr.Error {
+	d, ok := read(root, rel)
 	if !ok || agentsmd.HasClaudeImport(d.body) {
 		return nil
 	}

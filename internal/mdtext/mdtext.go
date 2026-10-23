@@ -10,13 +10,15 @@ import (
 )
 
 // 链接目标出现的三种位置：[文字](目标 "可选标题")、行首的引用式定义 [名]: 目标、HTML 的 href / src。
-// 每个正则的第 2 个分组是目标。
+// 每个正则的第 2 个分组是目标；linkMarks 是对应写法一定含有的字面量，一行里没有它就不用跑那个正则——
+// 绝大多数行没有链接，而 Go 的正则在长行上回溯得很慢（lint 两兆字节的 docs/ 时这一步占了大半）。
 var (
 	linkForms = []*regexp.Regexp{
 		regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)`),
 		regexp.MustCompile(`^(\s*\[[^\]]+\]:\s*)(\S+)`),
 		regexp.MustCompile(`\b(href|src)="([^"]+)"`),
 	}
+	linkMarks = []string{"](", "]:", `="`}
 	inlineCode = regexp.MustCompile("`[^`]*`")
 )
 
@@ -108,7 +110,10 @@ func Links(body string) []Link {
 }
 
 func mapLine(line string, fn func(string) string) string {
-	codes := inlineCode.FindAllStringIndex(line, -1)
+	var codes [][]int
+	if strings.Contains(line, "`") {
+		codes = inlineCode.FindAllStringIndex(line, -1)
+	}
 	inCode := func(at int) bool {
 		for _, c := range codes {
 			if at >= c[0] && at < c[1] {
@@ -118,12 +123,18 @@ func mapLine(line string, fn func(string) string) string {
 		return false
 	}
 	var spans [][2]int
-	for _, re := range linkForms {
+	for i, re := range linkForms {
+		if !strings.Contains(line, linkMarks[i]) {
+			continue
+		}
 		for _, m := range re.FindAllStringSubmatchIndex(line, -1) {
 			if !inCode(m[0]) {
 				spans = append(spans, [2]int{m[4], m[5]})
 			}
 		}
+	}
+	if len(spans) == 0 {
+		return line
 	}
 	sort.Slice(spans, func(i, j int) bool { return spans[i][0] < spans[j][0] })
 	var b strings.Builder
@@ -186,12 +197,32 @@ func ProseLines(body string) []Line {
 	return out
 }
 
-// InlineCode 是一行里每段行内代码的内容（不含反引号），按出现顺序。
+// InlineCode 是一行里每段行内代码的内容（不含反引号），按出现顺序：与 inlineCode 的配对相同（一个反引号到下一个），
+// 手写扫描是因为 lint 对每份文档的每一行都要调它，正则在这里是热点。
 func InlineCode(line string) []string {
 	var out []string
-	for _, m := range inlineCode.FindAllString(line, -1) {
-		out = append(out, strings.Trim(m, "`"))
+	for {
+		open := strings.IndexByte(line, '`')
+		if open < 0 {
+			return out
+		}
+		end := strings.IndexByte(line[open+1:], '`')
+		if end < 0 {
+			return out
+		}
+		out = append(out, line[open+1:open+1+end])
+		line = line[open+1+end+1:]
 	}
+}
+
+// CodeSpans 列出代码块之外每段行内代码的内容（不含反引号）与所在行号（从 1 起），按出现顺序。
+func CodeSpans(body string) []Link {
+	var out []Link
+	eachOutside(body, func(i int, line string) {
+		for _, c := range InlineCode(line) {
+			out = append(out, Link{Line: i + 1, Target: c})
+		}
+	})
 	return out
 }
 

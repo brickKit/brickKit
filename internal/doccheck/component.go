@@ -28,7 +28,7 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 			out = append(out, warn(clierr.CodeDocFileMissing, i18n.T(msgid.DoccheckFileMissing, f), f, 0))
 		}
 	}
-	out = append(out, claude(dir)...)
+	out = append(out, claude(dir, docspec.FileClaude)...)
 	out = append(out, componentTable(dir)...) // 工作台
 	set := collect(dir, translatedKinds)
 	for _, f := range set.files {
@@ -61,7 +61,12 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 			out = append(out, links(dir, d, true)...)
 		}
 	}
-	return append(out, set.translations(dir)...)
+	out = append(out, set.translations(dir)...)
+	locals := localAgents(dir)
+	for _, rel := range locals {
+		out = append(out, local(dir, rel, true)...)
+	}
+	return append(out, unreachable(dir, set, entryDocs(set, locals))...)
 }
 
 // codeMap 核对代码地图里每条路径都在：只看那一节表格里的行内代码，不含空白、* 与 ://。
