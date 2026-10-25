@@ -202,6 +202,12 @@ A component's `component.yaml` has a problem — most likely for the component's
 | `Error: the component.yaml of <…> is unusable` | A Manifest fetched from an install source can't be parsed | Contact the component's author |
 | `Error: the component ID in <…> doesn't match the directory name` | In a local source, `<scope>/<name>/` and `metadata.id` disagree | Rename the directory or change the ID |
 | `Error: a file declared under artifacts does not exist` | When publishing, a file `artifacts.files` points at isn't there | Add the file or change the declaration |
+| `<…> sets release.goModule, but there is no go.mod in its directory` | `release.goModule` is written, and the component directory isn't a Go module | Put the `go.mod` there, or remove the field |
+| `The go.mod of <…> has no module line` | The same, with a `go.mod` that names no module path | Write the `module` line |
+| `Go won't accept the tag v<…> for <…>: at major version 2 and up the module path in go.mod has to end in the major version, here <…>` | Version 2.0.0 or later, and the module path lacks `/v<major>` | Change the `module` line (and the imports that use it), or the version |
+| `Go won't accept the tag v<…> for <…>: below major version 2 the module path in go.mod has no major suffix, and it ends in <…>` | Version below 2.0.0, and the module path ends in `/vN` | The same |
+
+`release` stops with the last four before it tags anything; `brickkit lint` gives them as warnings.
 
 Warnings, from `brickkit lint` (the first also from `build` and `up`):
 
@@ -418,6 +424,7 @@ The checks `brickkit release` runs before tagging didn't pass. Nothing was writt
 | `Error: the branch <…> is released from has no upstream` | The branch was never pushed | `git push -u origin <branch>`, as the hint says |
 | `Error: the branch has commits that are not pushed yet (releasing <…>)` | There are local commits not pushed yet | `git push` |
 | `Error: <…> is already released (the tag <…> is on the current commit)` | This version was already released | Raise `metadata.version` |
+| `Error: <…> is already released (the tags <…> are on the current commit)` | The same, for a component with `release.goModule`: its version tag and its Go tag are both there | Raise `metadata.version` |
 | `Error: the tag <…> already exists on another commit` | A tag of the same name points at another commit | Raise the version; a released version never changes |
 | `Error: HEAD is detached — <…> can only be released from a branch` | Not on any branch | Switch to a branch |
 | `Error: the component directory is not in a Git repository` | The component directory has no Git | `git init` and set up a remote |
@@ -429,6 +436,7 @@ The checks `brickkit release` runs before tagging didn't pass. Nothing was writt
 | Title | Situation | What to do |
 | --- | --- | --- |
 | `Error: pushing the tag <…> of <…> to <…> failed` | The tag was created, and pushing it failed (network, permission) | The local tag was already deleted, leaving nothing behind; fix the network or permission, then `release` again |
+| `Error: pushing the tags <…> of <…> to <…> failed (they are pushed together, so neither went through)` | The same, for the version tag and the Go tag of a component with `release.goModule`; they go in one atomic push | Both local tags were already deleted; the same as above |
 
 ### RELEASE_CHECK_FAILED
 

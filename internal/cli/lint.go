@@ -424,6 +424,10 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 		if w := manifest.LocalMigrationMissingWarning(m); w != nil {
 			f.warnings = append(f.warnings, w.WithDetail(i18n.T(msgid.LabelFile), f.path))
 		}
+		// release 打 tag 前会拦下同一件事（推出去的 tag 收不回来）；这里提前说，作者改版本号时就知道
+		if e := manifest.GoModuleProblem(m, filepath.Dir(path)); e != nil {
+			f.warnings = append(f.warnings, e.AsWarning())
+		}
 	}
 	// 与 Parse 成败无关：它只依赖 YAML 本身，语法错误时自己返回 nil
 	f.warnings = append(f.warnings, manifest.PropertyKeyWarnings(raw, f.path)...)

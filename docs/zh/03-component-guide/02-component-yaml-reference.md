@@ -293,3 +293,7 @@ release:
 
 每条检查是一个数组：程序，然后是参数。在组件目录下执行，不经过 shell。这里写的是这个组件每次发布都必须通过的东西，不管是谁来发；
 怎么跑、怎么跳过，见[发布](07-release-workflow.md#你自己的检查releasechecks)。
+
+别的 Go 代码要 import 的组件——Go 外壳编进的成员——再写 `goModule: true`。Go 从名为 `v1.2.0` 的 tag 读模块的版本，BrickKit 从名为
+`1.2.0` 的读，`release` 于是在同一个提交上把两个都推上去，推之前核对 `go.mod` 里的模块路径带着 Go 要的主版本；见
+[Go 模块](07-release-workflow.md#go-模块再打一个-go-的-tag)。它可以单独写，不带 `checks`。

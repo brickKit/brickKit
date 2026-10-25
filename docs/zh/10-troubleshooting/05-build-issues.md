@@ -183,6 +183,32 @@ BrickKit 从不拉取 git submodule——仓库缓存里不拉，从 tag 导出�
 - 如果你是从 `components/` 下克隆的仓库构建，自己在里面 `git submodule update --init`；那份工作区正好是这个版本时，`build` 用的就是它。
 - 或者让构建不依赖它们。
 
+## Go 外壳构建报 `unknown revision`
+
+**症状**
+
+构建 Go 外壳（`brickkit build`，或外壳自己的 `go build`）时，Go 取某个成员的模块就停下了：
+
+```text
+go: example.com/shop/cart@v0.1.0: reading example.com/shop/cart/go.mod at revision v0.1.0: unknown revision v0.1.0
+```
+
+**原因**
+
+成员仓库里有 BrickKit 的版本 tag `0.1.0`，没有 Go 读的 tag `v0.1.0`（成员在子目录里时是 `<子目录>/v0.1.0`）。`brickkit release`
+只给 `component.yaml` 写了 `release.goModule: true` 的组件打 Go 的 tag（见 [Go 模块](../03-component-guide/07-release-workflow.md#go-模块再打一个-go-的-tag)）。
+tag 在、但模块路径从主版本 2 起没以主版本结尾时也是这句——Go 不认那样的 tag；`release` 不会推送它。
+
+**解决**
+
+在成员的仓库里给 `component.yaml` 加上 `release: {goModule: true}`；从下一个版本起，每次 `release` 两个 tag 都推。外壳已经钉着的那个版本加不了这个字段——
+那是一个新提交，而已发布的版本不会挪——所以要么给成员发一个新版本、让外壳改用它，要么先核对模块路径带着对的主版本（tag 推出去收不回来），再在那个版本的
+版本 tag 所在的提交上手动推送 Go 的 tag：
+
+```bash
+git tag v0.1.0 '0.1.0^{commit}' && git push origin v0.1.0
+```
+
 ## 镜像太大
 
 **症状**

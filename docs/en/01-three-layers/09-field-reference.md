@@ -89,6 +89,7 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `shell.members` | | The members a shell compiles in, as exact `id@version` |
 | `local.language` / `local.runCommand` / `local.migrationCommand` | | For `mode: local`, the language, the start command given outright, and the migration run from source |
 | `release.checks` | | Commands (each an array) that `release` / `publish` run in the component directory before releasing; the first failure stops the release |
+| `release.goModule` | | `true`: `release` also pushes the Go tag (`v<version>`) on the same commit, for a component other Go code imports |
 
 How to write it and design choices: the [component.yaml field guide](../03-component-guide/02-component-yaml-reference.md).
 

@@ -152,11 +152,12 @@ K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`no
 
 ## release
 
-`brickkit release` 与 `brickkit publish` 发布一个版本之前要跑的东西。
+`brickkit release` 与 `brickkit publish` 发布一个版本之前要跑的东西，以及 `release` 给 Go 模块多打的 tag。写了 `release` 时至少写其中一个字段。
 
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
-| `release.checks` | 字符串列表的列表 | ✅（写了 `release` 时） | 要按顺序跑的命令；每条是一个数组——程序，然后是参数——不能有空项；第一项含路径分隔符时相对组件目录 |
+| `release.checks` | 字符串列表的列表 | ✅（写了 `release`、没写 `goModule` 时） | 要按顺序跑的命令；每条是一个数组——程序，然后是参数——不能有空项；第一项含路径分隔符时相对组件目录 |
+| `release.goModule` | 布尔 | | `true`：组件目录是别人会 import 的 Go 模块，`release` 在同一个提交上再按 Go 读版本的方式打一个 tag——`v<版本>`，在仓库子目录里是 `<子目录>/v<版本>`——带同一份说明，一起推送。要有 `go.mod`，模块路径从主版本 2 起以 `/v<主版本>` 结尾（低于 2 不带）；否则 `release` 拒绝发布，`lint` 警告。见 [Go 模块](../03-component-guide/07-release-workflow.md#go-模块再打一个-go-的-tag) |
 
 每条都在组件目录下执行，不经过 shell，环境变量用终端里的那一份；第一条非零退出就停止发布（`RELEASE_CHECK_FAILED`），
 `--skip-checks` 不跑它们。全部通过之后，`release` 还要确认它们没有改动组件目录——没有未提交的改动、当前提交没变——

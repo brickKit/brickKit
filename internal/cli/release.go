@@ -8,6 +8,7 @@ package cli
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -74,17 +75,17 @@ func runRelease(opts *Options, path, notes string, skipChecks bool) error {
 		return err
 	}
 	if state == release.Released {
-		return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleased, target.Ref(), target.Tag)).
-			WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
+		return target.AlreadyReleased()
 	}
 	if _, err := runReleaseChecks(opts, target.Dir, target.Ref(), target.Manifest, skipChecks, target.VerifyUnchanged); err != nil {
 		return err
 	}
 	target.Notes = notes
-	if err := target.Publish(); err != nil {
+	pushed, err := target.Publish()
+	if err != nil {
 		return err
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+	printReleased(opts, "", target, pushed)
 	if strings.TrimSpace(notes) != "" {
 		opts.Printf("   📝 %s\n", i18n.T(msgid.CliReleaseNotesWritten))
 	}
@@ -139,7 +140,11 @@ func runReleaseLocal(opts *Options, skipChecks bool) error {
 			return err
 		}
 		if state == release.Released {
-			opts.Printf("   ⏭️  %s\n", i18n.T(msgid.CliReleaseLocalSkipped, target.Ref(), target.Tag))
+			skipped := i18n.T(msgid.CliReleaseLocalSkipped, target.Ref(), target.Tag)
+			if target.GoTag != "" {
+				skipped = i18n.T(msgid.CliReleaseLocalSkippedTags, target.Ref(), target.TagsText())
+			}
+			opts.Printf("   ⏭️  %s\n", skipped)
 			continue
 		}
 		pending = append(pending, target)
@@ -164,7 +169,8 @@ func runReleaseLocal(opts *Options, skipChecks bool) error {
 	}
 
 	for i, target := range pending {
-		if err := target.Publish(); err != nil {
+		pushed, err := target.Publish()
+		if err != nil {
 			e := clierr.As(err)
 			for _, done := range pending[:i] {
 				e = e.WithDetail(i18n.T(msgid.CliReleaseLocalKept), done.Ref())
@@ -174,7 +180,7 @@ func runReleaseLocal(opts *Options, skipChecks bool) error {
 			}
 			return e
 		}
-		opts.Printf("   %s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+		printReleased(opts, "   ", target, pushed)
 	}
 	if len(pending) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliReleaseLocalNothing))
@@ -182,6 +188,25 @@ func runReleaseLocal(opts *Options, skipChecks bool) error {
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliReleaseLocalSummary, i18n.Count(msgid.CountComponents, len(pending))))
 	return nil
+}
+
+// printReleased 报一个组件发布完成，列出推送了的 tag；有的 tag 原来就在当前提交上（Go 的 tag 被删过、
+// 平台的 tag 是手推的）时，另说一行哪些是原来就在的。
+func printReleased(opts *Options, indent string, target *release.Target, pushed []string) {
+	if len(pushed) == 1 {
+		opts.Printf("%s%s\n", indent, i18n.T(msgid.CliReleaseDone, target.Ref(), pushed[0]))
+	} else {
+		opts.Printf("%s%s\n", indent, i18n.T(msgid.CliReleaseDoneTags, target.Ref(), strings.Join(pushed, i18n.T(msgid.ListSeparator))))
+	}
+	var before []string
+	for _, tag := range target.Tags() {
+		if !slices.Contains(pushed, tag) {
+			before = append(before, tag)
+		}
+	}
+	if len(before) > 0 {
+		opts.Printf("%s   ℹ️ %s\n", indent, i18n.T(msgid.CliReleaseTagsCompleted, strings.Join(before, i18n.T(msgid.ListSeparator))))
+	}
 }
 
 // runReleaseChecks 跑一个组件在 component.yaml 里声明的发布前检查（release.checks），release 与 publish 共用；

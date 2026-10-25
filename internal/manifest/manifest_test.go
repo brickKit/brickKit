@@ -764,6 +764,18 @@ func TestReleaseChecksAreArgvLists(t *testing.T) {
 	assert.Empty(t, m.ReleaseChecks(), "不写 release 就没有检查")
 }
 
+// 只写 goModule、不写检查是完整的 release 段。
+func TestReleaseGoModuleAloneIsValid(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+"release:\n  goModule: true\n"), "component.yaml")
+	require.NoError(t, err)
+	assert.True(t, m.ReleasesGoModule())
+	assert.Empty(t, m.ReleaseChecks())
+
+	m, err = Parse([]byte(minimalYAML), "component.yaml")
+	require.NoError(t, err)
+	assert.False(t, m.ReleasesGoModule())
+}
+
 // 最容易写错的是把一条命令写成一个字符串，或者只写了一层数组：报在那一项上，说清楚要两层。
 func TestReleaseChecksShapeMistakesAreNamed(t *testing.T) {
 	for name, tc := range map[string]struct{ yaml, field string }{

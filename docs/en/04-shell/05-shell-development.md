@@ -149,6 +149,31 @@ A few things to do exactly this way:
 - **The health check checks only the shell's process itself.** A module that fails to initialise should make the whole
   shell fail to start, rather than report healthy with a dead module inside.
 
+## Getting the members' code
+
+The example keeps the members' handlers inside the shell; a real shell imports each member's code, at exactly the version
+`shell.members` lists. Fetching that code is the shell's own build: the platform checks `shell.members` against what the
+project hosts, never the shell's build files. For a Go shell it is Go modules — the shell's `go.mod` requires each
+member's module at that version:
+
+```go
+require (
+	example.com/shop/cart v0.1.0
+	example.com/shop/stock v0.1.0
+)
+```
+
+Go fetches each one by a `v` tag in the member's repository (`v0.1.0`, or `<subdirectory>/v0.1.0` for a member in a
+subdirectory). A BrickKit version tag (`0.1.0`) is not one Go reads, so every member a Go shell imports writes
+`release.goModule: true` in its `component.yaml`: `release` then pushes the Go tag together with the version tag, after
+checking that the module path carries the major version Go expects (see
+[A Go module](../03-component-guide/07-release-workflow.md#a-go-module-the-go-tag-as-well)). Without it the shell's build
+stops with `unknown revision v0.1.0`.
+
+Keep the two lists in step: when you change a member's version in `shell.members`, change it in `go.mod` too. When the
+shell runs as a process on this machine, members with a local repository are compiled from there instead (see
+[Developing it locally](#developing-it-locally)).
+
 ## One process, several members: what belongs to whom
 
 Running alone, a member owns its process, and process-wide things (globals, default registries, environment variables,

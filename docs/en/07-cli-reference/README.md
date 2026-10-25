@@ -928,10 +928,11 @@ the same directory (the author's local workbench) has nothing to do with the rel
 
 Before anything is written, all of these must pass:
 
-- `component.yaml` parses and validates;
+- `component.yaml` parses and validates; with `release.goModule`, the component directory has a `go.mod` whose module
+  path carries the major version Go expects (`/v<major>` from 2 on, nothing below);
 - the component directory has no uncommitted changes (for a component in a monorepo subdirectory, only its own directory counts);
 - the current branch has an upstream and no unpushed commits: the commit being tagged must already be in the remote's history;
-- the tag doesn't exist yet (checked locally and on the remote);
+- the tag doesn't exist yet (checked locally and on the remote) — nor, with `release.goModule`, the Go tag;
 - the component's own checks pass: each command under `release.checks` in `component.yaml` runs in the component
   directory, without a shell, its output shown as it runs; the first that exits non-zero stops the release
   (`--skip-checks` doesn't run them, and says so — see
@@ -942,6 +943,12 @@ Before anything is written, all of these must pass:
 Then the tag is created and pushed. If the push fails, the local tag is deleted — a release either completes or leaves
 no trace. When the component directory is the repository root the tag is `<version>`; in a subdirectory it's
 `<scope>-<name>/<version>` — exactly the name a git install source reads.
+
+With `release.goModule: true` in `component.yaml` (a component other Go code imports, such as a Go shell's member), the
+same commit also gets the tag Go reads — `v<version>` at the repository root, `<subdirectory>/v<version>` in a
+subdirectory — with the same notes; the two are pushed in one atomic push and deleted together if it fails. A version
+whose platform tag is already on the current commit gets only the missing Go tag. See
+[A Go module](../03-component-guide/07-release-workflow.md#a-go-module-the-go-tag-as-well).
 
 **Release notes** are optional. `--notes <text>` or `--notes-file <file>` (relative to the current directory) writes
 Markdown, kept exactly as written (lines starting with `#` included), into an annotated tag; projects see it when they

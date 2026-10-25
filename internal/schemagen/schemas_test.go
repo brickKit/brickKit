@@ -493,7 +493,7 @@ var requiredGolden = []requiredCase{
 	{"component", "readinessCheck", []string{"type"}, []any{"readinessCheck"}},
 	{"component", "migration", []string{"command"}, []any{"migration"}},
 	{"component", "shell", []string{"members"}, []any{"shell"}},
-	{"component", "release", []string{"checks"}, []any{"release"}},
+	// release.checks 不再必填：checks 与 goModule 至少写一个，校验器按"至少一个"报，schema 表达不了
 
 	{"project", schemaRoot, []string{"project"}, nil},
 	{"project", "sources[]", []string{"name", "type"}, []any{"sources", 0}},
@@ -1264,6 +1264,7 @@ var conditionallyRequired = map[string]string{
 	"component:readinessCheck.path":                           "readinessCheck.type 是 http 时必填（validateReadinessCheck）",
 	"component:configSchema.properties.signingKeyFile.secret": "同一项写了 mount: file 时必须是 true（validateConfigSchema）",
 	"component:deployment.image":                              "deployment.image 与 deployment.build 至少写一个，基准里只写了 image",
+	"component:release.checks":                                "release.checks 与 release.goModule 至少写一个，基准里只写了 checks",
 	"project:sources[0].path":                                 "sources[].type 是 local 时必填",
 	"project:sources[1].baseUrl":                              "sources[].type 是 git 时必填",
 	"project:sources[2].url":                                  "sources[].type 是 market 时必填",

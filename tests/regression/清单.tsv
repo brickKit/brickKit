@@ -92,3 +92,8 @@ R77	不当作局部说明的：docs/ 里的、放着 component.yaml 的子目录
 R78	项目自己的子目录里的局部 AGENTS.md 同样查，components/ 下的组件文档归组件自己	.	./internal/doccheck	TestLocalAgentsInAProject
 R79	docs/ 里从 AGENTS.md、README.md、局部 AGENTS.md 顺着链接与写出的路径走不到的文件报 DOC_UNREACHABLE；写出目录就到达它下面的全部	.	./internal/doccheck	TestUnreachableDocs
 R80	DOC_UNREACHABLE 的译本按原文算：到达任何一个语言版本就算到达，都没到达时只报原文一次	.	./internal/doccheck	TestUnreachableCountsTranslationsAsTheirPrimary
+R81	release.goModule：同一个提交上再打 Go 的 v 标签（仓库根 v<版本>），与平台的 tag 带同一份说明（# 标题保留），一起推送	.	./internal/release	TestReleaseGoModuleTagsBothWithTheSameNotes
+R82	release.goModule 的 Go 标签按模块所在的目录起名（<子目录>/v<版本>），不按组件 ID；没写这个字段时有 go.mod 也只打平台的 tag	.	./internal/release	TestReleaseGoModuleInASubdirectoryIsTaggedByItsPath
+R83	release.goModule：go.mod 的模块路径从主版本 2 起不以 /v<主版本> 结尾时，打任何 tag 之前就拒绝发布（MANIFEST_INVALID），lint 同一条给警告	.	./internal/cli	TestLintWarnsAboutAGoModulePathWithoutTheMajorSuffix
+R84	release.goModule 的两个 tag 用 git push --atomic：远端只拒绝其中一个时两个都没上去，两个本地 tag 都回滚	.	./internal/release	TestReleaseGoModuleRollsBackBothTags
+R85	平台的 tag 已在当前提交上、只缺 Go 的 tag 时 release 只补 Go 的并说明；Go 的 tag 在别的提交上照样拦下	.	./internal/release	TestReleaseGoModuleAddsTheMissingGoTag

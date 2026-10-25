@@ -123,7 +123,9 @@ field (deploy entry > `component.yaml` > default), so a `limits.cpu` you write c
 are a promise about what's inside the image: a project may only host exactly those versions in it,
 and a locally built shell image records them in a label that `up` checks. Change a member version →
 bump and rebuild the shell. Each member still needs its own image (its migration runs with it) — except when the shell runs on this machine and
-compiles the member from its local repository: then the member migrates from source (`local.migrationCommand`). At
+compiles the member from its local repository: then the member migrates from source (`local.migrationCommand`). A Go
+shell imports its members as Go modules (its `go.mod` requires each at the `shell.members` version — keep the two in
+step), and Go fetches them by `v` tags, so every such member writes `release: {goModule: true}` (rule 14). At
 start the shell reads two variables:
 
 - `BRICKKIT_SERVED_MEMBERS`: the versioned service names hosted this run, comma-separated. Initialise
@@ -198,6 +200,13 @@ must hold what was checked. Use `gofmt -l`, not `gofmt -w`; put what a check lea
 output, coverage reports) in `.gitignore`.
 `publish` runs the same checks before uploading. `--skip-checks` skips them and the output says so —
 don't reach for it to get past a failing check; fix what it reports.
+
+A component other Go code imports — a Go shell's member — also writes `release: {goModule: true}`. Go reads versions
+only from tags named `v1.2.0` (`<subdirectory>/v1.2.0` for a module in a subdirectory), the platform only from `1.2.0`;
+with the field `release` pushes both on the same commit, with the same notes, in one atomic push. It first checks
+`go.mod`: from major version 2 on the module path must end in `/v<major>`, below 2 it must not — a pushed tag can't be
+taken back, so a mismatch stops the release (`MANIFEST_INVALID`), and `lint` warns about it when you bump the version.
+Running `release` on a version whose platform tag is already on the current commit pushes only the missing Go tag.
 
 Release notes are optional but are what projects read before they upgrade: `brickkit release
 --notes-file <file>` (or `--notes "<text>"`) writes Markdown, verbatim, into an annotated tag, and

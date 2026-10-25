@@ -114,7 +114,7 @@ one key and hides the conflict.
 | `COMPONENT_NOT_FOUND` | No install source has this id or version; a Git repository has no tag for the version | Check the id and `sources:`; ask the author to `brickkit release` that version |
 | `VERSION_CHANGED` | A released version's Git tag was moved to another commit (deleted and tagged again); as a warning, a fetch just found it moved | Ask for a new version and upgrade; to take the republished content as this version, delete the two directories the error names |
 | `COMPONENT_BLOCKED` | The market took this component version down | Use another version |
-| `MANIFEST_INVALID` | A `component.yaml` is invalid; the error names the field | Its author fixes it (`brickkit lint` in the component's repository) |
+| `MANIFEST_INVALID` | A `component.yaml` is invalid; the error names the field. From `release`, also "Go won't accept the tag v…" — `release.goModule` is set and the module path in `go.mod` lacks (or wrongly has) the `/v<major>` suffix | Its author fixes it (`brickkit lint` in the component's repository); for the Go tag, change the `module` line or the version |
 | `SIGNATURE_INVALID` | `requireSignature` is on and a market component isn't signed | Ask the publisher for a signed version |
 | `CLONE_FAILED` | `add --repo` couldn't clone: git failed, a directory of that name exists under `components/`, or the source is archived | Read git's words; move the directory away; `brickkit sync` brings archived source back |
 | `SUBMODULE_GUARD` | `sync` or `remove` would move or delete a directory registered as a git submodule of the project | Deregister the submodule first |

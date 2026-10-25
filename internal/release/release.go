@@ -1,5 +1,6 @@
 // Package release 是无 Market 的组件发布：发布一个版本 = 给组件仓库打一个规范的
 // tag 并推送。要么本地与远端都有这个 tag，要么就像从没执行过——推送失败时删掉本地 tag。
+// 组件写了 release.goModule 时同一个版本有两个 tag（平台的与 Go 的），一起推送、一起回滚。
 //
 // 与 internal/gitrepo 分开：那个包只做只读查询，并且刻意不读使用者的全局 git 配置；
 // 发布要写（tag、push），推送还要用使用者自己的凭据配置（credential helper、SSH），
@@ -25,9 +26,9 @@ import (
 type State int
 
 const (
-	// Unreleased：还没有这个版本的 tag，检查全部通过，可以发布。
+	// Unreleased：这个版本还缺 tag（一个都没有，或者 Go 的与平台的只有一个），检查全部通过，可以发布。
 	Unreleased State = iota
-	// Released：tag 已经在当前提交上（本地或远端）——这个版本已经发布过了。
+	// Released：这个版本的每一个 tag 都已经在远端、就在当前提交上——已经发布过了。
 	Released
 )
 
@@ -41,11 +42,15 @@ type Target struct {
 	// Tag 是要打的 tag：<版本>，组件在子目录时是 <scope>-<name>/<版本>，
 	// 与 git 安装源读取的名字是同一个函数算出来的。
 	Tag string
+	// GoTag 是写了 release.goModule 时 Go 认的那个 tag：v<版本>，组件在子目录时是 <Subpath>/v<版本>
+	// （Go 按模块所在的目录起名，不按组件 ID）。没写这个字段时为空。
+	GoTag string
 	// Notes 是这个版本的发版说明（Markdown）：不是空白时写进带注释的 tag，使用者 upgrade 时看得到；
 	// 空着就打轻量 tag，跟从前一样。
 	Notes string
-	// remote 是当前分支的上游所在的远端，head 是当前提交（都在 Check 时确定）。
+	// remote 是当前分支的上游所在的远端，head 是当前提交，missing 是还没有的 tag（都在 Check 时确定）。
 	remote, head string
+	missing      []string
 }
 
 // Prepare 读取并校验 dir 下的 component.yaml，定位它所在的 git 仓库。只读 component.yaml——
@@ -68,6 +73,10 @@ func PrepareAs(dir, display string) (*Target, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
+	// 模块路径与版本对不上，Go 不认它的 tag，而推出去就收不回来：一个 tag 都不打
+	if err := manifest.GoModuleProblem(m, abs); err != nil {
+		return nil, err.WithDetail(i18n.T(msgid.LabelDir), display)
+	}
 	out, err := git(abs, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return nil, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseNotARepo)).
@@ -83,19 +92,38 @@ func PrepareAs(dir, display string) (*Target, error) {
 	if subpath == "." {
 		subpath = ""
 	}
-	return &Target{
+	t := &Target{
 		Dir: abs, Display: display, Manifest: m, RepoRoot: root, Subpath: subpath,
 		Tag: source.VersionTag(m.Metadata.ID, m.Metadata.Version, subpath),
-	}, nil
+	}
+	if m.ReleasesGoModule() {
+		t.GoTag = "v" + m.Metadata.Version
+		if subpath != "" {
+			t.GoTag = subpath + "/" + t.GoTag
+		}
+	}
+	return t, nil
 }
 
 // Ref 是 <组件 ID>@<版本>。
 func (t *Target) Ref() string { return t.Manifest.Metadata.ID + "@" + t.Manifest.Metadata.Version }
 
+// Tags 是这个版本要有的全部 tag：平台的 Tag，写了 release.goModule 时还有 GoTag。
+func (t *Target) Tags() []string {
+	if t.GoTag == "" {
+		return []string{t.Tag}
+	}
+	return []string{t.Tag, t.GoTag}
+}
+
+// TagsText 是 Tags 给人看的写法，按语言的列举分隔符连起来。
+func (t *Target) TagsText() string { return strings.Join(t.Tags(), i18n.T(msgid.ListSeparator)) }
+
 // Check 做发布前的全部检查，一个都不写：
 //   - 组件目录里没有未提交的改动（子目录组件只看自己的目录：monorepo 里旁边组件的改动与它无关）；
 //   - 当前分支有上游，且没有未推送的提交——tag 指向的提交必须已经在远端的分支历史里；
-//   - 这个 tag 不存在（本地与远端都查）。已经在当前提交上时返回 Released；在别的提交上是错误。
+//   - 每一个 tag（Tags）都不存在（本地与远端都查）。全都已经在当前提交上时返回 Released；
+//     有的在、有的不在时是 Unreleased，Publish 只补上缺的；任何一个在别的提交上都是错误。
 func (t *Target) Check() (State, error) {
 	changed, err := t.uncommitted()
 	if err != nil {
@@ -135,28 +163,56 @@ func (t *Target) Check() (State, error) {
 		return 0, t.gitFailed(err)
 	}
 	t.head = head
-	local, remote, err := t.existingTag()
-	if err != nil {
-		return 0, err
+	t.missing = nil
+	for _, tag := range t.Tags() {
+		missing, err := t.checkTag(tag)
+		if err != nil {
+			return 0, err
+		}
+		if missing {
+			t.missing = append(t.missing, tag)
+		}
 	}
-	// 发布与否看远端：消费方只取得到远端的 tag。本地多出来的（手打的、回滚失败留下的）不算
+	if len(t.missing) == 0 {
+		return Released, nil
+	}
+	return Unreleased, nil
+}
+
+// checkTag 看一个 tag 在本地与远端的情况：missing 是两边都没有；已经在远端、就在当前提交上时两个返回值都是零值；
+// 其余都是错误。发布与否看远端：消费方只取得到远端的 tag，本地多出来的（手打的、回滚失败留下的）不算。
+func (t *Target) checkTag(tag string) (missing bool, err error) {
+	local, remote, err := t.existingTag(tag)
+	if err != nil {
+		return false, err
+	}
+	head := t.head
 	switch {
 	case local == "" && remote == "":
-		return Unreleased, nil
+		return true, nil
 	case remote == head && (local == "" || local == head):
-		return Released, nil
+		return false, nil
 	case remote == "" && local == head:
-		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagOnlyLocal, t.Tag, t.Ref())).
-			WithHint(i18n.T(msgid.ReleaseHintPushTag, t.remote, t.Tag), i18n.T(msgid.ReleaseHintDropLocalTag, t.Tag))
+		return false, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagOnlyLocal, tag, t.Ref())).
+			WithHint(i18n.T(msgid.ReleaseHintPushTag, t.remote, tag), i18n.T(msgid.ReleaseHintDropLocalTag, tag))
 	}
 	at := remote
 	if at == "" || at == head {
 		at = local
 	}
-	return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagElsewhere, t.Tag)).
+	return false, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagElsewhere, tag)).
 		WithDetail(i18n.T(msgid.ReleaseLabelTagAt), short(at)).
 		WithDetail(i18n.T(msgid.ReleaseLabelHead), short(head)).
 		WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
+}
+
+// AlreadyReleased 是"这个版本已经发布过"的错误：Check 返回 Released 之后，release 与 Publish 都这样报。
+func (t *Target) AlreadyReleased() *clierr.Error {
+	e := clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleased, t.Ref(), t.Tag))
+	if t.GoTag != "" {
+		e = clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleasedTags, t.Ref(), t.TagsText()))
+	}
+	return e.WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
 }
 
 // uncommitted 是组件目录里未提交的改动，git status --porcelain 的每一行（子目录组件只看自己的目录）。
@@ -216,11 +272,11 @@ func (t *Target) VerifyUnchanged() error {
 
 // existingTag 返回 tag 在本地与远端各指向的提交；没有的一侧为空。远端总是要问：
 // 本地有这个 tag 不等于它已经发布出去了。
-func (t *Target) existingTag() (local, remote string, err error) {
-	if sha, err := git(t.RepoRoot, "rev-parse", "-q", "--verify", "refs/tags/"+t.Tag+"^{commit}"); err == nil {
+func (t *Target) existingTag(tag string) (local, remote string, err error) {
+	if sha, err := git(t.RepoRoot, "rev-parse", "-q", "--verify", "refs/tags/"+tag+"^{commit}"); err == nil {
 		local = sha
 	}
-	out, err := git(t.RepoRoot, "ls-remote", "--tags", t.remote, "refs/tags/"+t.Tag, "refs/tags/"+t.Tag+"^{}")
+	out, err := git(t.RepoRoot, "ls-remote", "--tags", t.remote, "refs/tags/"+tag, "refs/tags/"+tag+"^{}")
 	if err != nil {
 		return "", "", clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.ReleaseRemoteUnreachable, t.remote)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
@@ -246,39 +302,76 @@ func remoteSHA(out string) string {
 	return sha
 }
 
-// Publish 打 tag 并推送；推送失败时删掉本地 tag，再报推送失败的原因。
+// Publish 打上 Check 发现缺的 tag 并推送，返回推送了哪些；推送失败时删掉这次打的本地 tag，再报推送失败的原因。
+// 两个 tag 用同一份说明，用 git push --atomic 一起推：要么都上去，要么都没上去。
 // 调用方先 Check：Publish 不重复检查（--local 要先把所有组件都查完再开始打 tag）。
-func (t *Target) Publish() error {
+func (t *Target) Publish() ([]string, error) {
 	if t.remote == "" {
 		state, err := t.Check()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if state == Released {
-			return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleased, t.Ref(), t.Tag)).
-				WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
+			return nil, t.AlreadyReleased()
 		}
 	}
-	tagArgs := []string{"tag", t.Tag}
-	if strings.TrimSpace(t.Notes) != "" {
-		// --cleanup=verbatim：默认会把 # 开头的行当注释删掉，Markdown 的标题就全没了
-		tagArgs = []string{"tag", "-a", t.Tag, "--cleanup=verbatim", "-m", strings.TrimRight(t.Notes, "\n")}
-	}
-	if _, err := git(t.RepoRoot, tagArgs...); err != nil {
-		return t.gitFailed(err)
-	}
-	if _, err := git(t.RepoRoot, "push", t.remote, "refs/tags/"+t.Tag); err != nil {
-		_, rollbackErr := git(t.RepoRoot, "tag", "-d", t.Tag)
-		e := clierr.New(clierr.CodeReleasePushFailed, i18n.T(msgid.ReleasePushFailed, t.Tag, t.remote, t.Ref())).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error())
-		if rollbackErr != nil {
-			return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), rollbackErr.Error()).
-				WithHint(i18n.T(msgid.ReleaseHintDeleteTag, t.Tag)).WithCause(err)
+	var created []string
+	for _, tag := range t.missing {
+		tagArgs := []string{"tag", tag}
+		if strings.TrimSpace(t.Notes) != "" {
+			// --cleanup=verbatim：默认会把 # 开头的行当注释删掉，Markdown 的标题就全没了
+			tagArgs = []string{"tag", "-a", tag, "--cleanup=verbatim", "-m", strings.TrimRight(t.Notes, "\n")}
 		}
-		return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), i18n.T(msgid.ReleaseRolledBack, t.Tag)).
-			WithHint(i18n.T(msgid.ReleaseHintRetry)).WithCause(err)
+		if _, err := git(t.RepoRoot, tagArgs...); err != nil {
+			_ = t.deleteLocal(created)
+			return nil, t.gitFailed(err)
+		}
+		created = append(created, tag)
 	}
-	return nil
+	push := []string{"push"}
+	if len(created) > 1 {
+		push = append(push, "--atomic")
+	}
+	push = append(push, t.remote)
+	for _, tag := range created {
+		push = append(push, "refs/tags/"+tag)
+	}
+	if _, err := git(t.RepoRoot, push...); err != nil {
+		return nil, t.pushFailed(created, err, t.deleteLocal(created))
+	}
+	return created, nil
+}
+
+// pushFailed 是推送失败的错误，说明回滚的结果；一个 tag 与两个 tag 的说法分开写。
+func (t *Target) pushFailed(tags []string, err, rollbackErr error) error {
+	names, several := strings.Join(tags, i18n.T(msgid.ListSeparator)), len(tags) > 1
+	e := clierr.New(clierr.CodeReleasePushFailed, i18n.T(msgid.ReleasePushFailed, names, t.remote, t.Ref()))
+	if several {
+		e = clierr.New(clierr.CodeReleasePushFailed, i18n.T(msgid.ReleasePushFailedTags, names, t.remote, t.Ref()))
+	}
+	e = e.WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+	switch {
+	case rollbackErr != nil && several:
+		return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), rollbackErr.Error()).
+			WithHint(i18n.T(msgid.ReleaseHintDeleteTags, strings.Join(tags, " ")))
+	case rollbackErr != nil:
+		return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), rollbackErr.Error()).
+			WithHint(i18n.T(msgid.ReleaseHintDeleteTag, names))
+	case several:
+		return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), i18n.T(msgid.ReleaseRolledBackTags, names)).
+			WithHint(i18n.T(msgid.ReleaseHintRetry))
+	}
+	return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), i18n.T(msgid.ReleaseRolledBack, names)).
+		WithHint(i18n.T(msgid.ReleaseHintRetry))
+}
+
+// deleteLocal 删掉这次打的本地 tag（回滚）。
+func (t *Target) deleteLocal(tags []string) error {
+	if len(tags) == 0 {
+		return nil
+	}
+	_, err := git(t.RepoRoot, append([]string{"tag", "-d"}, tags...)...)
+	return err
 }
 
 func (t *Target) gitFailed(err error) error {

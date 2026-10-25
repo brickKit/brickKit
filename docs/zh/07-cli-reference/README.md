@@ -830,10 +830,11 @@ brickkit restore --check   # 只检查这次提交自洽不自洽
 
 写任何东西之前，这些检查必须全部通过：
 
-- `component.yaml` 能解析、能通过校验；
+- `component.yaml` 能解析、能通过校验；写了 `release.goModule` 时，组件目录里有 `go.mod`，模块路径带着 Go 要的主版本
+  （主版本 2 起是 `/v<主版本>`，低于 2 不带）；
 - 组件目录里没有未提交的改动（monorepo 子目录里的组件只看它自己的目录）；
 - 当前分支有上游、没有未推送的提交：打 tag 的提交必须已经在远端历史里；
-- 这个 tag 还不存在（本地和远端都查）；
+- 这个 tag 还不存在（本地和远端都查）——写了 `release.goModule` 时 Go 的 tag 也一样；
 - 组件自己的检查通过：`component.yaml` 里 `release.checks` 的每一条命令在组件目录下执行，不经过 shell，输出实时显示；
   第一条非零退出就停止发布（`--skip-checks` 不跑它们，并且会说出来——见[发布](../03-component-guide/07-release-workflow.md#你自己的检查releasechecks)）；
 - 这些检查跑完，组件目录和跑之前一样：仍然没有未提交的改动，当前提交也没变——检查要是改写了已跟踪的文件，
@@ -841,6 +842,10 @@ brickkit restore --check   # 只检查这次提交自洽不自洽
 
 然后打 tag 并推送。推送失败时删掉本地 tag——发布要么完整做完，要么不留痕迹。组件目录是仓库根时 tag 是 `<版本>`，是子目录时是
 `<scope>-<name>/<版本>`——正是 git 安装源读取的名字。
+
+`component.yaml` 写了 `release.goModule: true`（别的 Go 代码要 import 的组件，比如 Go 外壳的成员）时，同一个提交上还会打 Go 读的 tag——
+仓库根上是 `v<版本>`，子目录里是 `<子目录>/v<版本>`——带同一份说明；两个 tag 用一次原子推送推上去，失败时一起删掉。平台的 tag 已经在当前提交上的版本，
+只补上缺的 Go 的 tag。见 [Go 模块](../03-component-guide/07-release-workflow.md#go-模块再打一个-go-的-tag)。
 
 **发版说明**可写可不写。`--notes <文字>` 或 `--notes-file <文件>`（相对当前目录）把一段 Markdown 原样（`#` 开头的行也保留）
 写进带注释的 tag，使用它的项目 `upgrade` 时会看到。两个都不给，打的就是轻量 tag，跟从前一样。一份说明讲的是一个组件的

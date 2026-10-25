@@ -563,12 +563,18 @@
             },
             "type": "array"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "goModule": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
-      "required": [
-        "checks"
-      ],
       "type": [
         "object",
         "null"

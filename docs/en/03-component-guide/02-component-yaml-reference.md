@@ -336,3 +336,8 @@ release:
 Each check is an array: the program, then its arguments. It runs in the component directory, without a shell. Write here
 what every release of this component must pass, whoever releases it; how to run the checks, and skip them, is in
 [Releasing](07-release-workflow.md#your-own-checks-releasechecks).
+
+A component that other Go code imports — a member a Go shell compiles in — also writes `goModule: true`. Go reads a
+module's versions from tags named `v1.2.0`, BrickKit from tags named `1.2.0`, so `release` then pushes both on the same
+commit, after checking that the module path in `go.mod` carries the major version Go expects; see
+[A Go module](07-release-workflow.md#a-go-module-the-go-tag-as-well). It can stand alone, without `checks`.

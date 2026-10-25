@@ -199,6 +199,18 @@ func Warn(code Code, message string) *Error {
 	return &Error{Code: code, Message: message, Warning: true, Exit: ExitOK}
 }
 
+// AsWarning 返回同一条内容的警告版（⚠️，退出码 0）：同一个检查在一处是阻断的错误、在另一处只是提醒时用
+// （release 打 tag 前拦下的问题，lint 提前当警告报）。
+func (e *Error) AsWarning() *Error {
+	w := *e
+	w.Warning, w.Exit = true, ExitOK
+	// 切片各拷一份：两条以后各自追加明细，不能写进同一块底层数组
+	w.Details = append([]Detail(nil), e.Details...)
+	w.Hints = append([]string(nil), e.Hints...)
+	w.Tips = append([]string(nil), e.Tips...)
+	return &w
+}
+
 // WithDetail 追加一行明细。与已有的某一行一字不差时不再追加：错误一层层往上传，每层都可能补一句
 // "组件：…"，同一行出现两次只是噪音。
 func (e *Error) WithDetail(key, value string) *Error {

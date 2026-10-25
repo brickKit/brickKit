@@ -361,15 +361,23 @@ type Local struct {
 	MigrationCommand []string `yaml:"migrationCommand,omitempty"`
 }
 
-// Release 是组件作者给发布加的关卡：brickkit release 打 tag 之前、publish 上传之前，
-// 在组件目录下按顺序跑 Checks 里的每一条命令，任何一条非零退出就不发布。
+// Release 是组件作者对发布的两项声明：Checks 是发布的关卡——brickkit release 打 tag 之前、publish 上传之前，
+// 在组件目录下按顺序跑每一条命令，任何一条非零退出就不发布；GoModule 让 release 多打一个 Go 认的 tag。
 //
+// 下面两段说的是 Checks：
 // 平台不知道该查什么（测试、一致性套件、项目自己的门禁都是组件的事），只机械地跑命令、看退出码：
 // tag 推出去、版本传上市场就收不回来，这是唯一一个所有发布路径都绕不开的地方。
 // 只有作者在自己的组件目录里发布时才跑；add / fetch 读到的 component.yaml 从不执行它。
 type Release struct {
 	// Checks 是一条条命令，每条都是 argv（不经 shell）；Argv[0] 含路径分隔符时相对组件目录。
-	Checks [][]string `yaml:"checks"`
+	Checks [][]string `yaml:"checks,omitempty"`
+	// GoModule 说组件目录是一个别人会 import 的 Go 模块（Go 外壳编进成员就是这样取代码的）：
+	// release 在同一个提交上再打一个 Go 认的 tag——仓库根是 v<版本>，子目录是 <子目录>/v<版本>——
+	// 与平台的 tag 一起推送、一起回滚。Go 只认 v 开头的 tag，平台只认不带 v 的，一个 tag 满足不了两边。
+	//
+	// 不按"目录里有 go.mod"自动打：很多 Go 服务从不被 import，主版本到了 2 模块路径也不带 /v2；
+	// 自动打就得自动核对 /vN，会挡住它们的发布。打不打由作者写明（原则 7）。
+	GoModule bool `yaml:"goModule,omitempty"`
 }
 
 // ReleaseChecks 返回发布前要跑的命令；没有声明时为空。
@@ -379,6 +387,9 @@ func (m *Manifest) ReleaseChecks() [][]string {
 	}
 	return m.Release.Checks
 }
+
+// ReleasesGoModule 报告 release 要不要再打一个 Go 的 tag（release.goModule）。
+func (m *Manifest) ReleasesGoModule() bool { return m.Release != nil && m.Release.GoModule }
 
 // DefaultStartPeriodSeconds 是启动宽限期的默认值。
 //

@@ -19,10 +19,11 @@ brickkit release
 它做了这些：
 
 1. **读版本。** 取 `component.yaml` 的 `metadata.version`——版本号只有这一个来源。
-2. **校验 `component.yaml`。** 解析得了、字段合法，才谈得上发布。
+2. **校验 `component.yaml`。** 解析得了、字段合法，才谈得上发布。写了 `release.goModule` 时，旁边的 `go.mod` 也要与版本对得上
+   （见[下文](#go-模块再打一个-go-的-tag)）。
 3. **检查工作区。** 组件目录里不能有未提交的改动。
 4. **检查分支。** 当前分支要有上游，而且没有未推送的提交：tag 指向的提交必须已经在远端的历史里。
-5. **检查 tag。** 这个 tag 在本地和远端都还不存在。
+5. **检查 tag。** 这个 tag 在本地和远端都还不存在。写了 `release.goModule` 时，Go 的 tag 也一样。
 6. **跑你自己的检查。** `component.yaml` 声明了才有（见[下文](#你自己的检查releasechecks)）。
 7. **打 tag、推送。** 给了[发版说明](#发版说明)时，打的是带着说明的带注释 tag。
 
@@ -125,7 +126,8 @@ conformance: 12 cases, all passed
 ## 要么完整做完，要么不留痕迹
 
 打完 tag、推送失败（网络断了、没有推送权限）时，`release` 把本地刚打的 tag 删掉。否则下次重试会被"tag 已存在"挡住，
-而那个 tag 其实从没到过远端。
+而那个 tag 其实从没到过远端。写了 `release.goModule` 时，两个 tag 用一次原子推送（`git push --atomic`）推上去：要么都到远端，
+要么都没到，推送失败时两个都删掉。
 
 ## 发一个新版本
 
@@ -232,6 +234,50 @@ brickkit release --path svc/api        # 组件 erp/api，tag 是 erp-api/1.2.0
 
 检查工作区时也只看这个组件自己的目录：旁边组件的改动与它无关。使用这些组件的项目把这个仓库声明成一个写 `repo` 的安装源
 （见 [Git 分发](10-git-distribution.md#组件地址怎么推导)）。
+
+## Go 模块：再打一个 Go 的 tag
+
+Go 也按 Git tag 取一个模块某个版本的代码，但 tag 有它自己的叫法：模块在仓库根上是 `v1.2.0`，在子目录 `svc/api` 里是
+`svc/api/v1.2.0`——按目录起名，不按组件 ID。BrickKit 的版本不带 `v`（`1.2.0`、`erp-api/1.2.0`），带 `v` 的 tag 也不算版本
+（见 [Git 分发](10-git-distribution.md)），一个 tag 满足不了两边。别的 Go 代码要 import 的组件两个都要——最常见的是 Go 外壳编进的成员：
+外壳的 `go.mod` 按 `shell.members` 写的精确版本引用成员的模块，Go 去找的是那个 `v` 标签（见
+[开发一个外壳](../04-shell/05-shell-development.md#外壳怎样拿到成员的代码)）。
+
+在 `component.yaml` 里写明：
+
+```yaml
+release:
+  goModule: true
+```
+
+`release` 就在平台的 tag 所在的同一个提交上再打 Go 的 tag，带同一份发版说明，两个一起推送：
+
+```text
+✅ 已发布 erp/sales@3.0.7：tag 3.0.7、v3.0.7 已推送
+```
+
+打任何 tag 之前，它先查 Go 会查的东西，因为 tag 推出去就收不回来：组件目录里有 `go.mod`、里面有 `module` 行；模块路径从主版本 2 起
+以主版本结尾（3.0.7 是 `example.com/erp/sales/v3`），低于 2 时不带这个后缀。模块路径里没有对应主版本的 tag，Go 一概不认：
+外壳构建会报 `unknown revision`，唯一的出路是再发一个版本。
+
+```text
+❌ Go 不会认 erp/sales 的 tag v3.0.7：主版本 2 起，go.mod 里的模块路径要以主版本结尾，这里是 /v3
+   文件：go.mod
+   module：example.com/erp/sales
+   目录：.
+   建议：Go 只在模块路径以主版本结尾时才认它的 tag（/v2、/v3……；0 和 1 不带）。改 go.mod 的 module 行和用到它的 import，或者改 metadata.version——tag 推出去就收不回来，所以打任何 tag 之前先查这一条
+```
+
+`brickkit lint` 把同一件事当警告报，升版本号的时候就能知道，不必等到发布。
+
+平台的 tag 已经在当前提交上、只缺 Go 的 tag 时（被删过，或者平台的 tag 是手推的），`release` 只推送 Go 的 tag，并说明哪个原来就在；
+Go 的 tag 已经指向别的提交时，和平台的 tag 一样拦下。写这个字段**之前**发布的版本没法这样补：加字段本身是一个新提交，而已发布的版本不会挪。
+外壳需要那个版本时，先自己核对模块路径，再在它的版本 tag 所在的提交上手动推送 Go 的 tag（`git tag v1.2.0 '1.2.0^{commit}' && git push origin v1.2.0`）——
+或者发一个新版本，让外壳改用它。
+
+为什么是一个字段，而不是凡有 `go.mod` 的目录都自动打：很多 Go 组件是没人 import 的服务，到了主版本 2 以后模块路径照样是
+`example.com/order`。都打的话，要么为一个它们用不着的后缀拒绝发布，要么推上去 Go 不认的 tag。它不查的是模块路径是否指向这个仓库——
+用了自定义的导入域名时离线查不出来；外壳构建时 Go 会报。
 
 ## 工作台与发布无关
 

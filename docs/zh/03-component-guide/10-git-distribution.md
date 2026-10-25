@@ -24,6 +24,8 @@ sources:
 | `erp/backend` | `https://git.example.com/components/erp-backend` |
 
 版本对应 tag：版本 `0.1.0` 就是 tag `0.1.0`（不带 `v`）。"最新版本"是精确版本形式的 tag 里最高的那个；`v1.0.0`、`latest` 这类 tag 不算版本。
+（Go 模块恰恰要这样一个 `v` 标签给 Go 自己用；写了 `release.goModule`，`release` 会在版本 tag 旁边把它一起推上去——见
+[Go 模块](07-release-workflow.md#go-模块再打一个-go-的-tag)。）
 
 **一个仓库里放着多个组件。** 组件放在同一个仓库的几个子目录里（monorepo）时，把这个仓库声明成安装源，写 `repo`
 而不是 `baseUrl`：

@@ -22,10 +22,12 @@ What it did:
 
 1. **Read the version.** It takes `metadata.version` from `component.yaml` — the version has exactly one source.
 2. **Validate `component.yaml`.** It has to parse and its fields have to be valid before there's anything to release.
+   With `release.goModule`, the `go.mod` beside it has to match the version too ([below](#a-go-module-the-go-tag-as-well)).
 3. **Check the working tree.** The component directory must have no uncommitted changes.
 4. **Check the branch.** The current branch must have an upstream and no unpushed commits: the commit the tag points at must
    already be in the remote's history.
-5. **Check the tag.** It must not exist yet, locally or on the remote.
+5. **Check the tag.** It must not exist yet, locally or on the remote. With `release.goModule` the same goes for the Go
+   tag.
 6. **Run your own checks**, when `component.yaml` declares them ([below](#your-own-checks-releasechecks)).
 7. **Tag and push** — an annotated tag carrying the [release notes](#release-notes) when you give them.
 
@@ -140,7 +142,8 @@ never run anything from it.
 
 If the tag was created but the push fails (the network dropped, no push permission), `release` deletes the tag it just
 created locally. Otherwise the next attempt would be stopped by "the tag already exists", for a tag that never reached
-the remote.
+the remote. With `release.goModule` the two tags are pushed in one atomic push (`git push --atomic`): both reach the
+remote or neither does, and a failed push deletes both.
 
 ## Releasing a new version
 
@@ -263,6 +266,58 @@ brickkit release --path svc/api        # component erp/api, tag erp-api/1.2.0
 The working-tree check looks only at that component's own directory: changes in a neighbouring component don't concern it.
 Projects using these components declare the repository once, as an install source with `repo` (see
 [Distributing through Git](10-git-distribution.md#how-component-addresses-are-derived)).
+
+## A Go module: the Go tag as well
+
+Go fetches a module's code by version from Git tags too, but names the tags its own way: `v1.2.0` for a module at the
+root of its repository, `svc/api/v1.2.0` for one in the subdirectory `svc/api` — named after the directory, not the
+component ID. BrickKit's versions are bare (`1.2.0`, `erp-api/1.2.0`), and a `v` tag doesn't count as one (see
+[Distributing through Git](10-git-distribution.md)), so no single tag serves both. A component that other Go code
+imports needs both — typically a member that a Go shell compiles in: the shell's `go.mod` requires the member's module
+at the exact version `shell.members` lists, and Go looks for the `v` tag (see
+[Writing a shell](../04-shell/05-shell-development.md#getting-the-members-code)).
+
+Say so in `component.yaml`:
+
+```yaml
+release:
+  goModule: true
+```
+
+`release` then puts the Go tag on the same commit as the platform's, with the same release notes, and pushes the two
+together:
+
+```text
+✅ Released erp/sales@3.0.7: tags 3.0.7, v3.0.7 pushed
+```
+
+Before it tags anything it checks what Go will check, because a pushed tag can't be taken back: the component directory
+has a `go.mod` with a `module` line, and the module path ends in the major version from 2 on (`example.com/erp/sales/v3`
+for 3.0.7) and has no such suffix below 2. Go ignores a tag whose major version the module path doesn't carry: the
+shell's build would fail with `unknown revision`, and the only way out would be another version.
+
+```text
+❌ Go won't accept the tag v3.0.7 for erp/sales: at major version 2 and up the module path in go.mod has to end in the major version, here /v3
+   File: go.mod
+   module: example.com/erp/sales
+   Directory: .
+   Suggestion: Go takes a module's tag only when the module path ends in its major version (/v2, /v3 …; nothing at 0 and 1). Change the module line in go.mod and the imports that use it, or change metadata.version — a pushed tag can't be taken back, so this is checked before anything is tagged
+```
+
+`brickkit lint` reports the same as a warning, so you hear about it when you raise the version, not only when you release.
+
+When the platform's tag is already on the current commit and only the Go tag is missing (it was deleted, or the
+platform's tag was pushed by hand), `release` pushes just the Go tag and says which one was already there; a Go tag
+that points at another commit stops the release, as the platform's does. A version released *before* the field was
+written can't be completed this way: adding the field is a new commit, and a released version never moves. If a shell
+needs that version, push its Go tag by hand on the commit of its version tag, after checking the module path yourself
+(`git tag v1.2.0 '1.2.0^{commit}' && git push origin v1.2.0`) — or release a new version and move the shell to it.
+
+Why it is a field rather than automatic for every directory with a `go.mod`: many Go components are services that
+nothing imports, and their module path stays `example.com/order` at version 2 and later. Tagging all of them would mean
+either refusing their releases over a suffix they don't need, or pushing tags Go ignores. What it doesn't check is that
+the module path leads to this repository — with a custom import domain that can't be known offline; Go reports it when
+the shell builds.
 
 ## The workbench has nothing to do with releasing
 

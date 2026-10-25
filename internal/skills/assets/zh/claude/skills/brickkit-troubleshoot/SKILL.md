@@ -166,7 +166,7 @@ docker / podman 用就留着，否则删掉。
 | `VERSION_CHANGED` | 一个已发布版本的 Git tag 被挪到了别的提交（删掉后又打了一次）；作为警告时，是这次 fetch 刚发现它被挪过 | 请作者发新版本并升级；确实要把重发的内容当作这个版本，删掉报错里点名的两个目录 |
 | `COMPONENT_BLOCKED` | 市场把这个组件版本下架了 | 换一个版本 |
 | `COMPONENT_DISABLED` | 钉住要跑的组件（`enabled` / `local` / `debug`）有个强依赖写了 `disable` | 两个意图矛盾，去掉其中一个 |
-| `MANIFEST_INVALID` | 某个 `component.yaml` 不合法，报错点名字段 | 由组件作者修（在组件仓库里 `brickkit lint`） |
+| `MANIFEST_INVALID` | 某个 `component.yaml` 不合法，报错点名字段。`release` 报的还可能是"Go 不会认……的 tag v…"——写了 `release.goModule`，`go.mod` 的模块路径缺了（或多了）`/v<主版本>` 后缀 | 由组件作者修（在组件仓库里 `brickkit lint`）；Go 的 tag 那条，改 `module` 行或者改版本 |
 | `PORT_CONFLICT` | `localPort` / `exposePort` 重复，或 `mode: local` 进程要用的端口被别的程序占着 | 换端口；只是你机器上的事就改在 `deploy.local.yaml` |
 | `MIGRATION_FAILED` | 迁移命令失败（或入口没拒绝写错的参数） | 看迁移容器的日志，修好重跑 |
 | `MIGRATION_SKIPPED`（警告） | `mode: local` / `debug` 的组件——或从本地仓库编进这种外壳的成员——没有迁移容器，`up` 也不替它跑迁移 | 跑提示里给出的 `local.migrationCommand`；没给出的，组件该写一条 |

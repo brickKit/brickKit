@@ -87,6 +87,46 @@ func TestReleaseSubdirIsReadBackByGitSource(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, up.code, up.stdout+up.stderr)
 }
 
+// release.goModule：平台的 tag 与 Go 的 v 标签一起推送，输出列出两个；之前就有平台的 tag 时只补 Go 的，并说一声。
+func TestReleaseCommandGoModuleTagsBoth(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, map[string]string{
+		"component.yaml": compYAML("erp/api", "3.0.7") + "release:\n  goModule: true\n",
+		"go.mod":         "module example.com/erp/api/v3\n",
+	})
+	r := runIn(t, repo, "release")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Released erp/api@3.0.7: tags 3.0.7, v3.0.7 pushed")
+	assert.Equal(t, "3.0.7\nv3.0.7", relGit(t, origin, "tag", "--list"))
+
+	r = runIn(t, repo, "release")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "the tags 3.0.7, v3.0.7 are on the current commit")
+
+	relGit(t, repo, "push", "-q", "origin", ":refs/tags/v3.0.7")
+	relGit(t, repo, "tag", "-d", "v3.0.7")
+	r = runIn(t, repo, "release")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Released erp/api@3.0.7: tag v3.0.7 pushed")
+	assert.Contains(t, r.stdout, "Already on the current commit before: 3.0.7")
+}
+
+// lint 在作者自己的组件上提前报模块路径与主版本对不上（警告），release 会在打 tag 前拦下同一件事。
+func TestLintWarnsAboutAGoModulePathWithoutTheMajorSuffix(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"component.yaml": compYAML("erp/api", "2.0.0") + "release:\n  goModule: true\n",
+		"go.mod":         "module example.com/erp/api\n",
+	})
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "⚠️ [MANIFEST_INVALID] Go won't accept the tag v2.0.0 for erp/api")
+
+	r = runIn(t, dir, "release")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "Go won't accept the tag v2.0.0 for erp/api")
+}
+
 func TestReleaseLocalAndPathAreExclusive(t *testing.T) {
 	r := runIn(t, t.TempDir(), "release", "--local", "--path", "x")
 	assert.Equal(t, clierr.ExitUsage, r.code)

@@ -88,6 +88,7 @@
 | `shell.members` | | 外壳编进的成员，精确版本 `id@版本` |
 | `local.language` / `local.runCommand` / `local.migrationCommand` | | `mode: local` 时指定语言、直接给出启动命令、从源码运行的迁移 |
 | `release.checks` | | `release` / `publish` 发布之前在组件目录下跑的命令（每条一个数组）；第一条失败就停止发布 |
+| `release.goModule` | | `true`：`release` 在同一个提交上再推送 Go 的 tag（`v<版本>`），给别的 Go 代码要 import 的组件 |
 
 写法与设计准则见 [component.yaml 字段参考](../03-component-guide/02-component-yaml-reference.md)。
 

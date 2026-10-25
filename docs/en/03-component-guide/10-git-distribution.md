@@ -25,7 +25,9 @@ From then on each component's repository address is derived by rule, without con
 | `erp/backend` | `https://git.example.com/components/erp-backend` |
 
 A version maps to a tag: version `0.1.0` is tag `0.1.0` (no `v`). "The latest version" is the highest tag in exact-version
-form; tags like `v1.0.0` or `latest` don't count as versions.
+form; tags like `v1.0.0` or `latest` don't count as versions. (A Go module needs exactly such a `v` tag for Go itself;
+`release.goModule` makes `release` push it beside the version tag — see
+[A Go module](07-release-workflow.md#a-go-module-the-go-tag-as-well).)
 
 **One repository holding several components.** When components live in subdirectories of one repository (a monorepo),
 declare that repository as the install source with `repo` instead of `baseUrl`:

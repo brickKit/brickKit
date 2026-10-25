@@ -473,7 +473,10 @@ func (m *Manifest) validateRelease(p *clierr.ProblemSet) {
 		return
 	}
 	if len(m.Release.Checks) == 0 {
-		p.Add("release.checks", i18n.T(msgid.ManifestReleaseChecksMissing))
+		// 只写 goModule 不写检查是完整的写法；两样都没有，release 这一段就什么也没说
+		if !m.Release.GoModule {
+			p.Add("release.checks", i18n.T(msgid.ManifestReleaseChecksMissing))
+		}
 		return
 	}
 	for i, argv := range m.Release.Checks {
