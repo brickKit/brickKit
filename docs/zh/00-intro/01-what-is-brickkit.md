@@ -50,6 +50,9 @@ graph LR
     G --> E[docker compose up<br/>或 kubectl apply]
 ```
 
+用文字说：`brickkit.yaml`（用哪些组件）和每个组件的 `component.yaml`（它依赖谁）一起进入依赖解析，排出启动顺序；解析出的组件加上
+`config/`，得到每个组件的环境变量；这些变量加上 `deploy.yaml`（怎么部署），生成部署文件；CLI 把文件交给 `docker compose up` 或 `kubectl apply`。
+
 为什么分三层而不是一个文件：三件事的变化频率和责任人不同。组件版本由负责组装的人决定、要评审；
 部署方式因环境而异，还常有"只在我这台机器上"的临时改动（它们放进不进 Git 的 `deploy.local.yaml`）；
 配置里有密钥，要和别的东西分开管。一个文件装三件事，最后谁都改它、谁都读不懂它。

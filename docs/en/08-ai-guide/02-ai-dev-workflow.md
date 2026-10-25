@@ -48,7 +48,9 @@ you are writing or changing.
 4. **Change the code, the contract and the documents, and test.** In the same commit: `BRICKKIT.md` when what users see
    changes, `AGENTS.md` when the code map or a decision changes. Don't let the docs fall behind the implementation —
    `brickkit lint` says when a document no longer matches `component.yaml` (`DOC_OUT_OF_STEP`) or points at code that
-   moved (`DOC_PATH_MISSING`). Rebuild the new version as often as you like until it's released.
+   moved (`DOC_PATH_MISSING`). Rebuild the new version as often as you like until it's released. When the change
+   reshapes what an assistant reads to find its way (a code map, a section of `BRICKKIT.md`), ask a few questions in a
+   new session that loads only the project ([Checking that an AI can find its way](07-checking-docs.md)).
 5. **Release.** Commit, push, `brickkit release`. Commit the project's upgrade after that: until the release, a teammate
    who pulls a `brickkit.yaml` naming the version can't find it.
 

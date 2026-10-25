@@ -372,6 +372,9 @@ graph LR
     G --> E[docker compose up<br/>或 kubectl apply]
 ```
 
+用文字说：`brickkit.yaml`（用哪些组件）和每个组件的 `component.yaml`（它依赖谁）一起进入依赖解析，排出启动顺序；解析出的组件加上
+`config/`，得到每个组件的环境变量；这些变量加上 `deploy.yaml`（怎么部署），生成部署文件；CLI 把文件交给 `docker compose up` 或 `kubectl apply`。
+
 为什么分三层而不是一个文件：三件事的变化频率和责任人不同。组件版本由负责组装的人决定、要评审；
 部署方式因环境而异，还常有"只在我这台机器上"的临时改动（它们放进不进 Git 的 `deploy.local.yaml`）；
 配置里有密钥，要和别的东西分开管。一个文件装三件事，最后谁都改它、谁都读不懂它。
@@ -935,7 +938,8 @@ graph TD
     C1 -.-> D["组件源码里它自己的 AGENTS.md<br/>只在要改它的代码时读"]
 ```
 
-AI 先读项目的 `AGENTS.md`，再按需读某一个组件的文档，要改某个组件的代码时才打开它自己的 `AGENTS.md`：
+AI 先读项目的 `AGENTS.md`；任务没点明是哪个组件时，才读组件表 `COMPONENTS.md`；然后只读用得到的那一个组件的 `BRICKKIT.md`，别的不读；
+要改某个组件的代码时，才打开它源码里自己的 `AGENTS.md`：
 不翻组件源码，不读组件仓库里的三层文件，一次只装进当前问题需要的那一点上下文。详见 [分形架构下的读取策略](../../docs/zh/08-ai-guide/05-fractal-reading.md)。
 
 ---

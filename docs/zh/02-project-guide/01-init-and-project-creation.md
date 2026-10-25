@@ -226,6 +226,9 @@ my-shop/
 | 查找路由 | 一张表：在做什么（会拿去搜的那几个词）→ 先读哪个文件。约定细则、决策记录、运维手册各在哪也写在这里（见[项目的其他文档](#项目的其他文档)）：技能就是到这里查的 |
 | 易错点 | 一张表：不许 / 症状 / 原因——这个项目里每个组件都会踩的坑 |
 
+"去哪找"那张表好不好用，只有一个什么都不知道的助手用起来才看得出：改过之后，开一个只加载项目的新会话问几道题
+（[检验 AI 找不找得到路](../08-ai-guide/07-checking-docs.md)）。
+
 ### 末尾那一段
 
 文件末尾有**一段**由 CLI 维护的内容，夹在 `<!-- brickkit:managed:begin lang=<语言代码> -->` 与
@@ -334,7 +337,8 @@ BrickKit 不规定它的目录——三个组件的项目可能一份都不需�
 
 不管用哪种目录，都写进 `AGENTS.md` 的查找路由表，比如"可能和以前的决策冲突的改动 → `docs/decisions/`"。AI 靠这张表找到它们，
 `brickkit-plan-change` 技能也是；`docs/` 里哪里都走不到的文件，`lint` 会警告（`DOC_UNREACHABLE`）。项目里有自己规则的目录——`tools/`、`infra/`——
-可以放一份[局部的 `AGENTS.md`](../03-component-guide/08-component-doc-spec.md#局部的-agentsmd)，和组件里的一样查。
+可以放一份[局部的 `AGENTS.md`](../03-component-guide/08-component-doc-spec.md#局部的-agentsmd)，和组件里的一样查。项目的文档在图这件事上也照组件的规则：
+规则与流程写成文字与表，图里画的每一条关系都在旁边写出来（[规则与流程写成文字与表](../03-component-guide/08-component-doc-spec.md#规则与流程写成文字与表)）。
 
 ### 决策怎么编号
 

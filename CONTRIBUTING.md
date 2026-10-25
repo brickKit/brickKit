@@ -125,6 +125,10 @@ chosen suites; business protocols, jobs, data recovery and assembled flows remai
 - **A YAML field shown in a doc must exist on the real struct** — `make check-doc-fields` checks the docs against the
   real Go types of `component.yaml`, `brickkit.yaml` and the deploy files, not the other way round; the field
   references (`docs/*/11-reference/`) must also cover every field.
+- **Every relation a diagram draws is also in the text or a table next to it.** AI assistants read the Markdown source,
+  not the rendered Mermaid; a relation that is only drawn is one they guess at. The rule, and the measurement behind it,
+  is in [A component's documentation](docs/en/03-component-guide/08-component-doc-spec.md#rules-and-flows-in-text-and-tables);
+  BrickKit's own documentation follows it.
 - If you change `AGENTS.md` / `AGENTS.zh.md`, keep them genuinely equivalent: each is written independently for its
   language, not translated from the other, but both must cover the same ground.
 

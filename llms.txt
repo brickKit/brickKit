@@ -21,8 +21,8 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/README.md
 - [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/01-init-and-project-creation.md … docs/en/02-project-guide/08-remove-and-archive.md
 - [llms/en/03.md](llms/en/03.md): docs/en/02-project-guide/09-status-and-graph.md … docs/en/03-component-guide/06-artifacts-and-contracts.md
-- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/07-release-workflow.md … docs/en/04-shell/05-shell-development.md
-- [llms/en/05.md](llms/en/05.md): docs/en/04-shell/06-special-characters.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/07-release-workflow.md … docs/en/04-shell/04-members-management.md
+- [llms/en/05.md](llms/en/05.md): docs/en/04-shell/05-shell-development.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/07-cache-design.md
 - [llms/en/07.md](llms/en/07.md): docs/en/06-architecture/08-security-and-signing.md … docs/en/06-architecture/09-error-codes.md
 - [llms/en/08.md](llms/en/08.md): docs/en/07-cli-reference/README.md … docs/en/08-ai-guide/05-fractal-reading.md
@@ -134,6 +134,7 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/08-ai-guide/04-component-doc-spec.md](docs/en/08-ai-guide/04-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
 - [docs/en/08-ai-guide/05-fractal-reading.md](docs/en/08-ai-guide/05-fractal-reading.md): reading a fractal project — three entry points, keeping context small
 - [docs/en/08-ai-guide/06-reading-brickkit.md](docs/en/08-ai-guide/06-reading-brickkit.md): reading BrickKit itself — the bundles, llms.txt routing, the AGENTS.md maps
+- [docs/en/08-ai-guide/07-checking-docs.md](docs/en/08-ai-guide/07-checking-docs.md): checking that an AI can find its way — a new session that loads only the project, the requester's words, twice per question
 
 ### 09-patterns/
 - [docs/en/09-patterns/README.md](docs/en/09-patterns/README.md): module index — not "how to use it" but "how to use it well"

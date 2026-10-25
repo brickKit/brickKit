@@ -87,5 +87,11 @@ When writing:
 - **A translation follows its primary.** It is a sibling file (`BRICKKIT.zh.md`) or the same page in another
   `docs/<lang>/` tree, with the same sections, changed in the same commit as the primary. Read and write the primary;
   reading both versions of a page spends your context on the same facts twice. `AGENTS.md` is usually not translated.
-- **Finish with `brickkit lint`.** It checks the sections, the code-map paths, the links, whether the docs still say what
+- **Write rules and flows as text and tables.** You read the source, not the rendered diagram, and so does the next AI:
+  a relation drawn only in a diagram reaches it as a guess. When a diagram helps people, write every relation it draws
+  in the text or a table beside it too ([Rules and flows in text and tables](../03-component-guide/08-component-doc-spec.md#rules-and-flows-in-text-and-tables)).
+- **Run `brickkit lint`.** It checks the sections, the code-map paths, the links, whether the docs still say what
   `component.yaml` says, the placeholders left, and the translations — as warnings, each naming the file and line.
+- **After lint, check that an assistant finds its way.** lint checks files, sections, links and paths; whether a new session
+  that knows nothing reaches the right section from a requester's words is a separate check
+  ([Checking that an AI can find its way](07-checking-docs.md)).

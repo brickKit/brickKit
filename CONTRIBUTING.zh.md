@@ -81,6 +81,7 @@ AI 读的文档合集——并把它们加进同一个提交（`docs/superpowers
 - **`docs/zh/` 和 `docs/en/` 是两棵独立撰写、彼此对称的目录树**——不是一份原文配翻译。你在其中一棵改了或加了文档，另一棵在相同相对路径下也要有对应文件（`make check-docs-bilingual` 会守这条），而且要用那门语言自然地写，不是机械翻译过去。
 - **文档里展示的 CLI 输出必须是真实输出**，不是你以为 CLI 会打印的样子。真的跑一遍命令，把跑出来的东西贴进去。`make check-doc-fields` 会核对文档里的每一行输出都是 CLI 真能打印出来的那一行。
 - **文档里画的 YAML 字段必须在真实结构体里存在**——`make check-doc-fields` 拿 `component.yaml`/`brickkit.yaml`/部署文件真实的 Go 类型去反查文档，而不是反过来；字段参考（`docs/*/11-reference/`）还必须把每个字段都写到。
+- **图里画的每一条关系，在旁边的文字或表里也写出来。** AI 助手读的是 Markdown 源文本，不是渲染出来的 Mermaid；只画在图里的关系，它只能猜。规则与背后的实测见[组件的文档](docs/zh/03-component-guide/08-component-doc-spec.md#规则与流程写成文字与表)；BrickKit 自己的文档照它写。
 - 如果你改了 `AGENTS.md`/`AGENTS.zh.md`，保证两份内容真的对等——它们各自独立撰写，不是互译关系，但该覆盖的内容要覆盖到。
 
 ## 消息与语言

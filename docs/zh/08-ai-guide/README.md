@@ -30,3 +30,4 @@ BrickKit 的设计处处考虑了 AI：组件小到一次读得完，边界写�
 | [04 组件文档（AI 视角）](04-component-doc-spec.md) | 怎么读组件的 `BRICKKIT.md` 和 `AGENTS.md`，怎么写它们 |
 | [05 分形读取](05-fractal-reading.md) | 从平台到项目到组件的读取顺序，与上下文窗口的管理 |
 | [06 读 BrickKit 本身](06-reading-brickkit.md) | 进这个仓库的三条路线：文档合集、`llms.zh.txt` 路由、`AGENTS.zh.md` 的两张地图 |
+| [07 检验 AI 找不找得到路](07-checking-docs.md) | 改了 `AGENTS.md`、路由或组件文档之后：用只加载项目的新会话、拿请求者的原话问；子代理不算 |

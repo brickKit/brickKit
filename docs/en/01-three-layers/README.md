@@ -11,6 +11,11 @@ graph LR
     D -.->|vars: overrides shared variables of the same name| V
 ```
 
+In words: `brickkit.yaml` declares the components and their versions, and both other layers follow it — the deploy file
+has one entry per declared component, and `config/` has one file per component. A config value written as `$var:NAME`
+takes its value from `config/vars.yaml`, and a deploy file's `vars:` overrides an entry of the same name there for the
+runs that use that deploy file.
+
 | Page | What you get from it |
 | --- | --- |
 | [01 At a glance](01-overview.md) | The directory layout, which file each kind of information belongs in, what goes into Git |

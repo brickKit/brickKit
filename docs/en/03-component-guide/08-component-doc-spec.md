@@ -48,6 +48,27 @@ Explaining a fact is not restating it. `BRICKKIT.md`'s Configuration section exp
 history ("v1.0.12: …", "added in phase 3"): documents say what is true now, and what a version changed goes into its
 release notes.
 
+## Rules and flows in text and tables
+
+An AI reads a document's source text; it never sees a diagram rendered. A Mermaid diagram reaches it as a compact list of
+nodes and arrows, and what an arrow stands for — or which of two boxes with the same label is meant — is left for it to
+guess. Measured on real project documents, with assistants that knew nothing of the project answering questions about
+what the diagrams showed (two models, 36 runs per version): replacing each diagram with equivalent text scored 1.00, the
+diagrams themselves 0.96 — no difference beyond the run-to-run variation; deleting diagrams whose information was nowhere
+else dropped the score to 0.66, while deleting one whose information was also in a table changed nothing. For an AI,
+what counts is whether the information is written as text or a table, not whether there is a picture.
+
+So:
+
+- **Write rules and flows as text and tables**: a state-transition table, a decision table, numbered steps with their
+  failure branches, a list of who hands what to whom.
+- **A diagram is welcome for people, as long as it adds no information.** Every relation it draws is also written in the
+  text or a table right before or after it; a relation only in a diagram is one the next AI may never get.
+- Whether development documents carry diagrams at all is the component's or the project's own choice: some leave them out
+  and have an AI draw one when a person wants to see it.
+
+`brickkit lint` doesn't check this: whether a paragraph says everything a diagram draws can't be judged mechanically.
+
 ## `BRICKKIT.md`
 
 It is the only document that leaves the repository. When a project adds the component, the CLI caches it next to the

@@ -38,3 +38,4 @@ component's `AGENTS.md` (its block holds the component rules) and `CLAUDE.md`. `
 | [04 Component docs, from an AI's side](04-component-doc-spec.md) | How to read a component's `BRICKKIT.md` and `AGENTS.md`, and how to write them |
 | [05 Reading fractally](05-fractal-reading.md) | The reading order from platform to project to component, and managing the context window |
 | [06 Reading BrickKit itself](06-reading-brickkit.md) | Three routes into this repository: the bundles, `llms.txt` routing, the `AGENTS.md` maps |
+| [07 Checking that an AI can find its way](07-checking-docs.md) | After changing `AGENTS.md`, routing or component docs: ask a new session that loads only the project, in the requester's words; a subagent doesn't count |

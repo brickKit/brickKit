@@ -172,6 +172,7 @@ graph TD
     C1 -.-> D["the component's own AGENTS.md, in its source<br/>only to change its code"]
 ```
 
-An AI reads the project's `AGENTS.md` first, then only the documentation of the component it needs, and opens a
-component's own `AGENTS.md` only when it is about to change that component's code: no digging through component
+An AI reads the project's `AGENTS.md` first; `COMPONENTS.md`, the component table, only when the task doesn't name
+the component it is about; then the `BRICKKIT.md` of that one component and no other; and it opens a component's own
+`AGENTS.md`, in its source, only when it is about to change that component's code: no digging through component
 source, no reading the three layers inside a component repository, only the context the current question calls for. See [Reading a fractal project](../08-ai-guide/05-fractal-reading.md).

@@ -391,6 +391,11 @@ graph LR
     G --> E[docker compose up<br/>or kubectl apply]
 ```
 
+In words: `brickkit.yaml` (which components) and each component's `component.yaml` (what it depends on) go into
+dependency resolution, which puts the components in start order; the resolved components and `config/` give each one
+its environment variables; those variables and `deploy.yaml` (how to deploy) produce the deployment files; and the CLI
+hands the files to `docker compose up` or `kubectl apply`.
+
 Why three layers rather than one file: the three things change at different rates and belong to different people.
 Component versions are decided by whoever assembles the system, and get reviewed; how things are deployed varies by
 environment, often with temporary "only on my machine" changes (those go into `deploy.local.yaml`, which stays out of
@@ -981,8 +986,9 @@ graph TD
     C1 -.-> D["the component's own AGENTS.md, in its source<br/>only to change its code"]
 ```
 
-An AI reads the project's `AGENTS.md` first, then only the documentation of the component it needs, and opens a
-component's own `AGENTS.md` only when it is about to change that component's code: no digging through component
+An AI reads the project's `AGENTS.md` first; `COMPONENTS.md`, the component table, only when the task doesn't name
+the component it is about; then the `BRICKKIT.md` of that one component and no other; and it opens a component's own
+`AGENTS.md`, in its source, only when it is about to change that component's code: no digging through component
 source, no reading the three layers inside a component repository, only the context the current question calls for. See [Reading a fractal project](../../docs/en/08-ai-guide/05-fractal-reading.md).
 
 ---

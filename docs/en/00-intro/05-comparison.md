@@ -19,6 +19,12 @@ graph TD
     K8s -->|No, small manifest tweaks| Kustomize["Kustomize"]
 ```
 
+In words: if your components are released and versioned independently, and local and production should run from one
+declaration, start with BrickKit. If not: for faster local feedback on code changes, Tilt or Skaffold; for a service
+catalog or portal, Backstage; for modules that are changed and shipped together anyway, a monorepo tool (Turborepo, Nx,
+Lerna); already on Kubernetes and only managing manifests — Helm when environments differ a lot and the whole app needs
+parameters, Kustomize for small manifest tweaks.
+
 ## At a glance
 
 Find a tool you know and follow its name to the detailed comparison.

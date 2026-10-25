@@ -18,6 +18,10 @@ graph TD
     K8s -->|不要，只是清单小改动| Kustomize["Kustomize"]
 ```
 
+用文字说：组件要独立发布、独立版本，本地和生产用同一份声明，从 BrickKit 开始。否则：只想本地改代码更快看到效果，Tilt 或 Skaffold；
+只想要个服务目录或门户，Backstage；模块本来就一起改一起发，monorepo 工具（Turborepo、Nx、Lerna）；已经在 Kubernetes 上、只想管好清单——
+环境差异大、整个应用要参数化用 Helm，清单只是小改动用 Kustomize。
+
 ## 总表
 
 先找到你熟悉的工具，点名字跳到对应的详细对比。
