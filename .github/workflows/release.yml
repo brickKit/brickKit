@@ -46,7 +46,8 @@ jobs:
             runner: ubuntu-latest
             asset: linux_amd64.tar.gz
           # 原生 arm64 Linux runner 是免费的（public 仓库），所以五个平台全都在
-          # 真硬件上跑，没有 QEMU 这一层。macos-13 已经退役，intel 版走 15-intel。
+          # 真硬件上跑，没有 QEMU 这一层。macos-13 已经退役，intel 版走 15-intel；
+          # arm64 用 macos-15：v1.10.1 发版时 macos-14 的冒烟排队二十多分钟没分到机器。
           - name: linux/arm64
             runner: ubuntu-24.04-arm
             asset: linux_arm64.tar.gz
@@ -54,7 +55,7 @@ jobs:
             runner: macos-15-intel
             asset: darwin_amd64.tar.gz
           - name: darwin/arm64
-            runner: macos-14
+            runner: macos-15
             asset: darwin_arm64.tar.gz
           # Windows 只验不需要 Docker 的那一半：GitHub 的 windows runner 跑不了
           # Linux 容器，up 真起容器与 K8s 那条线在这里没法验。
