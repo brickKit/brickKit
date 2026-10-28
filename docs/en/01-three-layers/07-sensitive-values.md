@@ -89,6 +89,7 @@ The example above generates this:
       - COMPONENT_ID=demo/hello
       - COMPONENT_VERSION=1.0.0
       - GREETING=Howdy
+      - PORT=8080
 ```
 
 ```bash

@@ -372,6 +372,7 @@ func TestDeploymentEnv(t *testing.T) {
 
 	assert.Equal(t, "people/basic", env["COMPONENT_ID"], "16.2 平台变量")
 	assert.Equal(t, "1.0.0", env["COMPONENT_VERSION"])
+	assert.Equal(t, "8080", env["PORT"], "主端口与 containerPort 同源：component.yaml 的 deployment.port")
 	assert.Equal(t, "http://department-tree-1-0-0:8080", env["DEPARTMENT_TREE_ENDPOINT"],
 		"16.2 依赖地址指向 K8s Service 名")
 }

@@ -913,6 +913,17 @@ func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
 	assert.Equal(t, "7200", env["SESSION_TTL_SECONDS"], "config 覆盖要落到文件里")
 }
 
+// PORT 是容器里的进程要监听的主端口，就是 component.yaml 的 deployment.port：端口只有清单一个来源，
+// 镜像不写 ENV PORT 也拿得到（反馈 FRB-009：只有 mode: local 注入时，照文档读 PORT 的组件进了容器起不来）。
+func TestContainerGetsItsDeclaredPortAsPORT(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 7070), projecttest.Entry{})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "people-basic-1-0-0"))
+
+	assert.Equal(t, "7070", env["PORT"])
+}
+
 // ${ENV_VAR} 必须原样保留，绝不能把展开后的密钥写进生成文件。
 func TestSecretsStayAsEnvironmentReferences(t *testing.T) {
 	b := newBuilder(t)
@@ -988,7 +999,7 @@ func TestEnvironmentIsSorted(t *testing.T) {
 		name, _, _ := strings.Cut(item.(string), "=")
 		names = append(names, name)
 	}
-	assert.Equal(t, []string{"ALPHA", "COMPONENT_ID", "COMPONENT_VERSION", "ZEBRA"}, names)
+	assert.Equal(t, []string{"ALPHA", "COMPONENT_ID", "COMPONENT_VERSION", "PORT", "ZEBRA"}, names)
 }
 
 // 同一份输入生成两次，结果必须字节一致。

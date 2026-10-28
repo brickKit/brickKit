@@ -49,7 +49,9 @@ func TestComponentWithoutConfigSchema(t *testing.T) {
 
 	env := envOf(t, b.build(), "people/basic")
 
-	assert.Len(t, env, 2)
+	assert.Equal(t, map[string]string{
+		"COMPONENT_ID": "people/basic", "COMPONENT_VERSION": "1.0.0", "PORT": "8080",
+	}, env)
 }
 
 // brickkit.yaml 里写了组件没声明的 config 项：忽略（与升级删字段同一条路径）。
@@ -78,7 +80,7 @@ func TestDependencyWithoutExtraPorts(t *testing.T) {
 
 	env := envOf(t, b.build(), "erp/backend")
 
-	assert.Len(t, env, 3, "COMPONENT_ID / COMPONENT_VERSION / PEOPLE_BASIC_ENDPOINT：%v", env)
+	assert.Len(t, env, 4, "COMPONENT_ID / COMPONENT_VERSION / PORT / PEOPLE_BASIC_ENDPOINT：%v", env)
 }
 
 // 资源配额只覆盖 requests 时，limits 仍走组件推荐值。

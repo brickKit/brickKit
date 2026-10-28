@@ -888,7 +888,7 @@ func TestEnvVarsAreSortedForStableOutput(t *testing.T) {
 		names = append(names, v.Name)
 	}
 	assert.Equal(t, []string{
-		"ALPHA", "COMPONENT_ID", "COMPONENT_VERSION", "MIDDLE", "ZEBRA",
+		"ALPHA", "COMPONENT_ID", "COMPONENT_VERSION", "MIDDLE", "PORT", "ZEBRA",
 	}, names)
 }
 

@@ -48,6 +48,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
       - DATABASE_PORT=5432
       - DEMO_BUS_ENDPOINT=http://demo-bus-1-0-0:8080
       - DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080
+      - PORT=8080
     healthcheck:
       interval: 10s
       retries: 3
@@ -73,6 +74,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
       - DATABASE_PORT=5432
       - DEMO_BUS_ENDPOINT=http://demo-bus-1-0-0:8080
       - DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080
+      - PORT=8080
     image: demo-caller:1.0.0
     networks:
       - brickkit-net
@@ -82,6 +84,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
       - COMPONENT_ID=demo/hello
       - COMPONENT_VERSION=1.0.0
       - GREETING=Hello
+      - PORT=8080
     healthcheck:
       interval: 10s
       retries: 3
@@ -188,6 +191,8 @@ k8s/
               value: 1.0.0
             - name: GREETING
               value: Hello
+            - name: PORT
+              value: "8080"
           image: demo-hello:1.0.0
           livenessProbe:
             failureThreshold: 3

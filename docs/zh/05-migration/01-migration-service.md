@@ -39,6 +39,7 @@ Docker 下，每个声明了迁移的组件多一个一次性的 service：
     environment:
       - COMPONENT_ID=shop/stock
       - COMPONENT_VERSION=0.2.0
+      - PORT=8082
       - STOCK_WAREHOUSE=上海仓
     image: shop-stock:0.2.0
     networks:

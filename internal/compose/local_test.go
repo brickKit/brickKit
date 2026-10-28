@@ -519,6 +519,18 @@ func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 	assert.Equal(t, "2.0.0", localEnv(t, result, "people-basic-2-0-0")["COMPONENT_VERSION"])
 }
 
+// 宿主机上的进程（debug 由 IDE 启动、local 由 brickkit 拉起）拿到的 PORT 是分给它的本机端口，
+// 不是容器里的 deployment.port：写了 localPort 或声明端口被占、挪到 8081 起时两者不同。
+func TestLocalEnvFileGetsTheHostPortAsPORT(t *testing.T) {
+	for _, mode := range []string{deployfile.ModeDebug, deployfile.ModeLocal} {
+		b := localProject(t, projecttest.Entry{Mode: mode, LocalPort: 9999})
+
+		env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+		assert.Equal(t, "9999", env["PORT"], mode)
+	}
+}
+
 // ============================================================
 // env 文件里的依赖地址指向 localhost
 // ============================================================

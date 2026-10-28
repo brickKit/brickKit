@@ -32,6 +32,7 @@ configSchema:
       - BRICKKIT_SERVED_MEMBERS=shop-cart-0-1-0,shop-stock-0-2-0
       - COMPONENT_ID=shop/shell
       - COMPONENT_VERSION=0.2.0
+      - PORT=8080
       - SHELL_LOG_LEVEL=info
 ```
 

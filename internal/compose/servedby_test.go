@@ -558,6 +558,9 @@ func TestBareShellLocalEnvCarriesJSONWithHostAddresses(t *testing.T) {
 	require.Len(t, entries, 2)
 	config, _ := entries[0]["config"].(map[string]any)
 	assert.Equal(t, "strict", config["MODE"])
+	// PORT 是外壳进程自己的端口；成员的端口在 JSON 的 httpPort 里，不进成员的 config
+	assert.Equal(t, "18000", env["PORT"])
+	assert.NotContains(t, config, "PORT")
 	assert.Equal(t, "http://localhost:15432", config["ERP_DB_ENDPOINT"])
 	assert.Contains(t, portsOf(t, serviceOf(t, docOf(t, result), "erp-db-1-0-0")), "15432:5432",
 		"成员要连的容器发布到宿主机")

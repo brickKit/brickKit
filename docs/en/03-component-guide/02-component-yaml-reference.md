@@ -124,7 +124,7 @@ How to design config well — how finely to split it, how to name it, what shoul
 | `type` | Always `container` |
 | `image` | A prebuilt image that users pull |
 | `build` | How to build the image from source: `context` (the build context) and `dockerfile`, both relative to the repository root, `.` and `Dockerfile` by default. Only a component that writes it is ever built |
-| `port` | The main port: the health check hits it, and others' `*_ENDPOINT` points at it |
+| `port` | The main port: the health check hits it, others' `*_ENDPOINT` points at it, and the process gets it as `PORT` |
 | `extraPorts` | Extra ports (gRPC, say): `- name: grpc` / `port: 9090`; others get `…_GRPC_ENDPOINT` |
 | `protocol`, `extraPorts[].protocol` | What the port speaks: `http` / `grpc` / `tcp`, optional. See "Port protocol" below |
 | `resources` | Recommended CPU / memory; users can override them in the deploy file |
@@ -318,8 +318,8 @@ that runs on the machine and compiles your component in from its local repositor
 to run it. `brickkit lint` warns when you have a `migration` and a `deployment.build` but not this. Without it, a user running your component from source has to find out from your `BRICKKIT.md` how to
 migrate. See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 
-Under `mode: local` the platform also injects `PORT` (the port on the machine it chose for this process, preferring
-`deployment.port`): code that reads `PORT`, falling back to its own default, never fights another process for a port.
+Under `mode: local` the `PORT` the process gets is the port on the machine chosen for it (preferring `deployment.port`,
+moved when that is taken): code that reads `PORT` never fights another process for a port.
 
 ## release: what a version has to pass before it goes out
 

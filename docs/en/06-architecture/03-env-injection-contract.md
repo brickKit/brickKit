@@ -15,7 +15,7 @@ know is on this page.
 | The component's own config | Every component | The keys are the keys in `configSchema`; the values are resolved from `config/` |
 | `BRICKKIT_SERVED_MEMBERS` | Shells | The service names of the members hosted this time, comma-separated |
 | `BRICKKIT_SERVED_MEMBERS_CONFIG` | Shells | Each member's config and ports, as a JSON array (see [Config as JSON](../04-shell/02-json-injection.md)) |
-| `PORT` | `mode: local` components | The port the platform picked for this process on this machine |
+| `PORT` | Every component | The port its process listens on: `deployment.port` in a container or Pod; for a process on this machine (`mode: local`, `mode: debug`), the host port picked for it (`localPort`, otherwise `deployment.port`, moved up from 8081 when that is taken). A shell gets its own; a member's is `httpPort` in the JSON |
 
 Beyond these, the platform injects nothing into a container. A `mode: local` process gets the same variables on top of
 the environment of the terminal that ran `up`, minus every name the platform owns, plus a few language helpers; see

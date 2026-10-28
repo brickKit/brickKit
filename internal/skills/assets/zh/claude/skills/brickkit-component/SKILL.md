@@ -65,8 +65,8 @@ Secret；平台从不按名字猜哪个是密钥。私钥、证书这类要能�
 | `COMPONENT_ID`、`COMPONENT_VERSION`、`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`、`PORT` | 精确 |
 | `*_ENDPOINT` | 后缀 |
 
-撞了：lint 与 up 警告，平台注入的值优先——你的配置项静默失效。`PORT` 是 `mode: local`
-起裸进程时平台给的监听端口。
+撞了：lint 与 up 警告，平台注入的值优先——你的配置项静默失效。`PORT` 是你的监听端口：
+容器里是 `deployment.port`，本机进程是为它选定的宿主机端口——读它，镜像里不用再写 `ENV PORT`。
 
 **4. 健康检查禁令：只检查本进程存活。**
 

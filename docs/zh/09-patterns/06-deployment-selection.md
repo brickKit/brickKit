@@ -57,6 +57,7 @@ graph TD
 ```text
 COMPONENT_ID=shop/order
 COMPONENT_VERSION=0.1.0
+PORT=8083
 SHOP_STOCK_ENDPOINT=http://localhost:18082
 ```
 

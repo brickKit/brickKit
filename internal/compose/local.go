@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -726,6 +727,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	copy(vars, l.Env.Env)
 
 	p.pointDependenciesAtLocalhost(l.Ref, vars)
+	setPort(vars, l.Port)
 
 	evaluated := make([]inject.Var, 0, len(vars))
 	unresolved := map[string]string{}
@@ -762,6 +764,16 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 		StopGracePeriodSeconds: l.Env.StopGracePeriodSeconds,
 		Unresolved:             unresolved,
 	}, nil
+}
+
+// setPort 把 PORT 换成进程在宿主机上监听的端口（localPort 或自动分配的，见 assignHostPorts）：
+// 容器里是 deployment.port，到了宿主机上可能挪过。外壳成员的 Port 就是它自己声明的端口，不变。
+func setPort(vars []inject.Var, port int) {
+	for i := range vars {
+		if vars[i].Name == inject.EnvVarPort {
+			vars[i].Value = inject.Literal(strconv.Itoa(port))
+		}
+	}
 }
 
 func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool) {

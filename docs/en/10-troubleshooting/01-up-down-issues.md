@@ -156,7 +156,8 @@ container and need nothing in the image.
 - When the path doesn't match, change `healthCheck.path`.
 - When the output is `Connection refused` and the component is running: look at the address it listens on
   (`docker exec <container name> netstat -ltn`). It has to be `0.0.0.0:<port>` or `:::<port>`, not `::1` or one specific
-  address other than `127.0.0.1`.
+  address other than `127.0.0.1`, and the port has to be `deployment.port`: the platform passes it as `PORT`, so code that
+  listens on `PORT` can't drift from the manifest the way a port hard-coded in the code or the image can.
 
 ## A component with a cold start over a minute is judged failed
 

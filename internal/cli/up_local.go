@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os/signal"
 	"strings"
 	"time"
@@ -237,7 +236,7 @@ func collectLocalComponents(
 			return nil, programMissingError(ref, err)
 		}
 
-		env, err := buildLocalEnv(ref, cmd.Language, fileOf[ref], port, cmd.Env)
+		env, err := buildLocalEnv(ref, cmd.Language, fileOf[ref], cmd.Env)
 		if err != nil {
 			return nil, err
 		}
@@ -412,7 +411,7 @@ func memberMigration(proj *project.Project, n *resolver.Node, service string, fi
 	if err := cmd.CheckProgram(); err != nil {
 		return nil, migrationProgramMissingError(n.Ref, err)
 	}
-	env, err := buildLocalEnv(n.Ref, cmd.Language, file, file.Port, cmd.Env)
+	env, err := buildLocalEnv(n.Ref, cmd.Language, file, cmd.Env)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +448,7 @@ var localDebugEnvVarsToStrip = map[string][]string{
 }
 
 // buildLocalEnv 把 vars 严格展开成 "KEY=VALUE" 列表，叠上语言适配器自己的
-// 环境变量与 PORT。展开不了任何一个 ${VAR} 都直接报错、点名是哪个变量——
+// 环境变量（PORT 已在 vars 里，是分给这个进程的本机端口）。展开不了任何一个 ${VAR} 都直接报错、点名是哪个变量——
 // 跟 local-debug.*.env 文件"展开不了就留着占位符"的宽松策略不同：这是真的
 // 要喂给进程的环境，不是给人看的排障文件。
 //
@@ -459,7 +458,7 @@ var localDebugEnvVarsToStrip = map[string][]string{
 // 取最后一个，这里追加在最后，天然盖掉 os.Environ() 里继承来的任何值，不需要
 // procsup 知道这件事。
 func buildLocalEnv(
-	ref resolver.Ref, language string, file compose.LocalEnvFile, port int, cmdEnv []string,
+	ref resolver.Ref, language string, file compose.LocalEnvFile, cmdEnv []string,
 ) ([]string, error) {
 	out := make([]string, 0, len(file.Vars)+len(cmdEnv)+2)
 	for _, v := range file.Vars {
@@ -471,7 +470,6 @@ func buildLocalEnv(
 		out = append(out, v.Name+"="+v.Value.Text)
 	}
 	out = append(out, cmdEnv...)
-	out = append(out, fmt.Sprintf("PORT=%d", port))
 	for _, name := range localDebugEnvVarsToStrip[language] {
 		out = append(out, name+"=")
 	}

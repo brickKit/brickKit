@@ -113,7 +113,7 @@ configSchema:
 | `type` | 固定是 `container` |
 | `image` | 预构建镜像，使用方直接拉取 |
 | `build` | 怎么从源码构建镜像：`context`（构建上下文）与 `dockerfile`，都相对仓库根，缺省是 `.` 与 `Dockerfile`。只有写了它的组件才会被构建 |
-| `port` | 主端口：健康检查打它，别人的 `*_ENDPOINT` 指向它 |
+| `port` | 主端口：健康检查打它，别人的 `*_ENDPOINT` 指向它，进程从 `PORT` 拿到它 |
 | `extraPorts` | 额外端口（比如 gRPC）：`- name: grpc` / `port: 9090`，别人拿到 `…_GRPC_ENDPOINT` |
 | `protocol`、`extraPorts[].protocol` | 这个端口上说的协议：`http` / `grpc` / `tcp`，可选。见下面"端口协议" |
 | `resources` | 建议的 CPU / 内存配额，使用方在部署文件里可以覆盖 |
@@ -278,7 +278,7 @@ local:
 有 `migration` 和 `deployment.build`、却没写它时，`brickkit lint` 会警告。不写的话，从源码跑你组件的人只能去
 `BRICKKIT.md` 里找怎么迁移。见[不跑迁移容器的情况](../05-migration/01-migration-service.md#不跑迁移容器的情况)。
 
-`mode: local` 下平台还会注入 `PORT`（它为这个进程选定的本机端口，优先用 `deployment.port`）：代码读 `PORT`、读不到再用自己的缺省端口，就不会和别的进程抢端口。
+`mode: local` 下进程拿到的 `PORT` 是为它选定的本机端口（优先用 `deployment.port`，被占了就挪开）：代码读 `PORT`，就不会和别的进程抢端口。
 
 ## release：一个版本发出去之前要过哪些关
 

@@ -14,7 +14,7 @@
 | 组件自己的配置 | 每个组件 | 键就是 `configSchema` 里的键，值由 `config/` 解析而来 |
 | `BRICKKIT_SERVED_MEMBERS` | 外壳 | 这次承载的成员服务名，逗号分隔 |
 | `BRICKKIT_SERVED_MEMBERS_CONFIG` | 外壳 | 每个成员的配置与端口，JSON 数组（见 [JSON 配置注入](../04-shell/02-json-injection.md)） |
-| `PORT` | `mode: local` 的组件 | 平台为这个本机进程选定的端口 |
+| `PORT` | 每个组件 | 它的进程要监听的端口：容器与 Pod 里是 `deployment.port`；本机进程（`mode: local`、`mode: debug`）是分给它的宿主机端口（`localPort`，没写就是 `deployment.port`，被占了从 8081 往上找）。外壳拿到的是外壳自己的；成员的在 JSON 的 `httpPort` 里 |
 
 除此之外，平台不往容器里注入任何东西。`mode: local` 的进程拿到的是同样这些变量，只是垫在启动 `up` 的那个终端的环境之上——去掉平台管的每一个名字，再加几个语言辅助变量，
 见 [`mode: local` 进程继承什么](#mode-local-进程继承什么)。

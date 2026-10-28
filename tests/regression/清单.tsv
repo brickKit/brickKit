@@ -97,3 +97,6 @@ R82	release.goModule 的 Go 标签按模块所在的目录起名（<子目录>/v
 R83	release.goModule：go.mod 的模块路径从主版本 2 起不以 /v<主版本> 结尾时，打任何 tag 之前就拒绝发布（MANIFEST_INVALID），lint 同一条给警告	.	./internal/cli	TestLintWarnsAboutAGoModulePathWithoutTheMajorSuffix
 R84	release.goModule 的两个 tag 用 git push --atomic：远端只拒绝其中一个时两个都没上去，两个本地 tag 都回滚	.	./internal/release	TestReleaseGoModuleRollsBackBothTags
 R85	平台的 tag 已在当前提交上、只缺 Go 的 tag 时 release 只补 Go 的并说明；Go 的 tag 在别的提交上照样拦下	.	./internal/release	TestReleaseGoModuleAddsTheMissingGoTag
+R86	每个组件的容器与 Pod 都拿到 PORT=component.yaml 的 deployment.port，镜像不写 ENV PORT 也行（与 mode: local 一致）	.	./internal/compose	TestContainerGetsItsDeclaredPortAsPORT
+R87	mode: debug 与 mode: local 的 env 文件（也就是 local 进程的环境）里 PORT 是分给它的本机端口（localPort 或自动分配），不是容器里的端口	.	./internal/compose	TestLocalEnvFileGetsTheHostPortAsPORT
+R88	Kubernetes 的 Deployment 里 PORT 与 containerPort 同源	.	./internal/k8s	TestDeploymentEnv

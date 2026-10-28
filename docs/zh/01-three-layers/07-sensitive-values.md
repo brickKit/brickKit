@@ -79,6 +79,7 @@ K8s 下同一份配置也在生成时因为同一个原因失败——两个目�
       - COMPONENT_ID=demo/hello
       - COMPONENT_VERSION=1.0.0
       - GREETING=你好
+      - PORT=8080
 ```
 
 ```bash

@@ -75,12 +75,14 @@ func TestCollectLocalComponentsDetectsARealGoFixture(t *testing.T) {
 
 func TestBuildLocalEnvUsesEvaluatedValues(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	file := compose.LocalEnvFile{Vars: []inject.Var{{Name: "DB_PASSWORD", Value: inject.Literal("secret123")}}}
+	file := compose.LocalEnvFile{Vars: []inject.Var{
+		{Name: "DB_PASSWORD", Value: inject.Literal("secret123")}, {Name: "PORT", Value: inject.Literal("9000")},
+	}}
 
-	env, err := buildLocalEnv(ref, "", file, 9000, []string{"PYTHONUNBUFFERED=1"})
+	env, err := buildLocalEnv(ref, "", file, []string{"PYTHONUNBUFFERED=1"})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"DB_PASSWORD=secret123", "PYTHONUNBUFFERED=1", "PORT=9000"}, env)
+	assert.Equal(t, []string{"DB_PASSWORD=secret123", "PORT=9000", "PYTHONUNBUFFERED=1"}, env)
 }
 
 // brickkit 自己拉起的进程对缺失的 ${VAR} 是严格的：带着字面占位符启动只会换来
@@ -92,7 +94,7 @@ func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 		Unresolved: map[string]string{"DB_PASSWORD": "PEOPLE_DB_PW"},
 	}
 
-	_, err := buildLocalEnv(ref, "", file, 9000, nil)
+	_, err := buildLocalEnv(ref, "", file, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "PEOPLE_DB_PW")
@@ -106,7 +108,7 @@ func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangNode, compose.LocalEnvFile{}, 9000, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangNode, compose.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "NODE_OPTIONS=")
@@ -115,7 +117,7 @@ func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangJava, compose.LocalEnvFile{}, 9000, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangJava, compose.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "JAVA_TOOL_OPTIONS=")
@@ -127,10 +129,10 @@ func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 func TestBuildLocalEnvDoesNotStripUnaffectedLanguages(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangGo, compose.LocalEnvFile{}, 9000, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangGo, compose.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"PORT=9000"}, env)
+	assert.Empty(t, env)
 }
 
 // 两个 mode: local 组件之间也有依赖时，启动顺序必须跟着拓扑序走，不能因为

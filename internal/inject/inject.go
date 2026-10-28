@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
@@ -95,6 +96,9 @@ func (v Var) IsSecretRef() bool { return v.Value.Kind == configdir.KindSecretRef
 
 // Literal 把一个字符串包成字面量值。
 func Literal(s string) configdir.Value { return configdir.Value{Kind: configdir.KindLiteral, Text: s} }
+
+// EnvVarPort 是平台注入的主端口变量：组件的进程该监听的端口（见 buildComponent）。
+const EnvVarPort = "PORT"
 
 // 变量来源。只是代码里区分变量种类的标识，从不显示给使用者。
 const (
@@ -219,6 +223,12 @@ func buildComponent(
 	// 1. 平台通用变量
 	builder.set(Var{Name: "COMPONENT_ID", Value: Literal(node.Ref.ID), Source: SourcePlatform})
 	builder.set(Var{Name: "COMPONENT_VERSION", Value: Literal(node.Ref.Version), Source: SourcePlatform})
+	// PORT 是组件自己的进程要监听的主端口：容器与 Pod 里就是 component.yaml 的 deployment.port，
+	// 端口只有清单这一个来源，镜像不必再写 ENV PORT；在宿主机上跑的进程（mode: local / debug）
+	// 由 compose 的 localEnvFile 换成分给它的本机端口
+	if m != nil && m.Deployment.Port > 0 {
+		builder.set(Var{Name: EnvVarPort, Value: Literal(strconv.Itoa(m.Deployment.Port)), Source: SourcePlatform})
+	}
 
 	// 2. 依赖地址（强依赖 + 正在启动的弱依赖）
 	for _, dep := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {

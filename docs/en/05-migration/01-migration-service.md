@@ -46,6 +46,7 @@ On Docker, every component that declares a migration gets one more, one-shot ser
     environment:
       - COMPONENT_ID=shop/stock
       - COMPONENT_VERSION=0.2.0
+      - PORT=8082
       - STOCK_WAREHOUSE=Main warehouse
     image: shop-stock:0.2.0
     networks:

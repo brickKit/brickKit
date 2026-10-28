@@ -70,6 +70,7 @@ DB_PASSWORD: $var:PG_PASSWORD
       - DB_NAME=orders
       - DB_PORT=5432
       - DB_USER=orders
+      - PORT=8080
 ```
 
 `DB_PASSWORD` 是密钥：Docker 下两者引用同一个 0600 的 env 文件（里面是 `DB_PASSWORD="${PG_PASSWORD}"`，由 `docker compose`

@@ -142,8 +142,9 @@ A few notes:
 - **For breakpoints, use `mode: debug`.** The platform doesn't start the process; it generates an environment file that you
   load in your IDE and start from there (see [Local debugging](../02-project-guide/03-local-debug-workflow.md)).
   `mode: debug` is your personal business and goes in `deploy.local.yaml` (`brickkit local on`).
-- **Under `mode: local` the platform injects `PORT`**: the port on your machine it chose for this process (preferring
-  `deployment.port`). Code that reads `PORT`, falling back to its default, never fights another process for a port.
+- **Read the listen port from `PORT`**: the platform injects it everywhere — `deployment.port` in a container, and on
+  your machine the port it chose for this process (preferring `deployment.port`). Code that reads `PORT` never fights
+  another process for a port, and the image needs no `ENV PORT` of its own.
 - **A component with a `migration` declares `local.migrationCommand`**, its migration from source (`migration.command`
   is a path inside the image): `up` runs it before starting the process, so the tables are there. See
   [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).

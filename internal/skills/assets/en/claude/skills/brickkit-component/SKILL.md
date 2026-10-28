@@ -68,7 +68,7 @@ value between several components is the project's business (`config/vars.yaml`);
 | `COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`, `BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG` | Exact |
 | `*_ENDPOINT` | Suffix |
 
-These are injected by the platform (`PORT` is the listen port given to a `mode: local` process). A colliding key warns at `lint` / `up`, and the platform's value
+These are injected by the platform (`PORT` is your listen port: `deployment.port` in a container, the chosen host port for a process on the machine — read it rather than writing `ENV PORT` in the image). A colliding key warns at `lint` / `up`, and the platform's value
 wins — your item silently has no effect.
 
 **4. Dependencies are exact, and one id appears once.**

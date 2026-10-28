@@ -72,6 +72,7 @@ The migration container and the main service both get the same environment:
       - DB_NAME=orders
       - DB_PORT=5432
       - DB_USER=orders
+      - PORT=8080
 ```
 
 `DB_PASSWORD` is a secret: on Docker both reference the same env file with mode 0600 (it holds
