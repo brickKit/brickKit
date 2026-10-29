@@ -100,3 +100,4 @@ R85	平台的 tag 已在当前提交上、只缺 Go 的 tag 时 release 只补 G
 R86	每个组件的容器与 Pod 都拿到 PORT=component.yaml 的 deployment.port，镜像不写 ENV PORT 也行（与 mode: local 一致）	.	./internal/compose	TestContainerGetsItsDeclaredPortAsPORT
 R87	mode: debug 与 mode: local 的 env 文件（也就是 local 进程的环境）里 PORT 是分给它的本机端口（localPort 或自动分配），不是容器里的端口	.	./internal/compose	TestLocalEnvFileGetsTheHostPortAsPORT
 R88	Kubernetes 的 Deployment 里 PORT 与 containerPort 同源	.	./internal/k8s	TestDeploymentEnv
+R89	本机进程依赖一个外壳替它 expose 的成员时，用成员已发布的宿主机端口（exposePort），外壳上同一个容器端口不再发布第二次	.	./internal/compose	TestLocalCallerReusesExposedMemberPort

@@ -72,7 +72,8 @@ Ports on your machine, for a process run this way (`mode: local` / `debug`, or t
 the process listens on its `localPort`; without one, on the component's own `deployment.port`, or the
 first free port from 8081 when that's taken — it gets the number as `PORT`. Its extra ports are taken
 on the host as declared. Each container it depends on is published on the host at 10000 + its
-container port (5432 → 15432, 8080 → 18080), or the first free port from 18080 when that's taken, and
+container port (5432 → 15432, 8080 → 18080), or the first free port from 18080 when that's taken (for an
+exposed dependency — a member a shell exposes too — the main port is its `exposePort`), and
 the env file / process gets `localhost:<that port>`; a dependency hosted in a shell is published on the
 shell's container. Containers that call the process keep its service name, resolved to the host by
 `extra_hosts: <service>:host-gateway`. These are the ports BrickKit assigns in one run; one already

@@ -105,7 +105,32 @@ func (b *builder) build(opts compose.Options) (*compose.Result, error) {
 			return v, ok
 		}
 	}
-	return compose.Generate(b.proj, graph, states, env, opts)
+	result, err := compose.Generate(b.proj, graph, states, env, opts)
+	if err == nil {
+		assertEachContainerPortPublishedOnce(b.t, result)
+	}
+	return result, err
+}
+
+// assertEachContainerPortPublishedOnce 是每次生成都要守的不变量：一个容器端口在宿主机上至多发布一次。
+// 同一个端口发布两次，本机进程与使用者手里就有两个地址，其中一个是平台另外挑的（反馈 FRB-010）。
+func assertEachContainerPortPublishedOnce(t *testing.T, result *compose.Result) {
+	t.Helper()
+	var doc struct {
+		Services map[string]struct {
+			Ports []string `yaml:"ports"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal(result.YAML, &doc))
+	for name, svc := range doc.Services {
+		hostOf := map[string]string{}
+		for _, mapping := range svc.Ports {
+			host, container, _ := strings.Cut(mapping, ":")
+			previous, seen := hostOf[container]
+			assert.False(t, seen, "%s 的容器端口 %s 发布了两次（宿主机 %s 与 %s）", name, container, previous, host)
+			hostOf[container] = host
+		}
+	}
 }
 
 // generate 跑完整条链路，失败即断言失败。

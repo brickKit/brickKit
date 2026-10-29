@@ -154,7 +154,7 @@ talks to meet on host ports. `up` assigns them in one pass, the ones you wrote f
 | A container with `expose: true` | Its `exposePort` |
 | The process itself | Its `localPort`. Without one: the component's own `deployment.port`, or the first free port from 8081 when that's taken. The process gets the number as `PORT` (for `mode: debug`, in its environment file) |
 | The process's extra ports | As declared in `deployment.extraPorts` |
-| A container the process depends on | 10000 + its container port (postgres's 5432 → 15432, a component's 8080 → 18080), or the first free port from 18080 when that's taken; for a dependency hosted in a shell, published on the shell's container. The env file holds `localhost:<that port>` |
+| A container the process depends on | When the dependency has `expose: true` (a member a shell exposes counts too), its main port is the `exposePort` already published, not published a second time. Other ports: 10000 + the container port (postgres's 5432 → 15432, a component's 8080 → 18080), or the first free port from 18080 when that's taken. A dependency hosted in a shell is published on the shell's container. The env file holds `localhost:<that port>` |
 
 Containers that call the process don't use a host port: they keep its service name, which `extra_hosts` resolves to the
 host, at its `localPort`.

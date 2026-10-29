@@ -228,7 +228,7 @@ type plan struct {
 	// 宿主机端口台账（详见 local.go）。
 	//
 	//	localPort      服务名 → local 组件在宿主机上监听的端口
-	//	exposedPort    服务名 → expose 映射到宿主机的端口
+	//	exposedPort    服务名 → expose 映射到宿主机的端口（外壳替成员开放的，记在成员自己的服务名下）
 	//	debugPort      服务名 → 纯为本地调试而映射的宿主机端口
 	//	debugExtraPort 服务名 → （容器额外端口 → 宿主机端口）
 	localPort      map[string]int

@@ -649,6 +649,27 @@ func TestShellPublishesExposedMemberPort(t *testing.T) {
 	assert.Equal(t, []string{"8085:8085", "9000:8086"}, portsOf(t, serviceOf(t, b.parsed(), "erp-shell-1-0-0")))
 }
 
+// 本机进程依赖一个外壳替它对外开放的成员：用成员已经发布的那个宿主机端口，不再给同一个容器端口发布第二次
+// （反馈 FRB-010：第二次是从 18080 顺序扫出来的端口，本机进程拿到的地址也不是使用者写的 exposePort）。
+// 额外端口 expose 不管，照旧另外映射。
+func TestLocalCallerReusesExposedMemberPort(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("be/go-infra", "1.0.0", 8090), projecttest.Entry{})
+	currency := servedByEntry("be/go-infra", "1.0.0")
+	currency.Expose, currency.ExposePort = true, 18226
+	b.component(withExtraPort(simple("mdm/currency", "1.0.0", 8226), "grpc", 9226), currency)
+	b.component(dependsOn(simple("erp/sales", "1.0.0", 8086), "mdm/currency", "1.0.0"),
+		projecttest.Entry{Mode: deployfile.ModeLocal})
+
+	result := b.generate()
+	env := localEnv(t, result, "erp-sales-1-0-0")
+	shellPorts := portsOf(t, serviceOf(t, docOf(t, result), "be-go-infra-1-0-0"))
+
+	assert.Equal(t, "http://localhost:18226", env["MDM_CURRENCY_ENDPOINT"], "本机进程拿到使用者写的 exposePort")
+	assert.Equal(t, "http://localhost:19226", env["MDM_CURRENCY_GRPC_ENDPOINT"])
+	assert.ElementsMatch(t, []string{"18226:8226", "19226:9226"}, shellPorts, "每个容器端口只发布一次")
+}
+
 // 成员发布的端口与别的组件的 expose 撞了：和两个组件互撞一样在生成期报出来，点名两边。
 func TestExposedMemberPortConflictIsCaught(t *testing.T) {
 	b := newBuilder(t)
