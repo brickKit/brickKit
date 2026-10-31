@@ -199,7 +199,6 @@ k8s/
             httpGet:
               path: /healthz
               port: 8080
-            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
           name: demo-hello
@@ -211,7 +210,6 @@ k8s/
             httpGet:
               path: /healthz
               port: 8080
-            initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
           resources:
@@ -219,18 +217,27 @@ k8s/
               cpu: 50m
               memory: 32Mi
           startupProbe:
-            failureThreshold: 12
+            failureThreshold: 60
             httpGet:
               path: /healthz
               port: 8080
-            periodSeconds: 5
+            periodSeconds: 1
             timeoutSeconds: 3
 ```
 
-**Three probes**: `startupProbe` leaves a grace period for a cold start (12 × 5 seconds = 60 seconds, from
+**Three probes**: `startupProbe` leaves a grace period for a cold start (60 × 1 second = 60 seconds, from
 `startPeriodSeconds`), and the other two probes don't begin until it passes; `readinessProbe` decides whether traffic
 comes; `livenessProbe` decides whether to restart. All three hit the component's health check path — which should only
 check that this process is alive.
+
+The startup probe checks every second because it runs only until it passes, and how often it checks is how soon a
+started (or restarted) component is found up; the other two have no initial delay, since the startup probe already
+holds them back. When the startup probe passes, kubelet runs the readiness probe at once, so a crashed component takes
+traffic again about a second after it answers — an initial delay on the readiness probe would make kubelet skip that
+run and wait for the next period. The readiness probe (every 5 seconds) and the liveness probe (every 10) run for the
+Pod's whole life, so they stay sparser: their period decides how soon a running instance is taken out of traffic or
+restarted, not how soon a restarted one comes back. These values are fixed by the platform; the component sets only
+`startPeriodSeconds`.
 
 **Service**: its name is the versioned service name, so `http://demo-hello-1-0-0:8080` is the same string on Kubernetes
 as on Docker.

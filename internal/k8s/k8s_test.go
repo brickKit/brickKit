@@ -404,7 +404,7 @@ func TestLivenessProbe(t *testing.T) {
 
 	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"), "16.9")
 	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"), "16.9 探主端口")
-	assert.Equal(t, 10, dig(t, probe, "initialDelaySeconds"), "16.9")
+	assert.NotContains(t, probe, "initialDelaySeconds", "启动探针通过之前存活探针不运行，首次延迟多余")
 	assert.Equal(t, 10, dig(t, probe, "periodSeconds"))
 	assert.Equal(t, 3, dig(t, probe, "timeoutSeconds"))
 	assert.Equal(t, 3, dig(t, probe, "failureThreshold"))
@@ -418,14 +418,15 @@ func TestReadinessProbe(t *testing.T) {
 
 	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"), "16.10")
 	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"), "16.10")
-	assert.Equal(t, 5, dig(t, probe, "initialDelaySeconds"), "16.10 就绪探针比存活探针早")
-	assert.Equal(t, 5, dig(t, probe, "periodSeconds"))
+	// 首次延迟会让启动探针通过时 kubelet 补跑的那次就绪探测被跳过，重启后晚一个周期才收流量（FRR-017）
+	assert.NotContains(t, probe, "initialDelaySeconds", "16.10")
+	assert.Equal(t, 5, dig(t, probe, "periodSeconds"), "16.10 就绪探针比存活探针密")
 }
 
 // 启动探针。
 //
 // 没有它时，冷启动 45 秒的组件会在 t≈30s 被 livenessProbe 判死
-// （initialDelay 10 + period 10 × failureThreshold 3）→ kill → 重启 →
+// （period 10 × failureThreshold 3）→ kill → 重启 →
 // 再走一遍同样的 30 秒 → 永久 CrashLoopBackOff。
 func TestStartupProbe(t *testing.T) {
 	b := newBuilder(t)
@@ -435,23 +436,22 @@ func TestStartupProbe(t *testing.T) {
 
 	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"))
 	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"))
-	assert.Equal(t, 5, dig(t, probe, "periodSeconds"))
-	// 默认宽限期 60 秒 ÷ 5 秒一次 = 12 次
-	assert.Equal(t, 12, dig(t, probe, "failureThreshold"))
+	assert.Equal(t, 1, dig(t, probe, "periodSeconds"), "每秒一次：重启后尽快发现已经起来（FRR-017）")
+	// 默认宽限期 60 秒 ÷ 1 秒一次 = 60 次
+	assert.Equal(t, 60, dig(t, probe, "failureThreshold"))
 	assert.NotContains(t, probe, "initialDelaySeconds",
 		"启动探针不该有初始延迟：它要尽早发现组件已经起来了")
 }
 
-// 组件声明的宽限期换算成失败次数，除不尽时向上取整——
-// 宁可多给几秒，也不要比组件声明的少。
+// 组件声明的宽限期换算成失败次数：周期 1 秒，次数就是秒数。
 func TestStartupProbeFailureThresholdFollowsManifest(t *testing.T) {
 	for _, tc := range []struct {
 		seconds   int
 		threshold int
 	}{
-		{seconds: 180, threshold: 36},
-		{seconds: 300, threshold: 60},
-		{seconds: 7, threshold: 2}, // 7 ÷ 5 = 1.4 → 2（给 10 秒，不是 5 秒）
+		{seconds: 180, threshold: 180},
+		{seconds: 300, threshold: 300},
+		{seconds: 7, threshold: 7},
 		{seconds: 1, threshold: 1},
 	} {
 		m := simple("java/monolith", "1.0.0", 8080)

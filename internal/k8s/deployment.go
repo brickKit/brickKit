@@ -34,21 +34,28 @@ const (
 
 // 探针参数。
 //
-// 就绪探针比存活探针更早、更密：它决定"能不能开始收流量"，
-// 而存活探针决定"要不要杀掉重启"——后者错杀的代价大得多，所以给得更宽。
+// 启动探针挡在另外两个前面：它通过之前，存活与就绪探针都不运行，所以另外两个都不设首次延迟——
+// initialDelaySeconds 从容器启动算起，启动探针已经通过时它只会让第一次探测白白往后推。
+// 就绪探针为此付过代价：首次延迟 5 秒时，启动探针一通过 kubelet 立刻补跑的那次就绪探测落在延迟里被跳过，
+// Pod 要等下一个 5 秒周期才收流量，崩溃重启后的组件因此晚了 4 秒左右（见 startupPeriod）。
+// 只声明了 readinessCheck、没有启动探针时也不需要首次延迟：就绪探测失败只是暂不收流量。
+//
+// 就绪探针比存活探针密：它决定"能不能收流量"，存活探针决定"要不要杀掉重启"——后者错杀的代价大得多，
+// 所以给得更宽。两者在 Pod 的整个生命里一直在跑，周期越短 kubelet 与组件的开销越大；
+// 就绪周期不影响重启后多快收流量（kubelet 在启动探针通过时就补跑一次），只影响跑着跑着没就绪时多快摘掉。
 const (
-	livenessInitialDelay  = 10
 	livenessPeriod        = 10
-	readinessInitialDelay = 5
 	readinessPeriod       = 5
 	probeTimeout          = 3
 	probeFailureThreshold = 3
-	// startupPeriod 是启动探针的检查周期。
+	// startupPeriod 是启动探针的检查周期，它决定多快发现组件已经起来了。
 	//
-	// 比存活/就绪都密：它决定"多快发现组件已经起来了"。5 秒的粒度让
-	// 快速启动的组件几乎不受影响（第一次探测就在 t=5s，与原来的就绪探针同时），
-	// 而慢启动的组件靠 failureThreshold 把总预算拉长。
-	startupPeriod = 5
+	// 1 秒：启动探针只在通过之前运行，稳态没有成本；慢启动的组件靠 failureThreshold 把总预算拉到
+	// 声明的宽限期（宽限期 90 秒就是最多 90 次失败，事件里合成一条带计数的 Unhealthy）。
+	// 崩溃重启正是"快速启动"的情形：实测（minikube，K8s 1.35.1，单副本，启动即就绪的组件，
+	// 每组 5 次）从崩溃到经 Service 重新答复，旧值（启动 5 秒、就绪首次延迟 5 秒）6.9–7.0 秒，
+	// 现值 3.08 秒；就绪周期取 5 秒与 1 秒结果相同。
+	startupPeriod = 1
 )
 
 // mainPortName 是主端口在 Service / containerPort 里的名字。
@@ -267,10 +274,9 @@ func livenessProbe(m *manifest.Manifest) map[string]any {
 		return nil
 	}
 	probe := map[string]any{
-		"initialDelaySeconds": livenessInitialDelay,
-		"periodSeconds":       livenessPeriod,
-		"timeoutSeconds":      probeTimeout,
-		"failureThreshold":    probeFailureThreshold,
+		"periodSeconds":    livenessPeriod,
+		"timeoutSeconds":   probeTimeout,
+		"failureThreshold": probeFailureThreshold,
 	}
 	for k, v := range action {
 		probe[k] = v
@@ -283,11 +289,11 @@ func livenessProbe(m *manifest.Manifest) map[string]any {
 // # 为什么必须有它，而不是把 livenessProbe 的 initialDelaySeconds 调大
 //
 // 没有启动探针时，一个冷启动 45 秒的组件会在 t≈30s 被 livenessProbe 判死
-// （10s 初始延迟 + 10s × 3 次失败）→ Pod 被 kill → 重启 → 再走一遍同样的
+// （10s × 3 次失败）→ Pod 被 kill → 重启 → 再走一遍同样的
 // 30 秒 → **永久 CrashLoopBackOff**。而容器日志一路正常，最难联想到探针。
 //
-// 调大 initialDelaySeconds 只是把这条线往后挪，代价是**所有**组件的故障
-// 发现时间都跟着变慢——快启动的组件本来 10 秒就能被发现死了。
+// 给存活探针加 initialDelaySeconds 只是把这条线往后挪，代价是**所有**组件的故障
+// 发现时间都跟着变慢，而且挪多少都只是猜。
 // 启动探针把两件事分开：起来之前给足时间，起来之后照常严格。
 // 它一旦通过就不再执行，之后完全由 liveness / readiness 接管。
 //
@@ -327,10 +333,9 @@ func readinessProbe(m *manifest.Manifest) map[string]any {
 		return nil
 	}
 	probe := map[string]any{
-		"initialDelaySeconds": readinessInitialDelay,
-		"periodSeconds":       readinessPeriod,
-		"timeoutSeconds":      probeTimeout,
-		"failureThreshold":    probeFailureThreshold,
+		"periodSeconds":    readinessPeriod,
+		"timeoutSeconds":   probeTimeout,
+		"failureThreshold": probeFailureThreshold,
 	}
 	for k, v := range action {
 		probe[k] = v
