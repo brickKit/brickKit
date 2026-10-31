@@ -52,6 +52,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
     healthcheck:
       interval: 10s
       retries: 3
+      start_interval: 1s
       start_period: 60s
       test:
         - CMD-SHELL
@@ -88,6 +89,7 @@ The generated `compose.yaml` (an excerpt: `demo/caller`, its migration, `demo/he
     healthcheck:
       interval: 10s
       retries: 3
+      start_interval: 1s
       start_period: 60s
       test:
         - CMD-SHELL
@@ -115,8 +117,12 @@ Item by item:
 - **The migration container**: the same image, the same environment, `restart: "no"`, with the entry point replaced by
   the migration command.
 - **The health check**: its rhythm is fixed by the platform (every 10 seconds, a 3-second timeout, 3 failures in a row);
-  `start_period` comes from `startPeriodSeconds` (60 by default). Both `wget` and `curl` are tried, so having either in the
-  image is enough; both send `GET`, like the Kubernetes probe.
+  `start_period` comes from `startPeriodSeconds` (60 by default). Until the first success it checks every second
+  (`start_interval`) — dependents waiting on `service_healthy` and `up --wait` are waiting for exactly that success, so
+  they move on as soon as the component answers — and only then switches to every 10 seconds. `start_interval` needs
+  Docker Engine 25 or later; Podman's compatible API and older Docker don't know the field (without an error) and check
+  every 10 seconds while starting too, so a component that answers at once turns healthy after about 10 seconds.
+  Both `wget` and `curl` are tried, so having either in the image is enough; both send `GET`, like the Kubernetes probe.
 - **Ports**: only `expose: true` components map a host port; the rest are reachable only inside the project's network.
 - **Resources**: `requests` become `reservations`; when nobody writes `limits`, no ceiling is generated.
 - **Replicas**: `replicas` above 1 becomes `deploy.replicas`, and the service name resolves to every replica in the project

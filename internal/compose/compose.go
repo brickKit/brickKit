@@ -36,6 +36,13 @@ const (
 	healthcheckInterval = "10s"
 	healthcheckTimeout  = "3s"
 	healthcheckRetries  = 3
+	// healthcheckStartInterval 是 start_period 里、第一次成功之前的检查间隔：它决定多快发现组件已经起来，
+	// 依赖方等 service_healthy、`up --wait` 都等它，依赖链有几层就等几次。成功之后改回 interval，稳态没有成本。
+	// 不写时 Docker 25+ 在启动阶段每 5 秒查一次；实测（Docker 29.9.2，一启动就就绪的容器，各 5 次）
+	// `up -d --wait` 从 5.73–5.74 秒降到 1.73–1.76 秒。Podman 的兼容 API（5.7.0 报 1.41）不认这个字段、
+	// 照 interval 查，不报错，加不加看不出差别（compose 对报 1.41 的引擎照样传这个字段）；Docker 25 之前的引擎
+	// 也报 1.41 一类的旧版本、没有这个功能，推断同样忽略，没有实测。
+	healthcheckStartInterval = "1s"
 	// healthcheckHost 是容器里探自己时用的地址。写 127.0.0.1 而不是 localhost：容器的 /etc/hosts 里 localhost
 	// 同时指向 127.0.0.1 与 ::1，busybox（Alpine）的 wget / nc 取到的是 ::1，而只监听 0.0.0.0 的服务
 	// （Python、Node 的常见写法）在 IPv6 上没人接——组件好好的，却被判成不健康。监听 :: 的服务（Go 的缺省）
@@ -716,26 +723,24 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 		// BusyBox 的 --spider 发 GET，GNU wget（Debian / Ubuntu 镜像装的那个）发 HEAD，
 		// 只为 GET 注册了路由的组件在 Alpine 上健康、换个基础镜像就永远 unhealthy。
 		// 响应体丢进 /dev/null；非 2xx/3xx 时两者都返回非零。
-		return map[string]any{
-			"test": []string{"CMD-SHELL", fmt.Sprintf(
-				"wget -q -O /dev/null %s || curl -fsS -o /dev/null %s || exit 1", url, url)},
-			"interval":     healthcheckInterval,
-			"timeout":      healthcheckTimeout,
-			"retries":      healthcheckRetries,
-			"start_period": startPeriod,
-		}
+		return healthcheck(startPeriod, "wget -q -O /dev/null "+url+" || curl -fsS -o /dev/null "+url+" || exit 1")
 	case manifest.HealthCheckTCP:
-		return map[string]any{
-			"test": []string{"CMD-SHELL",
-				fmt.Sprintf("nc -z %s %d", healthcheckHost, m.Deployment.Port)},
-			"interval":     healthcheckInterval,
-			"timeout":      healthcheckTimeout,
-			"retries":      healthcheckRetries,
-			"start_period": startPeriod,
-		}
+		return healthcheck(startPeriod, fmt.Sprintf("nc -z %s %d", healthcheckHost, m.Deployment.Port))
 	default:
 		// none：不生成健康检查。生成一个探不通的检查会让依赖方永远等不到 healthy
 		return nil
+	}
+}
+
+// healthcheck 是一条 CMD-SHELL 检查加上平台固定的节奏。
+func healthcheck(startPeriod, command string) map[string]any {
+	return map[string]any{
+		"test":           []string{"CMD-SHELL", command},
+		"interval":       healthcheckInterval,
+		"timeout":        healthcheckTimeout,
+		"retries":        healthcheckRetries,
+		"start_period":   startPeriod,
+		"start_interval": healthcheckStartInterval,
 	}
 }
 

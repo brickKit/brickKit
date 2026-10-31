@@ -582,6 +582,22 @@ func TestTCPHealthcheckHasStartPeriod(t *testing.T) {
 	assert.Equal(t, "60s", health["start_period"])
 }
 
+// 启动阶段每秒查一次：依赖方等 service_healthy、up --wait 都在等第一次成功；成功之后改回 10 秒。
+func TestHealthcheckStartInterval(t *testing.T) {
+	tcp := simple("infra/queue", "1.0.0", 5672)
+	tcp.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckTCP}
+
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	b.component(tcp, projecttest.Entry{})
+
+	for _, service := range []string{"people-basic-1-0-0", "infra-queue-1-0-0"} {
+		health := serviceOf(t, b.parsed(), service)["healthcheck"].(map[string]any)
+		assert.Equal(t, "1s", health["start_interval"], service)
+		assert.Equal(t, "10s", health["interval"], service)
+	}
+}
+
 // 健康检查探的是**主端口**，不是额外端口。
 func TestHealthcheckUsesMainPortNotExtraPort(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)

@@ -49,6 +49,7 @@ components:
     healthcheck:
       interval: 10s
       retries: 3
+      start_interval: 1s
       start_period: 60s
       test:
         - CMD-SHELL
@@ -85,6 +86,7 @@ components:
     healthcheck:
       interval: 10s
       retries: 3
+      start_interval: 1s
       start_period: 60s
       test:
         - CMD-SHELL
@@ -106,6 +108,8 @@ components:
   只读挂到容器的 `/run/brickkit/secrets/<服务名>/`，环境变量里只有路径（见[以文件交付](../01-three-layers/07-sensitive-values.md#以文件交付mount-file)）。
 - **迁移容器**：同一个镜像、同一份环境、`restart: "no"`，入口换成迁移命令。
 - **健康检查**：节奏由平台固定（10 秒一次、3 秒超时、连续 3 次失败），`start_period` 来自 `startPeriodSeconds`（缺省 60）。
+  第一次成功之前每秒查一次（`start_interval`），依赖方等 `service_healthy`、`up --wait` 都在等这一次，所以组件一答复就往下走，成功之后才改回 10 秒一次。
+  `start_interval` 要 Docker Engine 25 及以上；Podman 的兼容接口与更早的 Docker 不认这个字段（不报错），启动阶段照 10 秒一次查，一个一启动就答复的组件要 10 秒左右才转 healthy。
   `wget` 与 `curl` 都试，所以镜像里有其中一个就行；两者发的都是 `GET`，与 Kubernetes 的探针一样。
 - **端口**：只有 `expose: true` 的组件映射宿主机端口；其余只在项目网络里可达。
 - **资源**：`requests` 写成 `reservations`；没人写 `limits` 时不生成上限。
