@@ -1385,6 +1385,8 @@ cli.up.error_failed_to_create_the: "Error: failed to create the generated direct
 cli.up.deploy_files_write_failed: "Error: failed to write the deployment files"
 cli.up.no_component_will_start_this: "📋 No component will start this run"
 cli.up.checking_image_pull_permissions: "🔍 Checking image pull permissions..."
+cli.up.host_alias_kept: "ℹ️ host.docker.internal resolves to loopback on this machine: processes here get it as written, the same name the containers use"
+cli.up.host_alias_rewritten: "ℹ️ Processes on this machine get localhost where config says host.docker.internal (here it doesn't resolve to loopback); to use one name on both sides, add 127.0.0.1 host.docker.internal to the hosts file (/etc/hosts)"
 cli.up.environment_variables: "      Environment variables: %[1]s"
 cli.up.error_some_components_did_not: "Error: some components did not start properly"
 cli.up.view_the_status_brickkit_status: "💡 View the status: brickkit status"

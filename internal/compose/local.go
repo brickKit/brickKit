@@ -750,9 +750,8 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 		if !ok {
 			continue
 		}
-		// 进程在宿主机上跑：值里的 host.docker.internal 换成它这一侧叫得通的 localhost（容器拿到的不变）。
-		// 外壳是裸进程时，成员的配置在 JSON 里，同一次替换一并改到
-		v.Value = inject.Literal(deploy.OnHostMachine(value))
+		// 外壳是裸进程时，成员的配置在 JSON 里，同一次处理一并改到
+		v.Value = inject.Literal(p.onHostMachine(value))
 		evaluated = append(evaluated, v)
 	}
 
@@ -767,6 +766,32 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 		StopGracePeriodSeconds: l.Env.StopGracePeriodSeconds,
 		Unresolved:             unresolved,
 	}, nil
+}
+
+// onHostMachine 是宿主机上的进程拿到的值：host.docker.internal 是"宿主机"在容器里的名字，Linux 的宿主机自己
+// 通常解析不了它，就换成它这一侧叫得通的 localhost（deploy.OnHostMachine；容器拿到的不变）。
+//
+// 本机已经把它解析到回环地址时（/etc/hosts 里 127.0.0.1 host.docker.internal）不换：两个名字连到的是同一处，换了
+// 什么也不换来，反而让同一个服务在部署里有了两个名字——组件交给别的组件用的地址（预签名地址的主机名在签名里、
+// 回调地址、发给前端的地址）就在容器与本机进程之间跨不过去。只认回环地址：解析到别处时（Docker Desktop 在
+// Windows 上写进 hosts 的是本机的局域网地址）原样给不一定连得上同一个服务，照旧换。
+//
+// 第一次遇到这个名字时问一次，整个部署用同一个结论。
+func (p *plan) onHostMachine(value string) string {
+	rewritten := deploy.OnHostMachine(value)
+	if rewritten == value {
+		return value
+	}
+	if p.hostAlias == HostAliasUnused {
+		p.hostAlias = HostAliasRewritten
+		if p.hostAliasOnLoopback != nil && p.hostAliasOnLoopback() {
+			p.hostAlias = HostAliasKept
+		}
+	}
+	if p.hostAlias == HostAliasKept {
+		return value
+	}
+	return rewritten
 }
 
 // setPort 把 PORT 换成进程在宿主机上监听的端口（localPort 或自动分配的，见 assignHostPorts）：

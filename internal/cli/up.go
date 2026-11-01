@@ -3,17 +3,20 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/envref"
@@ -177,6 +180,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return err
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, opts.display(path)))
+	renderHostAlias(opts, plan.generated.HostAlias)
 	// 在 --dry-run 的分岔**之前**："这次会动哪些库"正是 dry-run 最该回答的问题
 	// 之一，而它与升不升级无关。从前它在分岔之后，于是 dry-run 里一个字都没有，
 	// 唯一提到迁移的地方是升级摘要里那一行——还得先检测到升级才会出现
@@ -540,10 +544,11 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 	}
 
 	result, err := compose.Generate(p.proj, p.graph, p.states, env, compose.Options{
-		Now:    opts.Now,
-		Engine: engineName(opts, p.proj),
-		Root:   root,
-		Lookup: envref.Lookup(root),
+		Now:                 opts.Now,
+		Engine:              engineName(opts, p.proj),
+		Root:                root,
+		Lookup:              envref.Lookup(root),
+		HostAliasOnLoopback: opts.hostAliasOnLoopback,
 	})
 	if err != nil {
 		return err
@@ -756,6 +761,42 @@ func describeState(s engine.Status) string {
 	default:
 		return s.State
 	}
+}
+
+// renderHostAlias 说本机进程拿到的 host.docker.internal 是原样给的还是换成了 localhost（compose.plan.onHostMachine）：
+// 两种都是对的，但交给别的组件的地址（预签名地址、回调地址）只在原样给时两边都通——没说出来，使用者要到对方
+// 取不到时才知道，还要去翻生成的 env 文件。
+func renderHostAlias(opts *Options, use compose.HostAliasUse) {
+	switch use {
+	case compose.HostAliasKept:
+		opts.Printf("%s\n", i18n.T(msgid.CliUpHostAliasKept))
+	case compose.HostAliasRewritten:
+		opts.Printf("%s\n", i18n.T(msgid.CliUpHostAliasRewritten))
+	}
+}
+
+// hostAliasLookupTimeout 是解析 host.docker.internal 最多等多久：hosts 文件里有它时立刻有答案，
+// 没有时问 DNS——离线、DNS 慢的机器上不能让 up 卡在这里。等不到就当解析不了，照旧换成 localhost。
+const hostAliasLookupTimeout = 2 * time.Second
+
+// hostAliasOnLoopback 报告这台机器能不能把 host.docker.internal 解析到回环地址（解析出的每个地址都是）。
+func (o *Options) hostAliasOnLoopback() bool {
+	lookup := o.LookupHost
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupHost
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), hostAliasLookupTimeout)
+	defer cancel()
+	addrs, err := lookup(ctx, deploy.HostMachineAlias)
+	if err != nil || len(addrs) == 0 {
+		return false
+	}
+	for _, addr := range addrs {
+		if ip := net.ParseIP(addr); ip == nil || !ip.IsLoopback() {
+			return false
+		}
+	}
+	return true
 }
 
 // renderNextSteps 给出启动之后的常用动作。

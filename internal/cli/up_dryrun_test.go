@@ -5,6 +5,8 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // generatedCompose 读出生成的 compose.yaml。
@@ -379,4 +383,59 @@ func TestUpDryRunOnEmptyProject(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "The current project has no components")
+}
+
+// config 里的 host.docker.internal 到了本机进程那里：本机解析不了时换成 localhost；本机把它解析到回环地址时原样给，
+// 与容器里同一个名字（交给别的组件的地址——预签名地址、回调地址——才在两边都通）。up 说一声用的是哪一种。
+func TestUpHostMachineAliasForLocalProcesses(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "erp/sales", Version: "1.0.0", ConfigSchema: []string{"s3Url:"}}}, "erp/sales@1.0.0")
+	f.writeConfig(t, `components:
+  - id: erp/sales
+    version: 1.0.0
+    config:
+      s3Url: http://host.docker.internal:9000
+`)
+	f.writeOverride(t, `components:
+  - id: erp/sales
+    mode: debug
+    localPort: 8081
+`)
+	envFile := filepath.Join(f.Dir, ".brickkit", "generated", "local-debug.erp-sales-1-0-0.env")
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliUpHostAliasRewritten))
+	assert.Contains(t, readFile(t, envFile), "S3_URL=http://localhost:9000")
+
+	loopback := func(o *Options) {
+		o.LookupHost = func(context.Context, string) ([]string, error) { return []string{"127.0.0.1"}, nil }
+	}
+	r = runWith(t, loopback, f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliUpHostAliasKept))
+	assert.Contains(t, readFile(t, envFile), "S3_URL=http://host.docker.internal:9000")
+}
+
+// 只有全部解析到回环地址才算：解析到别处（Docker Desktop 在 Windows 上写进 hosts 的是局域网地址）、解析不了、
+// 什么也没解析出来，都照旧换成 localhost。
+func TestHostAliasOnLoopback(t *testing.T) {
+	cases := []struct {
+		addrs []string
+		err   error
+		want  bool
+	}{
+		{[]string{"127.0.0.1"}, nil, true},
+		{[]string{"127.0.0.1", "::1"}, nil, true},
+		{[]string{"192.168.1.5"}, nil, false},
+		{[]string{"127.0.0.1", "192.168.1.5"}, nil, false},
+		{nil, nil, false},
+		{nil, errors.New("no such host"), false},
+	}
+	for _, c := range cases {
+		opts := &Options{LookupHost: func(_ context.Context, host string) ([]string, error) {
+			assert.Equal(t, "host.docker.internal", host)
+			return c.addrs, c.err
+		}}
+		assert.Equal(t, c.want, opts.hostAliasOnLoopback(), "%v %v", c.addrs, c.err)
+	}
 }

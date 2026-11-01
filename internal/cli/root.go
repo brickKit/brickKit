@@ -137,6 +137,9 @@ type Options struct {
 	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest。
 	// 为空时用真实实现（docker buildx imagetools）。测试可替换。
 	ResolveDigest func(ctx context.Context, image string) (string, error)
+	// LookupHost 解析一个主机名（up 问 host.docker.internal 在本机解析到哪，见 hostAliasOnLoopback）。
+	// 为空时用系统的解析（先读 hosts 文件）。测试可替换：结果取决于这台机器的 hosts 文件。
+	LookupHost func(ctx context.Context, host string) ([]string, error)
 	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置；
 	// 测试用它隔离，不是面向使用者的开关。
 	RepoCacheDir string

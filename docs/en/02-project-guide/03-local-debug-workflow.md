@@ -137,12 +137,19 @@ A few limits to know:
   you the command when the component declares `local.migrationCommand` (under `mode: local`, it runs it itself), see
   [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs).
 - **Strings hard-coded in config aren't rewritten, with one name excepted.** `host.docker.internal` is what a container
-  calls the host machine (it is what `config/` usually says when the database or the message queue runs on your machine).
-  In the values a process on your machine receives, it becomes `localhost` — the same machine, under the name that
-  resolves there, which on Linux the first one doesn't; containers still get the value as written. So one `config/` works
-  on both sides, and you don't change it in the `vars:` of `deploy.local.yaml` (`vars:` reaches the containers too, and
-  they would lose the connection). Anything else you wrote by hand reaches the process as is: an address that names
-  another container's service needs a value that works on your machine.
+  calls the host machine (it is what `config/` usually says when the database, the message queue or the object store
+  runs on your machine). Containers get the value as written. A process on your machine gets it as written too when this
+  machine resolves the name to a loopback address; otherwise — on Linux it usually doesn't resolve at all — it gets
+  `localhost` in its place: the same machine, under a name that resolves here. `up` prints a line saying which. So one
+  `config/` works on both sides, and you don't change it in the `vars:` of `deploy.local.yaml` (`vars:` reaches the
+  containers too, and they would lose the connection). Anything else you wrote by hand reaches the process as is: an
+  address that names another container's service needs a value that works on your machine.
+- **An address one component hands to another needs one name on both sides.** Getting `localhost` is fine while the
+  name is only used to connect. When a component passes the address on — a presigned object-store URL (the host name is
+  part of the signature), a callback address, an address sent to a browser — a container would hand out
+  `host.docker.internal` and the process on your machine `localhost`, and neither works on the other side. Add
+  `127.0.0.1 host.docker.internal` to this machine's hosts file (`/etc/hosts`): the process then gets the name as
+  written, and the one name works in the containers (the platform maps it to the host for them) and on your machine.
 
 ## Ports on your machine
 

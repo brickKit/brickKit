@@ -152,7 +152,8 @@ the project).
 **Cause**
 
 The platform rewrites only the dependency addresses it works out itself (`*_ENDPOINT`), and the one name
-`host.docker.internal` (a process on this machine receives `localhost`). Any other string you wrote into config by hand
+`host.docker.internal` (a process on this machine receives `localhost`, unless this machine resolves that name to a
+loopback address — see [the limits of local debugging](../02-project-guide/03-local-debug-workflow.md)). Any other string you wrote into config by hand
 isn't parsed or rewritten, and reaches the process as it is — and that address assumes the container network, which
 doesn't resolve on the host.
 

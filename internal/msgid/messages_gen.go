@@ -1318,6 +1318,8 @@ const (
 	CliUpDeployFilesWriteFailed                                ID = "cli.up.deploy_files_write_failed"
 	CliUpNoComponentWillStartThis                              ID = "cli.up.no_component_will_start_this"
 	CliUpCheckingImagePullPermissions                          ID = "cli.up.checking_image_pull_permissions"
+	CliUpHostAliasKept                                         ID = "cli.up.host_alias_kept"
+	CliUpHostAliasRewritten                                    ID = "cli.up.host_alias_rewritten"
 	CliUpEnvironmentVariables                                  ID = "cli.up.environment_variables"
 	CliUpErrorSomeComponentsDidNot                             ID = "cli.up.error_some_components_did_not"
 	CliUpViewTheStatusBrickkitStatus                           ID = "cli.up.view_the_status_brickkit_status"

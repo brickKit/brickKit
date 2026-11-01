@@ -67,7 +67,22 @@ type Options struct {
 	// IntelliJ 的 EnvFile 插件），**它们都不做变量替换**，留着占位符，
 	// IDE 里的进程就会拿着字面量 "${PG_PASSWORD}" 去连库。
 	Lookup func(name string) (string, bool)
+	// HostAliasOnLoopback 报告这台机器自己能不能把 host.docker.internal 解析到回环地址（见 plan.onHostMachine）。
+	// 只在本机进程的值里真出现这个名字时才问，最多问一次。为空时当不能：换成 localhost。
+	HostAliasOnLoopback func() bool
 }
+
+// HostAliasUse 说本机进程拿到的 host.docker.internal 是怎么处理的。
+type HostAliasUse int
+
+const (
+	// HostAliasUnused：本机进程的值里没有这个名字。
+	HostAliasUnused HostAliasUse = iota
+	// HostAliasRewritten：本机解析不了它（或解析到的不是回环地址），换成了 localhost。
+	HostAliasRewritten
+	// HostAliasKept：本机把它解析到回环地址，原样给——与容器里是同一个名字。
+	HostAliasKept
+)
 
 // EnvFile 是一个服务的 0600 环境变量文件：密钥与 file:// 内容不进 compose.yaml。
 type EnvFile struct {
@@ -97,6 +112,8 @@ type Result struct {
 	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
 	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunAfter）。
 	RunAfter []string
+	// HostAlias 说本机进程拿到的 host.docker.internal 是原样给的还是换成了 localhost（up 打印一行）。
+	HostAlias HostAliasUse
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -153,6 +170,7 @@ func Generate(
 		SecretFiles:    plan.secretFileList(),
 		LocalEnvFiles:  locals,
 		RunAfter:       plan.runAfter(),
+		HostAlias:      plan.hostAlias,
 		Warnings:       plan.warnings,
 	}, nil
 }
@@ -204,6 +222,9 @@ type plan struct {
 	engine string
 	root   string
 	lookup func(string) (string, bool)
+	// hostAliasOnLoopback / hostAlias：本机进程的值里 host.docker.internal 怎么处理，第一次遇到时定下（onHostMachine）。
+	hostAliasOnLoopback func() bool
+	hostAlias           HostAliasUse
 
 	// inline / envFile 是每个服务算好的环境变量去处（envplace.go）：
 	// inline 进 compose.yaml 的 environment，envFile 进 0600 的 env 文件。
@@ -264,7 +285,7 @@ func newPlan(
 ) (*plan, error) {
 	p := &plan{
 		proj: proj, graph: graph, states: states, engine: opts.Engine,
-		root: opts.Root, lookup: opts.Lookup,
+		root: opts.Root, lookup: opts.Lookup, hostAliasOnLoopback: opts.HostAliasOnLoopback,
 		inline: map[string][]string{}, envFile: map[string][]byte{},
 		rendered:       map[string]bool{},
 		migrationAfter: map[string]string{},

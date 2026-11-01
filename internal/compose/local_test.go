@@ -730,10 +730,39 @@ func TestLocalEnvRewritesHostMachineAliasForTheHostProcess(t *testing.T) {
 	env := localEnv(t, result, "erp-sales-1-0-0")
 	assert.Equal(t, "localhost", env["DB_HOST"])
 	assert.Equal(t, "postgres://u@localhost:5432/sales", env["DB_URL"])
+	assert.Equal(t, compose.HostAliasRewritten, result.HostAlias, "本机解析不了这个名字（没给判断）：换成 localhost")
 
 	container := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	assert.Contains(t, extraHostsOf(t, container), "host.docker.internal:host-gateway")
 	assert.Contains(t, envOf(t, container)["DB_URL"], "host.docker.internal", "容器拿到的值不改")
+}
+
+// 本机把 host.docker.internal 解析到回环地址时（/etc/hosts 里加了 127.0.0.1 host.docker.internal），改写什么也不换来，
+// 反而让同一个服务在部署里有了两个名字——交给别的组件的地址（预签名地址、回调地址）就跨不过去。原样给。
+// 值里没有这个名字时根本不去查。
+func TestLocalEnvKeepsHostMachineAliasWhenItResolvesToLoopback(t *testing.T) {
+	b := newBuilder(t)
+	app := simple("erp/sales", "1.0.0", 8081)
+	app.ConfigSchema = &manifest.ConfigSchema{Type: "object", Properties: map[string]manifest.ConfigProperty{
+		"S3_URL": {Type: "string"},
+	}}
+	b.component(app, projecttest.Entry{
+		Mode:   deployfile.ModeDebug,
+		Config: map[string]any{"S3_URL": "http://host.docker.internal:9000"},
+	})
+	asked := 0
+	result, err := b.build(compose.Options{HostAliasOnLoopback: func() bool { asked++; return true }})
+	require.NoError(t, err)
+	assert.Equal(t, "http://host.docker.internal:9000", localEnv(t, result, "erp-sales-1-0-0")["S3_URL"])
+	assert.Equal(t, compose.HostAliasKept, result.HostAlias)
+	assert.Equal(t, 1, asked)
+
+	plain := newBuilder(t)
+	plain.component(simple("erp/sales", "1.0.0", 8081), projecttest.Entry{Mode: deployfile.ModeDebug})
+	result, err = plain.build(compose.Options{HostAliasOnLoopback: func() bool { asked++; return true }})
+	require.NoError(t, err)
+	assert.Equal(t, compose.HostAliasUnused, result.HostAlias)
+	assert.Equal(t, 1, asked, "值里没有这个名字：不去查")
 }
 
 // ============================================================

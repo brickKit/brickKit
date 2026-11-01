@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +40,10 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 		// （build → push → publish）。测试要验解析失败时自己覆盖它。
 		ResolveDigest: func(context.Context, string) (string, error) {
 			return stubDigest, nil
+		},
+		// 默认假装本机解析不了 host.docker.internal（Linux 的常态）：不受跑测试那台机器的 hosts 文件影响
+		LookupHost: func(context.Context, string) ([]string, error) {
+			return nil, errors.New("no such host")
 		},
 		// git 源的仓库缓存放在测试自己的临时目录，绝不碰使用者的 ~/.cache
 		RepoCacheDir: t.TempDir(),

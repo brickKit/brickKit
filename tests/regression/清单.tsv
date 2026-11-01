@@ -106,3 +106,4 @@ R91	Kubernetes 的就绪探针没有首次延迟（否则启动探针通过时 k
 R92	本地模式的崩溃汇总写明退出码是 up 启动的哪条命令的（go run 这类启动器报自己的退出码，服务进程的在最后几行输出里）	.	./internal/cli	TestRunLocalComponentsCrashSummaryNamesTheLauncher
 R93	brickkit lint 离线报出外壳编进的成员版本与部署文件放进去的不同（与 up 同一项核对；在成员目录里也报；成员以自己的进程运行时不报）	.	./internal/cli	TestLintChecksShellMemberVersions
 R94	release / publish 的 --notes 收到一个文件（一行、存在的文件，或一个词以 .md/.markdown/.txt 结尾）时拒绝并指向 --notes-file，什么都不发	.	./internal/cli	TestReleaseRefusesAFileGivenToNotes
+R95	本机把 host.docker.internal 解析到回环地址时，本机进程拿到的值原样保留这个名字（与容器同名）；解析不了时照旧换成 localhost；up 说一声是哪一种	.	./internal/cli	TestUpHostMachineAliasForLocalProcesses

@@ -34,7 +34,7 @@ func NetworkName(project string) string {
 const HostMachineAlias = "host.docker.internal"
 
 // OnHostMachine 把一个值里的 host.docker.internal 换成 localhost：给**在宿主机上跑**的进程用
-// （mode: local / debug、焦点组件）。
+// （mode: local / debug、焦点组件）。本机已经把这个名字解析到回环地址时不必换，调用方决定（compose 的 onHostMachine）。
 //
 // `host.docker.internal` 是"宿主机"在**容器**里的名字，Linux 的宿主机自己解析不了它。同一份 config
 // 既给容器用、也给搬到宿主机上跑的那个进程用：容器照旧拿到原文（平台给它加 extra_hosts），宿主机上的进程
