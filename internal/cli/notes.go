@@ -8,6 +8,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -38,6 +39,9 @@ func (n *notesFlags) read(cmd *cobra.Command, opts *Options) (string, error) {
 			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliNotesHintUseOne))
 	}
 	if !cmd.Flags().Changed("notes-file") {
+		if err := notesTextIsAFile(n.text, opts); err != nil {
+			return "", err
+		}
 		return n.text, nil
 	}
 	path := n.file
@@ -51,4 +55,31 @@ func (n *notesFlags) read(cmd *cobra.Command, opts *Options) (string, error) {
 			WithHint(i18n.T(msgid.CliNotesHintCheckPath))
 	}
 	return string(data), nil
+}
+
+// notesTextIsAFile 拒绝交给 --notes 的一个文件：多半是把 --notes 当成了 --notes-file。照样发出去的话，说明就是那串路径，
+// 要到使用者 upgrade 时才看得见，而且改不了（tag 已经推送，市场上的版本不再变）。
+//
+// 只认两种：一行、正好是一个存在的文件（相对当前目录）；或者一个词（没有空白）、以 .md / .markdown / .txt 结尾——
+// 没有这个文件，多半是路径写错了。真想把这样一串字当说明的人可以写进文件、用 --notes-file，所以拒绝的代价很小。
+func notesTextIsAFile(text string, opts *Options) error {
+	if text == "" || strings.ContainsAny(text, "\r\n") {
+		return nil
+	}
+	path := text
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(opts.WorkDir, path)
+	}
+	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliNotesIsAFile, text)).
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliNotesHintUseNotesFile, text))
+	}
+	switch strings.ToLower(filepath.Ext(text)) {
+	case ".md", ".markdown", ".txt":
+		if !strings.ContainsAny(text, " \t") {
+			return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliNotesLooksLikeAFile, text)).
+				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliNotesHintLooksLikeAFile))
+		}
+	}
+	return nil
 }

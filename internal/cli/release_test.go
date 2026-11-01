@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 func relGit(t *testing.T, dir string, args ...string) string {
@@ -258,6 +260,34 @@ func TestReleaseNotes(t *testing.T) {
 	r = runIn(t, repo, "release", "--notes-file", notes)
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, "## Added\n\n- export", relGit(t, origin, "for-each-ref", "refs/tags/1.1.0", "--format=%(contents)"))
+}
+
+// --notes 收正文：给的是一个文件（存在的，或者一个词、以 .md / .txt 结尾），多半是把它当成了 --notes-file——
+// 发出去之后说明就是那串路径，市场上的版本还改不了。拒绝，指向 --notes-file；什么都不发。像句话的照常发。
+func TestReleaseRefusesAFileGivenToNotes(t *testing.T) {
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@example.com")
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, map[string]string{"component.yaml": compYAML("erp/api", "1.1.0"), "NOTES": "## Added\n"})
+	abs := filepath.Join(t.TempDir(), "pE-notes.md")
+	require.NoError(t, os.WriteFile(abs, []byte("## Added\n"), 0o644))
+
+	for _, file := range []string{abs, "NOTES"} {
+		r := runIn(t, repo, "release", "--notes", file)
+		assert.Equal(t, clierr.ExitUsage, r.code, r.stdout+r.stderr)
+		assert.Contains(t, r.stderr, i18n.T(msgid.CliNotesIsAFile, file))
+		assert.Contains(t, r.stderr, "--notes-file "+file)
+	}
+	for _, missing := range []string{"./notes.md", "/tmp/x/notes.txt"} {
+		r := runIn(t, repo, "release", "--notes", missing)
+		assert.Equal(t, clierr.ExitUsage, r.code, r.stdout+r.stderr)
+		assert.Contains(t, r.stderr, i18n.T(msgid.CliNotesLooksLikeAFile, missing))
+	}
+	assert.Empty(t, relGit(t, origin, "tag", "--list"), "参数错了就什么都不发")
+
+	r := runIn(t, repo, "release", "--notes", "Fixes the export; see CHANGES.md")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, "Fixes the export; see CHANGES.md", relGit(t, origin, "for-each-ref", "refs/tags/1.1.0", "--format=%(contents)"))
 }
 
 // withChecks：组件声明一条发布前检查 sh ./check.sh --strict，脚本以 code 退出，跑过就留下 ran 文件。
