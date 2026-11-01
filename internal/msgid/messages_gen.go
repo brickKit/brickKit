@@ -1413,6 +1413,8 @@ const (
 	CliUpTheFollowingLocalComponentsCrashed                    ID = "cli.up.the_following_local_components_crashed"
 	CliUpExitCode                                              ID = "cli.up.exit_code"
 	CliUpKilledBySignal                                        ID = "cli.up.killed_by_signal"
+	CliUpCommandExitCode                                       ID = "cli.up.command_exit_code"
+	CliUpCommandKilledBySignal                                 ID = "cli.up.command_killed_by_signal"
 	CliUpLocalComponentsCrashed                                ID = "cli.up.local_components_crashed"
 	CliUpLocalComponentsWouldStart                             ID = "cli.up.local_components_would_start"
 	CliUpLocalDebuggingLoadInThe                               ID = "cli.up.local_debugging_load_in_the"

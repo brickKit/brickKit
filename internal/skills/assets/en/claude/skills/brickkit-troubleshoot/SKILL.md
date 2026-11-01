@@ -118,7 +118,7 @@ one key and hides the conflict.
 | `SIGNATURE_INVALID` | `requireSignature` is on and a market component isn't signed | Ask the publisher for a signed version |
 | `CLONE_FAILED` | `add --repo` couldn't clone: git failed, a directory of that name exists under `components/`, or the source is archived | Read git's words; move the directory away; `brickkit sync` brings archived source back |
 | `SUBMODULE_GUARD` | `sync` or `remove` would move or delete a directory registered as a git submodule of the project | Deregister the submodule first |
-| `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` failed, components came up unhealthy, or a `mode: local` process crashed | The engine's own output is in the error; then the component's logs |
+| `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` failed, components came up unhealthy, or a `mode: local` process crashed | The engine's own output is in the error; then the component's logs. A local crash: its last lines are in the summary, and the exit code there is the started command's — `go run` always says 1 |
 | `MIGRATION_SKIPPED` (warning) | A `mode: local` / `debug` component — or a member compiled into such a shell from its local repository — runs no migration container, and `up` doesn't run its migration | Run the `local.migrationCommand` the note names; none: the component should declare one |
 | `PROJECT_EXISTS` | `brickkit init <name>` into a directory that exists and isn't empty (or is a file) | Another name — or go in and run `brickkit init` without a name, which only adds what's missing |
 | `INVALID_ARGUMENT` | The command line is wrong (exit code 2): unknown command or flag, a component id or version in the wrong form | `brickkit <command> --help` |

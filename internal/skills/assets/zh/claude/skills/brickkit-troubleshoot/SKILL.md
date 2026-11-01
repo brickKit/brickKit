@@ -171,7 +171,7 @@ docker / podman 用就留着，否则删掉。
 | `MIGRATION_FAILED` | 迁移命令失败（或入口没拒绝写错的参数） | 看迁移容器的日志，修好重跑 |
 | `MIGRATION_SKIPPED`（警告） | `mode: local` / `debug` 的组件——或从本地仓库编进这种外壳的成员——没有迁移容器，`up` 也不替它跑迁移 | 跑提示里给出的 `local.migrationCommand`；没给出的，组件该写一条 |
 | `ENGINE_MISSING` | `docker` / `podman` / `kubectl` 不在 `PATH` 上或没在运行；或者只装了 Podman，部署文件却写着 `target: docker` | 装上、启动；或改成 `target: podman` |
-| `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` 执行失败，组件起来了但不健康，或 `mode: local` 的进程崩了 | 报错里带着引擎自己的输出；再看组件日志 |
+| `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` 执行失败，组件起来了但不健康，或 `mode: local` 的进程崩了 | 报错里带着引擎自己的输出；再看组件日志。本地进程崩了：最后几行输出在崩溃摘要里，那里的退出码是启动的那条命令的——`go run` 一律是 1 |
 | `AUTH_REQUIRED` / `TOKEN_EXPIRED` | 市场要登录，或登录过期 | `brickkit login` |
 | `AUTH_FAILED` | 市场拒绝了用户名或密码；或 Git 远端连上了但拒绝拉取——凭据被拒，或仓库根本不存在（托管平台对两者回答得一样） | 核对凭据；Git 的情形读报错里 git 自己的原话 |
 | `IMAGE_UNAUTHORIZED` | 镜像仓库拒绝拉取，或者仓库里没有这个镜像 | `docker login <仓库>`，核对镜像地址；或者用 `brickkit build` 在本机构建 |

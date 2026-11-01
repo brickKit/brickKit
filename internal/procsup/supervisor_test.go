@@ -71,6 +71,7 @@ func TestNonZeroExitIsACrashAndKeepsItsLastOutput(t *testing.T) {
 
 	require.Len(t, exits, 1)
 	assert.Equal(t, 3, exits[0].Code)
+	assert.Equal(t, helperSpec("api", "exit", "3", "boom").Argv, exits[0].Argv, "退出码是哪条命令的")
 	assert.True(t, exits[0].Crashed())
 	assert.Equal(t, []string{"boom"}, exits[0].Tail, "崩溃前最后的输出要留在 Exit 里，供排查")
 	assert.Equal(t, "api | boom\n", out.String())

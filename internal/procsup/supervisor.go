@@ -81,6 +81,9 @@ type Options struct {
 type Exit struct {
 	Name string
 	PID  int
+	// Argv 是启动的命令（Spec.Argv）。Code 与 Signal 是这条命令的：它若是 `go run` 这类再拉起服务进程的启动器，
+	// 报的是启动器自己的退出情况，服务进程的只在它的输出里。
+	Argv []string
 	// Code 是退出码；被信号杀死时为 -1。
 	Code int
 	// Signal 是杀死它的信号名（"terminated"、"killed"……），没被信号杀死时为空；Windows 上恒为空。
@@ -100,6 +103,7 @@ func (e Exit) Crashed() bool { return !e.Stopped && e.Code != 0 }
 // Proc 是一个已经启动的进程。
 type Proc struct {
 	name    string
+	argv    []string
 	pid     int
 	started time.Time
 
@@ -178,7 +182,7 @@ func (s *Supervisor) Start(spec Spec) (*Proc, error) {
 		return nil, fmt.Errorf("procsup: attach %s: %w", spec.Name, err)
 	}
 
-	p := &Proc{name: spec.Name, pid: cmd.Process.Pid, started: time.Now(), done: make(chan struct{})}
+	p := &Proc{name: spec.Name, argv: spec.Argv, pid: cmd.Process.Pid, started: time.Now(), done: make(chan struct{})}
 	s.procs = append(s.procs, p)
 	go s.watch(p, cmd, w)
 	return p, nil
@@ -209,7 +213,7 @@ func (s *Supervisor) watch(p *Proc, cmd *exec.Cmd, w *prefixWriter) {
 		code, signal = ps.ExitCode(), signalName(ps)
 	}
 	p.exit = Exit{
-		Name: p.name, PID: p.pid, Code: code, Signal: signal,
+		Name: p.name, Argv: p.argv, PID: p.pid, Code: code, Signal: signal,
 		Stopped: p.stopping.Load(), Duration: time.Since(p.started), Tail: w.Tail(),
 	}
 	close(p.done)

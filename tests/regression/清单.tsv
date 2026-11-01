@@ -103,3 +103,4 @@ R88	Kubernetes 的 Deployment 里 PORT 与 containerPort 同源	.	./internal/k8s
 R89	本机进程依赖一个外壳替它 expose 的成员时，用成员已发布的宿主机端口（exposePort），外壳上同一个容器端口不再发布第二次	.	./internal/compose	TestLocalCallerReusesExposedMemberPort
 R90	Kubernetes 上崩溃重启的组件尽快重新收流量：启动探针每秒一次，失败次数等于宽限期秒数	.	./internal/k8s	TestStartupProbe
 R91	Kubernetes 的就绪探针没有首次延迟（否则启动探针通过时 kubelet 补跑的那次就绪探测被跳过）	.	./internal/k8s	TestReadinessProbe
+R92	本地模式的崩溃汇总写明退出码是 up 启动的哪条命令的（go run 这类启动器报自己的退出码，服务进程的在最后几行输出里）	.	./internal/cli	TestRunLocalComponentsCrashSummaryNamesTheLauncher

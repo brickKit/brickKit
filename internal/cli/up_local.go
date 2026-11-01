@@ -710,9 +710,11 @@ func renderCrashSummary(sup *procsup.Supervisor, exits []procsup.Exit, crashLine
 
 	sup.Printf("\n%s\n", i18n.T(msgid.CliUpTheFollowingLocalComponentsCrashed))
 	for _, e := range crashed {
-		how := i18n.T(msgid.CliUpExitCode, e.Code)
+		// 写明是哪条命令的退出码：`go run` 这类启动器报的是自己的，不是服务进程的（反馈 FRR-018）
+		command := strings.Join(e.Argv, " ")
+		how := i18n.T(msgid.CliUpCommandExitCode, command, e.Code)
 		if e.Signal != "" {
-			how = i18n.T(msgid.CliUpKilledBySignal, e.Signal)
+			how = i18n.T(msgid.CliUpCommandKilledBySignal, command, e.Signal)
 		}
 		sup.Printf("   %s  %s  %s\n", e.Name, how, e.Duration.Round(time.Second))
 		if crashLines <= 0 {

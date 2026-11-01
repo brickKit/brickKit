@@ -210,6 +210,14 @@ import "os"
 func main() { os.Exit(1) }
 `
 
+// exitWithTwo：以 2 退出，go run 把它换成 1、打出 "exit status 2"。
+const exitWithTwo = `package main
+
+import "os"
+
+func main() { os.Exit(2) }
+`
+
 // crashAfterPrinting 先打一行能认出来的标记，再以非零码崩溃——用来验证
 // --crash-lines 0 时这一行不该出现在最后一屏（TailLines 本身是否捕获到它
 // 是 procsup 自己的事，CLI 层要在渲染时把它压下去）。
@@ -359,7 +367,32 @@ func TestRunLocalComponentsReportsACrash(t *testing.T) {
 	out := opts.Stdout.(*bytes.Buffer).String()
 	require.Error(t, err)
 	assert.Contains(t, out, "demo-hello-1-0-0")
-	assert.Contains(t, out, "exit code 1")
+	assert.Contains(t, out, "go run . exited with code 1", "写明退出码是哪条命令的")
+}
+
+// go run 把服务进程的退出码一律换成 1：汇总写明 1 是 go run 的，服务进程自己的退出码在最后几行输出里，
+// 提示也这样讲（反馈 FRR-018）。
+func TestRunLocalComponentsCrashSummaryNamesTheLauncher(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	opts, plans := localComponentPlansFor(t, f, exitWithTwo)
+
+	err := runLocalComponents(context.Background(), opts, f.Layout, plans, 20)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.Error(t, err)
+	crashSection := out[strings.Index(out, "The following local component(s) crashed:"):]
+	assert.Contains(t, crashSection, "go run . exited with code 1")
+	assert.Contains(t, crashSection, "exit status 2", "服务进程自己的退出码在最后几行输出里")
+	assert.Contains(t, clierr.As(err).Format(), "go run always 1")
 }
 
 // 端口被别的程序占着：启动之前就报 PORT_CONFLICT，一个进程都不启动——否则就绪探测连上的是
@@ -434,7 +467,7 @@ func TestRunLocalComponentsCrashLinesZeroPrintsNoOutputLines(t *testing.T) {
 	out := opts.Stdout.(*bytes.Buffer).String()
 	require.Error(t, err)
 	assert.Contains(t, out, "demo-hello-1-0-0")
-	assert.Contains(t, out, "exit code 1", "崩溃信息本身还在")
+	assert.Contains(t, out, "go run . exited with code 1", "崩溃信息本身还在")
 	// 标记行会在进程运行期间被实时流式打印一次（procsup 正常的输出转发，
 	// 不受 --crash-lines 影响，也不该受影响——那是"正在发生的事"，跟最后一屏
 	// 复述的 tail 是两回事）。只断言最后一屏"崩溃了"那段之后不再重复它，
