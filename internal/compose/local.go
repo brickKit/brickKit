@@ -985,44 +985,6 @@ func sourceMigrationWarning(ref resolver.Ref, service string, m *manifest.Manife
 	)
 }
 
-// sourceMigrationOrder 守住"同一组件的迁移按版本号由低到高跑"：从源码跑的迁移（mode: local 进程、本机外壳里
-// 从源码运行的成员，写了 local.migrationCommand）在引擎跑完容器之后才跑，进不了 chainMigrations 的版本链。
-// 同一组件更高的版本这次在容器里迁移，它就会先于源码这一版跑——迁移顺序反了，表结构跟着乱。
-// 低版本在容器里不要紧：容器先跑，源码后跑，正是由低到高。
-func (p *plan) sourceMigrationOrder() error {
-	type source struct {
-		ref resolver.Ref
-		m   *manifest.Manifest
-	}
-	var sources []source
-	for _, l := range p.locals {
-		if l.Entry.Mode == deployfile.ModeLocal {
-			sources = append(sources, source{l.Ref, l.Manifest})
-		}
-	}
-	for _, s := range p.served {
-		if s.FromSource && p.proj.DeployEntry(s.Shell.ID, s.Shell.Version).Mode == deployfile.ModeLocal {
-			sources = append(sources, source{s.Ref, s.Manifest})
-		}
-	}
-	for _, src := range sources {
-		if src.m == nil || src.m.Migration == nil || src.m.Local == nil || len(src.m.Local.MigrationCommand) == 0 {
-			continue
-		}
-		for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
-			if c.Ref.ID != src.ref.ID || c.Manifest == nil || c.Manifest.Migration == nil ||
-				manifest.CompareVersions(c.Ref.Version, src.ref.Version) <= 0 {
-				continue
-			}
-			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ComposeSourceMigrationOutOfOrder, src.ref.String(), c.Ref.String())).
-				WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeSourceMigrationOutOfOrderReason)).
-				WithHint(i18n.T(msgid.ComposeHintStopNewerThisTime, c.Ref.String()),
-					i18n.T(msgid.ComposeHintRunOlderInContainer, src.ref.String()))
-		}
-	}
-	return nil
-}
-
 // ============================================================
 // 小工具
 // ============================================================

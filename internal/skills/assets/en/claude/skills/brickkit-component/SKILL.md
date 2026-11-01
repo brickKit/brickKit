@@ -99,7 +99,10 @@ It, too, never fails because a downstream is down.
 entrypoint falls through to "start the service" on an argument it doesn't recognize, a typo turns
 the migration into a second server that never exits, and the deployment hangs. Validate the argument
 before reading env vars or connecting to anything. Migration state is yours to keep; when two components
-share a database, the state table's key must include the component's identity.
+share a database, the state table's key must include the component's identity. It runs on every `up`, so
+it must be idempotent; and when two versions of the component run side by side, the older version's
+migration runs again against a database the newer one has migrated — treat that as done (change nothing,
+exit 0), or `up` stops with `MIGRATION_FAILED`.
 
 **8. `deployment.image` and `deployment.build`: at least one.**
 

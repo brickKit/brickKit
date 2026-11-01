@@ -38,12 +38,31 @@ The rules:
 - **Different components' migrations aren't chained**: their chains run in parallel — even two components sharing one
   database each look after their own tables.
 - **A migration from source (`local.migrationCommand`) is outside the chain**: it runs after the containers. When a newer
-  version of the same component migrates in a container in the same `up`, `up` stops rather than run them newest first
-  (see [When no migration container runs](01-migration-service.md#when-no-migration-container-runs)).
+  version of the same component migrates in a container in the same `up`, the older version's migration from source runs
+  after it — no different from every later `up` (next section).
 
-Why the lower version goes first: the old version's migration builds the structure it needs, and the new version's
-migration carries on from there. The other way round, the old version's migration might fail against a structure the new
-version has already changed.
+Why the lower version goes first: on an empty database, the old version's migration builds the structure it needs, and the
+new version's migration carries on from there. That decides what the database looks like on the first `up` only.
+
+## The older version's migration meets a newer database
+
+Every version's migration runs again on every `up` (which is why a migration must be idempotent, see
+[When a migration fails](01-migration-service.md#when-a-migration-fails)). So from the second `up` on, the chain runs the
+older version's migration against a database the newer version has already migrated. The same happens on the first `up`
+when an older version joins a project whose database a newer one already migrated (a component that depends on the older
+version is added), and when the older version migrates from source after a newer one's container. No order prevents it.
+
+So, **when versions run side by side, a component's migration must treat a database already migrated by a newer version of
+the same component as done**: change nothing and exit 0. Otherwise `up` stops at the older version's migration
+(`MIGRATION_FAILED`), and the migrations after it in the chain, and the services waiting for them, don't start.
+
+What that takes depends on how the migration records its state:
+
+- **It records each step it has applied, and applies only its own steps not yet recorded**: the steps a newer version
+  added are rows it simply doesn't look at. Nothing more to do.
+- **It records one current version**, as many migration tools do: some of them refuse a database at a version they have no
+  file for (golang-migrate: `no migration found for version N`). Before migrating, compare the database's version with
+  the newest one the component ships; when the database's is newer, say so in the log and exit 0.
 
 ## Data compatibility is the component author's business
 

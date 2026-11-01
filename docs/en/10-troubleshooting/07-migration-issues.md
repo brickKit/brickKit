@@ -80,13 +80,17 @@ the migration runs from source only when the component declares `local.migration
 repository follows the same rule rather than migrating from its image, and the note names the shell; see
 [Migrations and shells](../05-migration/04-shell-interaction.md#when-the-shell-runs-as-a-process-on-this-machine). See [When no migration container runs](../05-migration/01-migration-service.md#when-no-migration-container-runs) and [Local debugging problems](02-local-debug-issues.md#the-process-on-this-machine-reports-relation-does-not-exist).
 
-## Two versions of one component, migrations in the wrong order
+## Two versions of one component, the older version's migration fails
 
 **Symptom**
 
 Two versions of one component are in the project at once (the default version, and a compatibility version kept because
-another component still depends on it), and one version's migration fails over the table structure: a column already
-exists, a column doesn't exist, a constraint conflicts.
+another component still depends on it). The first `up` went fine; a later `up` stops with `MIGRATION_FAILED` at the older
+version's migration, and the newer version's migration stays `Created`. The older version's log says either:
+
+- it doesn't know the database's version: `no migration found for version 2` (golang-migrate) or the
+  like;
+- or the structure doesn't match: a column already exists, a column doesn't exist, a constraint conflicts.
 
 **Cause**
 
@@ -95,8 +99,10 @@ lower version's finishes before the higher version's starts, and they never chan
 [Migration order across versions](../05-migration/03-multi-version-chain.md)). But the order only governs "who runs first
 this time", not what the database already looks like:
 
-- The new version's migration already ran on some earlier `up`, and this time the lower version's migration runs again —
-  facing a structure the new version has changed.
+- Every version's migration runs on every `up`. From the second `up` on, the older version's migration faces a database
+  the newer version has already migrated — newer steps it has no file for, a structure the newer version changed. The
+  same happens the first time when the older version joins a project whose database a newer one already migrated, or
+  migrates from source after a newer version's container.
 - Both versions' migrations believe a table is theirs, and change each other's columns.
 
 **Fix**
@@ -104,17 +110,14 @@ this time", not what the database already looks like:
 This is the component author's business; the platform has no way to judge whether two versions' structures are
 compatible:
 
+- The migration treats a database already migrated by a newer version of the same component as done: it changes nothing
+  and exits 0. A migration that records one current version compares it with the newest version it ships first; one that
+  records each step applies only its own steps not yet recorded (see
+  [The older version's migration meets a newer database](../05-migration/03-multi-version-chain.md#the-older-versions-migration-meets-a-newer-database)).
 - Migrations only "add": add columns and tables, never delete or change structure the old version still uses; clean up
   once the old version has retired.
 - Every migration step is idempotent: check whether it was already done before doing it, rather than assuming the database
   is empty or stopped at the previous version.
-- The migration-record table records "steps", not "version numbers": when the lower version runs again, each of its steps
-  is already in the table, and nothing happens.
-
-When one of the versions migrates from source (`local.migrationCommand`) and a newer one in a container, `up` doesn't get
-that far: a migration from source runs after the containers, so they would run newest first, and `up` stops with
-`Error: the migration of … runs from source, after the containers, but the newer … migrates in a container first`.
-Don't run the newer version this time, or run the older one from its image.
 
 ## Several components share a database, and their migrations overwrite each other
 

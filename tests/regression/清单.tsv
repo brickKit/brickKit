@@ -63,7 +63,7 @@ R48	mode: local 的端口被别的程序占着：up 启动任何进程之前报 
 R49	mode: local 的组件写了 local.migrationCommand：up 在进程启动前从源码跑迁移，失败就不启动进程	.	./internal/cli	TestRunLocalComponentsDoesNotStartAfterAFailedMigration
 R50	本机进程组件没写 local.migrationCommand：迁移提醒不把镜像里的路径当成本机命令给出	.	./internal/cli	TestLocalMigrationNoteDoesNotOfferTheImagePath
 R51	外壳以本机进程运行、成员代码来自本地仓库：成员迁移在外壳启动前从源码跑（local.migrationCommand），不用成员镜像	.	./internal/cli	TestLocalShellRunsItsSourceMembersMigrationFirst
-R52	从源码跑的迁移会排在同组件更新版本的容器迁移之后时，up 在启动前报错，不从新往旧跑	.	./internal/compose	TestSourceMigrationMustNotRunAfterANewerContainerMigration
+R52	同组件旧版从源码迁移、新版在容器里迁移时，up 照常生成（旧版的迁移排在新版之后，与以后每次 up 一样）	.	./internal/compose	TestSourceMigrationMayRunAfterANewerContainerMigration
 R53	带着代码、有迁移却没写 local.migrationCommand 的组件：lint 警告从源码运行时迁移不会跑	.	./internal/cli	TestLintWarnsWhenACodeCarryingComponentHasNoMigrationFromSource
 R54	K8s 上调用外壳成员：注入的每个地址都有同名、开着那个端口的 Service（成员地址用成员自己的名字）	.	./internal/k8s	TestEveryInjectedAddressHasAServiceWithThatPort
 R55	Docker / Podman 下 replicas 大于 1 渲染成 compose 的 deploy.replicas，迁移容器仍只有一个；replicas 不再被报成"只对 K8s 生效"	.	./internal/compose	TestReplicasRenderAsComposeDeployReplicas

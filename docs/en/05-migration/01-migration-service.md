@@ -100,7 +100,9 @@ shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "wareho
 Fix it and `up` again: the migration container runs on every `up`. So **a migration must be idempotent** — running a
 change that was already made again does nothing. The usual way is a migration-record table noting which steps have run.
 When several components share one database, that table's primary key has to include a component identifier, or their
-records overwrite each other.
+records overwrite each other. When several versions of one component run side by side, an older version's migration
+also meets a database a newer version has migrated, and must treat that as done too (see
+[Migration order across versions](03-multi-version-chain.md#the-older-versions-migration-meets-a-newer-database)).
 
 ## When no migration container runs
 
@@ -166,6 +168,6 @@ How to run it from source is then in the component's `BRICKKIT.md`; if the compo
 
 **Its place in the order.** A migration from source runs after the engine has run the containers, so it isn't part of
 the [version chain](03-multi-version-chain.md). When a **newer** version of the same component migrates in a container
-this time, the two would run newest first; `up` stops before anything starts (`CONFIG_INVALID`), naming both versions —
-don't run the newer one this time, or run this one from its image. An older version in a container is fine: it runs
-first.
+this time, this one runs after it: it meets a database the newer version has migrated, as an older version's migration
+does on every later `up` anyway — and must treat that as done (see
+[The older version's migration meets a newer database](03-multi-version-chain.md#the-older-versions-migration-meets-a-newer-database)).

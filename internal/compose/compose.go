@@ -340,9 +340,6 @@ func newPlan(
 	sort.Slice(p.memberMigrations, func(i, j int) bool { return p.memberMigrations[i].Service < p.memberMigrations[j].Service })
 
 	p.chainMigrations()
-	if err := p.sourceMigrationOrder(); err != nil {
-		return nil, err
-	}
 
 	if err := p.checkExposePorts(); err != nil {
 		return nil, err
@@ -402,6 +399,11 @@ func newPlan(
 // 这条链只作用于**这一次 up**。两个人同时 `brickkit up` 打同一个开发库、
 // 或者 CI 与人撞上，平台一点办法没有——那要靠迁移工具自己的库级锁
 // （迁移工具自己要保证并发安全）。
+//
+// 由低到高也只在空库上决定库的样子：从第二次 up 起每个版本的迁移都再跑一遍，
+// 低版本的迁移面对的总是被高版本迁移过的库，组件必须把它当作已完成（文档的组件要求）。
+// 所以从源码跑的迁移（local.migrationCommand，引擎跑完容器之后才跑）进不了这条链也不拦：
+// 它排在同组件更高版本的容器迁移之后，与以后每次 up 的情形一样。
 func (p *plan) chainMigrations() {
 	// 按组件 ID 归集有迁移的版本
 	byID := map[string][]componentPlan{}

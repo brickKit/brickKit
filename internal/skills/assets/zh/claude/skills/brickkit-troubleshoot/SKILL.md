@@ -168,7 +168,7 @@ docker / podman 用就留着，否则删掉。
 | `COMPONENT_DISABLED` | 钉住要跑的组件（`enabled` / `local` / `debug`）有个强依赖写了 `disable` | 两个意图矛盾，去掉其中一个 |
 | `MANIFEST_INVALID` | 某个 `component.yaml` 不合法，报错点名字段。`release` 报的还可能是"Go 不会认……的 tag v…"——写了 `release.goModule`，`go.mod` 的模块路径缺了（或多了）`/v<主版本>` 后缀 | 由组件作者修（在组件仓库里 `brickkit lint`）；Go 的 tag 那条，改 `module` 行或者改版本 |
 | `PORT_CONFLICT` | `localPort` / `exposePort` 重复，或 `mode: local` 进程要用的端口被别的程序占着 | 换端口；只是你机器上的事就改在 `deploy.local.yaml` |
-| `MIGRATION_FAILED` | 迁移命令失败（或入口没拒绝写错的参数） | 看迁移容器的日志，修好重跑 |
+| `MIGRATION_FAILED` | 迁移命令失败（或入口没拒绝写错的参数；或两个版本并存时，旧版本的迁移不接受被新版本迁移过的库） | 看迁移容器的日志，修好重跑；旧版本的迁移要把更新的库当作已完成（以 0 退出） |
 | `MIGRATION_SKIPPED`（警告） | `mode: local` / `debug` 的组件——或从本地仓库编进这种外壳的成员——没有迁移容器，`up` 也不替它跑迁移 | 跑提示里给出的 `local.migrationCommand`；没给出的，组件该写一条 |
 | `ENGINE_MISSING` | `docker` / `podman` / `kubectl` 不在 `PATH` 上或没在运行；或者只装了 Podman，部署文件却写着 `target: docker` | 装上、启动；或改成 `target: podman` |
 | `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` 执行失败，组件起来了但不健康，或 `mode: local` 的进程崩了 | 报错里带着引擎自己的输出；再看组件日志。本地进程崩了：最后几行输出在崩溃摘要里，那里的退出码是启动的那条命令的——`go run` 一律是 1 |

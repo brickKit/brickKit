@@ -200,24 +200,25 @@ func TestDifferentComponentsMigrationsStayParallel(t *testing.T) {
 	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0-migration"), "depends_on")
 }
 
-// 从源码跑的迁移在引擎跑完容器之后才跑，进不了版本链：同一组件更高的版本这次在容器里迁移，
-// 顺序就反了——生成时就报错，不静默跑反。低版本在容器里不要紧：容器先跑，正是由低到高。
-func TestSourceMigrationMustNotRunAfterANewerContainerMigration(t *testing.T) {
-	build := func(local, container string) error {
+// 从源码跑的迁移在引擎跑完容器之后才跑，进不了版本链：同一组件更高的版本这次在容器里迁移时，
+// 低版本的源码迁移排在它之后。这与以后每次 up 一样（低版本的迁移总面对被高版本迁移过的库，
+// 组件要把它当作已完成），所以照常生成，不拦——本地调试旧版、新版在容器里是正当用法。
+func TestSourceMigrationMayRunAfterANewerContainerMigration(t *testing.T) {
+	build := func(local, container string) *compose.Result {
 		b := newBuilder(t)
 		src := withMigration(withDatabase(simple("demo/hello", local, 8080)))
 		src.Local = &manifest.Local{MigrationCommand: []string{"go", "run", ".", "migrate"}}
 		b.component(src, projecttest.Entry{Mode: deployfile.ModeLocal})
 		b.component(withMigration(withDatabase(simple("demo/hello", container, 8080))), projecttest.Entry{})
 		b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "demo/hello", container), projecttest.Entry{})
-		_, err := b.build(compose.Options{})
-		return err
+		res, err := b.build(compose.Options{})
+		require.NoError(t, err, "%s 从源码、%s 在容器里", local, container)
+		return res
 	}
 
-	err := build("1.0.0", "2.0.0")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "demo/hello@1.0.0")
-	assert.Contains(t, err.Error(), "demo/hello@2.0.0")
-
-	assert.NoError(t, build("2.0.0", "1.0.0"))
+	for _, c := range []struct{ local, container string }{{"1.0.0", "2.0.0"}, {"2.0.0", "1.0.0"}} {
+		res := build(c.local, c.container)
+		assert.Contains(t, string(res.YAML), "demo-hello-"+strings.ReplaceAll(c.container, ".", "-")+"-migration:",
+			"容器里那一版的迁移照常生成")
+	}
 }

@@ -108,7 +108,7 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/05-migration/README.md](docs/en/05-migration/README.md): module index
 - [docs/en/05-migration/01-migration-service.md](docs/en/05-migration/01-migration-service.md): the migration container — one-shot, what the main service waits for
 - [docs/en/05-migration/02-env-passthrough.md](docs/en/05-migration/02-env-passthrough.md): environment passthrough — the platform doesn't build connection strings
-- [docs/en/05-migration/03-multi-version-chain.md](docs/en/05-migration/03-multi-version-chain.md): migration order across versions — the chain, a compose example
+- [docs/en/05-migration/03-multi-version-chain.md](docs/en/05-migration/03-multi-version-chain.md): migration order across versions — the chain, a compose example, why an older version's migration must accept a database a newer one migrated
 - [docs/en/05-migration/04-shell-interaction.md](docs/en/05-migration/04-shell-interaction.md): migrations and shells — members' migrations run on their own
 
 ### 06-architecture/
