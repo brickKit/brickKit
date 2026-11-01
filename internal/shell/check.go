@@ -54,8 +54,7 @@ func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) er
 // 这次没被承载的成员不查（HostOf 为假）：裸进程成员在宿主机上自己跑、外壳没在跑、
 // --ignore-shells——外壳这次都不加载它，镜像里编进的是哪个版本与它无关。
 func checkMemberVersions(p *project.Project, graph *resolver.Graph, states *cascade.Result) error {
-	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberVersionsMismatch)).
-		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+	problems := memberVersionProblems(p)
 	for _, c := range p.Decl.Components {
 		if !c.IsShell() {
 			continue
@@ -65,34 +64,64 @@ func checkMemberVersions(p *project.Project, graph *resolver.Graph, states *casc
 		if node == nil || node.Manifest == nil {
 			continue
 		}
-		var contains, hosted, keepBoth []string
-		for _, written := range p.MembersOf(c.ID) {
-			id, version := written.Key()
-			if version == "" {
-				version, _ = p.Decl.DefaultVersion(id)
-			}
-			ref := resolver.Ref{ID: id, Version: version}
-			declared, ok := node.Manifest.HostedVersion(id)
-			if host, hostedNow := states.HostOf(p, ref); !ok || !hostedNow || host != shellRef || declared == version {
-				continue
-			}
-			compiled := resolver.Ref{ID: id, Version: declared}
-			l, _ := p.Deploy.EntryAt(id, version, p.Decl.IsDefault(id, version))
-			problems.Add(l.Field, i18n.T(msgid.ShellMemberVersionMismatch, shellRef.String(), compiled.String(), ref.String()))
-			contains = append(contains, ref.String())
-			hosted = append(hosted, id)
-			keepBoth = append(keepBoth, keepBothHint(p, c.ID, ref, compiled))
-		}
-		if len(hosted) == 0 {
-			continue
-		}
-		problems.WithHint(
-			i18n.T(msgid.ShellHintUpgradeShell, c.ID, strings.Join(contains, ", ")),
-			i18n.T(msgid.ShellHintMoveMemberOut, strings.Join(hosted, ", "), c.ID),
-		)
-		problems.WithHint(keepBoth...)
+		addMemberVersionProblems(problems, p, shellRef, node.Manifest, func(member resolver.Ref) bool {
+			host, hostedNow := states.HostOf(p, member)
+			return hostedNow && host == shellRef
+		})
 	}
 	return problems.Err()
+}
+
+// CheckMemberVersions 是 lint 做的同一项核对，只看声明、不看这次谁跑：部署文件写在外壳下、自己不以
+// 裸进程运行的成员，外壳一跑就由它承载。焦点、--ignore-shells、被关掉的外壳这类"这次"的情形不算——
+// 外壳迟早会跑，到那时一样对不上。only 非空时只报与这个组件有关的（它是这个外壳，或是对不上的成员）。
+func CheckMemberVersions(p *project.Project, shellRef resolver.Ref, m *manifest.Manifest, only string) error {
+	problems := memberVersionProblems(p)
+	addMemberVersionProblems(problems, p, shellRef, m, func(member resolver.Ref) bool {
+		if only != "" && only != shellRef.ID && only != member.ID {
+			return false
+		}
+		return !p.DeployEntry(member.ID, member.Version).IsBareProcess()
+	})
+	return problems.Err()
+}
+
+func memberVersionProblems(p *project.Project) *clierr.ProblemSet {
+	// clierr:nohint 公共壳子：addMemberVersionProblems 每记下一个外壳的问题，就接着补这个外壳的三条出路
+	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberVersionsMismatch)).
+		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+}
+
+// addMemberVersionProblems 把一个外壳承载的（hosted 说了算）、版本与它编进的不同的成员记进 problems，
+// 附上三条出路。
+func addMemberVersionProblems(problems *clierr.ProblemSet, p *project.Project, shellRef resolver.Ref,
+	m *manifest.Manifest, hosted func(member resolver.Ref) bool) {
+	var contains, members, keepBoth []string
+	for _, written := range p.MembersOf(shellRef.ID) {
+		id, version := written.Key()
+		if version == "" {
+			version, _ = p.Decl.DefaultVersion(id)
+		}
+		ref := resolver.Ref{ID: id, Version: version}
+		declared, ok := m.HostedVersion(id)
+		if !ok || declared == version || !hosted(ref) {
+			continue
+		}
+		compiled := resolver.Ref{ID: id, Version: declared}
+		l, _ := p.Deploy.EntryAt(id, version, p.Decl.IsDefault(id, version))
+		problems.Add(l.Field, i18n.T(msgid.ShellMemberVersionMismatch, shellRef.String(), compiled.String(), ref.String()))
+		contains = append(contains, ref.String())
+		members = append(members, id)
+		keepBoth = append(keepBoth, keepBothHint(p, shellRef.ID, ref, compiled))
+	}
+	if len(members) == 0 {
+		return
+	}
+	problems.WithHint(
+		i18n.T(msgid.ShellHintUpgradeShell, shellRef.ID, strings.Join(contains, ", ")),
+		i18n.T(msgid.ShellHintMoveMemberOut, strings.Join(members, ", "), shellRef.ID),
+	)
+	problems.WithHint(keepBoth...)
 }
 
 // keepBothHint 是第三条出路（两个版本都留）的具体改法：照着改完 up 就要能过。

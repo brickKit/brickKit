@@ -135,9 +135,9 @@ http://localhost:<member port>/<path>`) tells "the request never reached the she
 **Symptom**
 
 ```text
-❌ Error: the member versions this run hosts in a shell differ from the ones its component.yaml says are compiled in
+❌ Error: the member versions the deploy file puts in a shell differ from the ones its component.yaml says are compiled in
    File: deploy.yaml
-   components[0].members[0]: shell shop/shell@0.1.0 contains shop/stock@0.1.0, but this run hosts shop/stock@0.2.0
+   components[0].members[0]: shell shop/shell@0.1.0 contains shop/stock@0.1.0, but the deploy file puts shop/stock@0.2.0 in it
 ```
 
 **Cause**

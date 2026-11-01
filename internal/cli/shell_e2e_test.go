@@ -377,6 +377,33 @@ func TestShellMemberVersionMismatchEndToEnd(t *testing.T) {
 	}
 }
 
+// lint 离线做同一项核对：只在 pre-commit 或 CI 里跑 lint 的项目，不必等到部署才发现外壳编进的是另一个版本。
+// 点名成员（在成员目录里）也查；成员自己以裸进程运行时外壳不承载它，不报。
+func TestLintChecksShellMemberVersions(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	shellYAML := filepath.Join(dir, "shell", "erp", "shell", "component.yaml")
+	require.NoError(t, os.WriteFile(shellYAML, []byte(strings.Replace(readFile(t, shellYAML),
+		"erp/api@1.0.0", "erp/api@0.9.0", 1)), 0o644))
+
+	for _, args := range [][]string{{"lint"}, {"lint", "erp/api"}} {
+		r := runIn(t, dir, args...)
+		require.Equal(t, clierr.ExitError, r.code, "%v\n%s", args, r.stdout+r.stderr)
+		out := r.stdout + r.stderr
+		assert.Contains(t, out, i18n.T(msgid.ShellMemberVersionMismatch, "erp/shell@1.0.0", "erp/api@0.9.0", "erp/api@1.0.0"), args)
+		assert.Contains(t, out, i18n.T(msgid.ShellHintUpgradeShell, "erp/shell", "erp/api@1.0.0"), args)
+		assert.Contains(t, out, i18n.T(msgid.ShellHintMoveMemberOut, "erp/api", "erp/shell"), args)
+	}
+	assert.NotContains(t, runIn(t, dir, "lint", "erp/portal").stdout, "erp/api@0.9.0", "与外壳无关的组件不报")
+
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"      - id: erp/api\n", "      - id: erp/api\n        mode: debug\n        localPort: 18090\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".brickkit"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+	r := runIn(t, dir, "lint")
+	assert.NotContains(t, r.stdout+r.stderr, "erp/api@0.9.0", "成员以裸进程运行：外壳不承载它")
+}
+
 // 第三条出路走通：默认版本 1.1.0 在本地仓库、独立运行；外壳编进的 1.0.0 在
 // brickkit.yaml 里以 requiredBy 保留，外壳下写 erp/api@1.0.0。依赖 1.0.0 的 erp/portal
 // 拿到外壳地址，外壳 JSON 里是 1.0.0，两个版本的迁移按版本号串行。

@@ -30,7 +30,7 @@ In a project directory (with a `brickkit.yaml`), it checks in turn:
 | Whether the three layers agree | Exactly one deploy entry per component version; shell members nested under their shell; `config/` files matching components |
 | References in `config/` | Every `$var:` defined; no conflict blocks (duplicate keys) left by an upgrade |
 | Config against `configSchema` | Required items have values; written keys are in the schema (a mistyped key has no effect); shell members' values can go into the shell. For every component version whose `component.yaml` is on disk (in `.brickkit/manifests/` or a local source holding that version); the rest are listed in a note as not checked |
-| Shell declarations | `kind: shell` in `brickkit.yaml` agrees with the component's `shell` block; members nested under a shell are really compiled into it (likewise only where the `component.yaml` is on disk) |
+| Shell declarations | `kind: shell` in `brickkit.yaml` agrees with the component's `shell` block; members nested under a shell are really compiled into it, at the versions the project hosts (the same check as `up`'s; a member running as a process of its own isn't checked); likewise only where the `component.yaml` is on disk |
 | `component.yaml` files in local sources | Every one, added or not (`.archived/` excluded) |
 | Documents | The project's own documents (`./ (docs)`) and the docs of every component in a local source; see [Documentation checks](#documentation-checks) |
 

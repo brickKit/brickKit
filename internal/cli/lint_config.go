@@ -2,7 +2,7 @@ package cli
 
 // 本文件是 lint 的配置检查：必填项有没有值、configSchema 里没有的键、
 // --strict 下 ${VAR} 与 file:// 取不取得到、外壳成员的值能不能装进外壳的 JSON；
-// 以及外壳声明（kind: shell 与 shell 块一致、放进外壳的成员确实编进了它）。
+// 以及外壳声明（kind: shell 与 shell 块一致、放进外壳的成员确实编进了它、编进的正是项目承载的版本）。
 //
 // 仍然离线：每个组件版本的 configSchema 只从盘上读——permanent 缓存 .brickkit/manifests/
 // （git、market 组件 add 过就在那里），或者正好是这个版本的本地源目录。两处都没有的组件
@@ -82,7 +82,28 @@ func lintConfig(proj *project.Project, strict bool, only string) lintConfigResul
 	if err := inject.MissingRequiredError(proj, missing); err != nil {
 		res.errors = append(res.errors, err)
 	}
+	res.errors = append(res.errors, memberVersionErrors(proj, only)...)
 	return res
+}
+
+// memberVersionErrors 核对每个外壳编进的成员版本与项目承载的一致（与 up 同一条规则，见 shell.CheckMemberVersions）。
+// 在成员的目录里 lint 也查：升了成员、忘了换外壳，正是在那里改的。外壳的 Manifest 不在盘上时查不了，
+// 已经由配置检查记进 unchecked。
+func memberVersionErrors(proj *project.Project, only string) []*clierr.Error {
+	var out []*clierr.Error
+	for _, c := range proj.Decl.Components {
+		if !c.IsShell() {
+			continue
+		}
+		m, problem, found := diskManifest(proj, c.ID, c.Version)
+		if !found || problem != "" {
+			continue
+		}
+		if err := shell.CheckMemberVersions(proj, resolver.Ref{ID: c.ID, Version: c.Version}, m, only); err != nil {
+			out = append(out, clierr.As(err))
+		}
+	}
+	return out
 }
 
 // endpointRefErrors 核对这个组件配置里的每条 $endpoint: 引用（与 up 注入时同一条规则，见 inject.CheckEndpointRef）。

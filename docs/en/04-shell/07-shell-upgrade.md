@@ -133,9 +133,9 @@ Editing the deploy file by hand, you may have a shell host a version it doesn't 
 two `shop/stock` entries above:
 
 ```text
-❌ Error: the member versions this run hosts in a shell differ from the ones its component.yaml says are compiled in
+❌ Error: the member versions the deploy file puts in a shell differ from the ones its component.yaml says are compiled in
    File: deploy.yaml
-   components[0].members[0]: shell shop/shell@0.1.0 contains shop/stock@0.1.0, but this run hosts shop/stock@0.2.0
+   components[0].members[0]: shell shop/shell@0.1.0 contains shop/stock@0.1.0, but the deploy file puts shop/stock@0.2.0 in it
    Suggestions:
    1. Upgrade shop/shell to a version whose component.yaml lists shop/stock@0.2.0 under shell.members
    2. Move the entry of shop/stock out of the members of shop/shell to the top level of the deploy file, so it runs on its own
@@ -148,7 +148,9 @@ two `shop/stock` entries above:
 | Move the member out of the shell | It's fine not to merge this member for now |
 | Keep both versions | The old version keeps running in the shell, the new one runs on its own, until the shell catches up |
 
-The third one spells out exactly what to change; make those edits and `up` passes.
+The third one spells out exactly what to change; make those edits and `up` passes. `graph` stops with the same error,
+and `brickkit lint` reports it offline — a project that runs only `lint` before committing or in CI learns about it
+there, not at deployment.
 
 ## When the image and the declaration don't match
 
