@@ -22,6 +22,9 @@ type Compose struct {
 	base []string
 	// runner 执行命令，测试可替换。
 	runner func(ctx context.Context, name string, args ...string) ([]byte, error)
+	// quadlet 只在 Podman 上有：同一个项目在 Podman 上同一时刻只有一种形式（compose 或 Quadlet 单元），
+	// up 与 down 先把另一种卸掉——两种都留着，开机时 Quadlet 的单元会与 compose 的容器抢同一批端口。
+	quadlet *Quadlet
 }
 
 // NewDocker 返回 docker compose 引擎。
@@ -35,7 +38,7 @@ func NewDocker() *Compose {
 // 二进制，因此 Compose 结构体的其余行为（命令拼装、ps 输出解析、
 // stdout/stderr 处理）全部原样适用，只有 bin 不同。
 func NewPodman() *Compose {
-	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run}
+	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run, quadlet: NewQuadlet()}
 }
 
 func (c *Compose) Name() string { return c.name }
@@ -53,6 +56,9 @@ func (c *Compose) Name() string { return c.name }
 //
 // RunAfter 里的一次性 service 在 up 之后逐个跑，见 UpRequest.RunAfter。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
+	if err := c.removeQuadletUnits(ctx, req.Project, req.OnPrune); err != nil {
+		return err
+	}
 	if req.Network != "" {
 		if _, err := c.exec(ctx, "network", "inspect", req.Network); err != nil {
 			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.EngineNetworkMissing, req.Network)).
@@ -110,9 +116,35 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 // （compose 走标签，不读它）；项目已经空了再执行一次是 exit 0 + 一条警告；
 // 项目根本不存在同样是 exit 0。
 func (c *Compose) Down(ctx context.Context, req DownRequest) error {
+	if err := c.removeQuadletUnits(ctx, req.Project, nil); err != nil {
+		return err
+	}
 	args := append(append([]string{}, c.base...), "-p", req.Project, "down", "--remove-orphans")
 	_, err := c.exec(ctx, args...)
 	return err
+}
+
+// removeQuadletUnits 卸下这个项目以 Quadlet 单元部署的那一份（部署文件从 podman.units: quadlet 改回了 compose）。
+// 卸下的单元经 onPrune 报出。
+func (c *Compose) removeQuadletUnits(ctx context.Context, project string, onPrune func(string)) error {
+	if c.quadlet == nil {
+		return nil
+	}
+	files, err := c.quadlet.installed(c.quadlet.Dir(project))
+	if err != nil || len(files) == 0 {
+		return err
+	}
+	if err := c.quadlet.Down(ctx, DownRequest{Project: project}); err != nil {
+		return err
+	}
+	if onPrune != nil {
+		for _, name := range files {
+			if unit := UnitOf(name); unit != "" {
+				onPrune(unit)
+			}
+		}
+	}
+	return nil
 }
 
 // Status 返回该项目下所有 service 的状态。

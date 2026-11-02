@@ -29,6 +29,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/quadlet"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
@@ -91,8 +92,10 @@ type upPlan struct {
 	graph     *resolver.Graph
 	states    *cascade.Result
 	generated *compose.Result
-	// k8s 是 deploy.target: k8s 时的生成结果（与 generated 互斥）。
+	// k8s 是 deploy.target: k8s 时的生成结果（与 generated、quadlet 互斥）。
 	k8s *k8s.Result
+	// quadlet 是 podman.units: quadlet 时的生成结果（与 generated、k8s 互斥）。
+	quadlet *quadlet.Result
 	// kubeContext 是本次钉住的 kubeconfig 上下文（部署文件的 k8s.context）。
 	kubeContext string
 	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
@@ -165,8 +168,11 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if plan.k8s != nil {
 		return upK8s(ctx, opts, flags, plan)
 	}
+	if plan.quadlet != nil {
+		return upQuadlet(ctx, opts, flags, plan)
+	}
 
-	if err := pruneOtherTarget(plan.proj.Layout, false); err != nil {
+	if err := pruneOtherTarget(plan.proj.Layout, keepCompose); err != nil {
 		return err
 	}
 	path, err := writeGenerated(plan.proj.Layout, plan.generated.YAML)
@@ -544,6 +550,20 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 		return nil
 	}
 
+	if p.proj.Deploy.Quadlet() {
+		result, err := quadlet.Generate(p.proj, p.graph, p.states, env, quadlet.Options{
+			Root:    root,
+			Lookup:  envref.Lookup(root),
+			Rootful: quadletRootful(opts),
+		})
+		if err != nil {
+			return err
+		}
+		p.quadlet = result
+		renderWarnings(opts, result.Warnings)
+		return nil
+	}
+
 	result, err := compose.Generate(p.proj, p.graph, p.states, env, compose.Options{
 		Now:                 opts.Now,
 		Root:                root,
@@ -678,7 +698,7 @@ func failedMigration(
 		}
 		return clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
 			WithDetail(i18n.T(msgid.LabelComponent), ref.String()).
-			WithDetail(i18n.T(msgid.EngineLabelLogs), logsCommand(engineName(opts, plan.proj), project, s.Service)).
+			WithDetail(i18n.T(msgid.EngineLabelLogs), logsCommand(logsTarget(opts, plan.proj), project, s.Service)).
 			WithHint(i18n.T(msgid.CliUpMigrationBlocksMain), i18n.T(msgid.CliUpMigrationFixAndRerun)).
 			WithCause(cause)
 	}
@@ -718,8 +738,15 @@ func reportStarted(
 				i18n.T(msgid.CliUpViewTheEventsKubectlDescribe, plan.k8s.Namespace),
 			)
 		}
+		if plan.quadlet != nil {
+			project := engine.ProjectName(plan.proj.Decl.Project)
+			return err.WithHint(
+				i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(logsQuadlet, project, i18n.T(msgid.ServiceNamePlaceholder))),
+				i18n.T(msgid.CliUpQuadletFailedUnits, failedUnitsCommand(project)),
+			)
+		}
 		return err.WithHint(
-			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts, plan.proj),
+			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(logsTarget(opts, plan.proj),
 				engine.ProjectName(plan.proj.Decl.Project), i18n.T(msgid.ServiceNamePlaceholder))),
 			i18n.T(msgid.CliUpAFailedMigrationLeavesThe),
 		)
@@ -808,8 +835,14 @@ func renderNextSteps(opts *Options, plan *upPlan) {
 		opts.Printf("%s\n", i18n.T(msgid.CliUpViewThePodsKubectlGet, plan.k8s.Namespace))
 		return
 	}
+	if plan.quadlet != nil {
+		project := engine.ProjectName(plan.proj.Decl.Project)
+		opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogs, logsCommand(logsQuadlet, project, "")))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpQuadletViewUnits, unitsCommand(project)))
+		return
+	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts, plan.proj), engine.ProjectName(plan.proj.Decl.Project), "")))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(logsTarget(opts, plan.proj), engine.ProjectName(plan.proj.Decl.Project), "")))
 	for _, env := range plan.generated.LocalEnvFiles {
 		// mode: local 不提示"去 IDE 里加载"：它已经被 runLocalComponents 启动了，
 		// 提示 mode: debug 那句话对它是假的（见 writeLocalEnvFiles 的同一处说明）。
@@ -1029,11 +1062,13 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 	return engine.Detect()
 }
 
-// engineName 是生成部署文件时记录的引擎名——注入的引擎优先，否则按生效的
-// 部署文件的 target 推断（podman 也写在那里，见 up_k8s.go 的
-// resolveEngineFor）。生成文件与"引擎可不可用"是两回事：--dry-run 在没装
-// Docker/Podman 的机器上也该能跑。
-func engineName(opts *Options, proj *project.Project) string {
+// logsTarget 决定看日志的命令怎么写（logsCommand）：Quadlet 单元的日志在 journald 里；否则是引擎名——
+// 注入的引擎优先，再按生效的部署文件的 target 推断（podman 也写在那里，见 up_k8s.go 的 resolveEngineFor）。
+// 不去探测引擎：--dry-run 在没装 Docker/Podman 的机器上也该能跑。
+func logsTarget(opts *Options, proj *project.Project) string {
+	if proj != nil && proj.Deploy.Quadlet() {
+		return logsQuadlet
+	}
 	if opts.Engine != nil {
 		return opts.Engine.Name()
 	}
@@ -1140,20 +1175,43 @@ func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
 	return nil
 }
 
-// pruneOtherTarget 删掉另一种部署目标上一次留下的生成物：生成目录只属于这一次的目标。
+// generatedKind 是生成目录里的一种生成物：compose（compose.yaml 与它的 env 文件、本机进程的 env 文件）、
+// k8s（清单目录）、quadlet（单元目录）。以文件交付的配置项（secrets/）compose 与 Quadlet 共用。
+type generatedKind int
+
+const (
+	keepCompose generatedKind = iota
+	keepK8s
+	keepQuadlet
+)
+
+// pruneOtherTarget 删掉另外两种生成物上一次留下的东西：生成目录只属于这一次的目标。
 // 从 docker 切到 k8s 时，0600 的 env 文件与调试文件里有密钥与 file:// 的内容；
 // 从 k8s 切回来时，k8s/secrets/ 里有明文的 Secret 清单。换了目标还留着它们，
 // 就是一份没人再用、也没人记得去删的密钥副本。compose.yaml 不含密钥，但它引用的 env 文件
-// 已经删了，一并收走，免得有人对着一份过期的文件手动 docker compose up。
-func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
-	if !k8sTarget {
-		return os.RemoveAll(filepath.Join(layout.GeneratedDir(), k8sDirName))
+// 已经删了，一并收走，免得有人对着一份过期的文件手动 docker compose up。Quadlet 的单元目录同理：
+// 那里不含密钥（密钥在 Podman secret 里），但留着就是一份看起来像是在用的部署。
+func pruneOtherTarget(layout project.Layout, keep generatedKind) error {
+	if keep != keepK8s {
+		if err := os.RemoveAll(filepath.Join(layout.GeneratedDir(), k8sDirName)); err != nil {
+			return err
+		}
+	}
+	if keep != keepQuadlet {
+		if err := os.RemoveAll(filepath.Join(layout.GeneratedDir(), quadletDirName)); err != nil {
+			return err
+		}
+	}
+	if keep == keepCompose {
+		return nil
 	}
 	if err := os.RemoveAll(filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(machine.SecretFilesPath(layout)); err != nil {
-		return err
+	if keep == keepK8s {
+		if err := os.RemoveAll(machine.SecretFilesPath(layout)); err != nil {
+			return err
+		}
 	}
 	if err := os.Remove(filepath.Join(layout.GeneratedDir(), composeFileName)); err != nil && !os.IsNotExist(err) {
 		return err

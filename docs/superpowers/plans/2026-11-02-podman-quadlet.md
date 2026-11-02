@@ -119,7 +119,7 @@
 | 3 | 完成：新包 `internal/machine`（计划、本机进程、外壳、文件交付、配额、变量去处判定、启动等待、健康检查规格），compose 只剩渲染；209 个 compose 测试场景的全部生成物重构前后逐字节相同（临时路径归一化后），`make test-all` 通过。顺带去掉了不起作用的 `compose.Options.Engine`。注意到但没动：11 个文件原本就没有 gofmt；`AGENTS.zh-CN.md` 是旧版中文入口 |
 | 4 | 完成：`internal/quadlet` 渲染单元文件、副本的模板与实例链接、Podman secret、迁移与组件单元名；15 个测试覆盖设计 §4–§5 的组合。AI 定的（待复核）：单元不写生成时间（引擎靠内容比较判断要不要重启）；启动时限 = startPeriod + 30 秒 + 30 秒余量，没有健康检查 90 秒；requests 的 CPU 不生成参数（与 compose 一样只是记录） |
 | 5 | 完成：`engine.Quadlet`（`UpRequest.Quadlet`），安装目录 `<Quadlet 目录>/brickkit-<项目>/` 是部署记录；Podman 5.3 起；secret 经标准输入建；迁移先跑、变了的组件 restart、其余 start；不再生成的单元先停再删；`down` 删网络与 secret；`status` 按 `PODMAN_SYSTEMD_UNIT` 标签找容器、另列失败的单元。10 个替身测试。待 Task 7 真跑核实：`PODMAN_SYSTEMD_UNIT` 标签、`secret create --replace` 与 `secret rm` 在容器用着时的行为、未加载单元的 `stop` |
-| 6 | 未开始 |
+| 6 | 完成：`up`（含 `--dry-run`，单元写进 `.brickkit/generated/quadlet/`）、`down`、`status` 经 `resolveEngineFor` 走 Quadlet 引擎；compose ↔ Quadlet 的互相卸下放在引擎里（Quadlet 删 compose 容器、Podman 的 compose 引擎卸单元），不在 CLI；`pruneOtherTarget` 认三种生成物（secrets/ compose 与 Quadlet 共用）；日志提示指向 journald，失败提示给 `systemctl --failed`；R100–R107。`lint` 不用改（装载时就校验） |
 | 7 | 未开始 |
 | 8 | 未开始 |
 | 9 | 未开始 |

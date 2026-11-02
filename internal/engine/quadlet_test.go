@@ -234,7 +234,41 @@ func TestQuadletDown(t *testing.T) {
 
 	rec.calls = nil
 	require.NoError(t, q.Down(context.Background(), DownRequest{Project: "brickkit-shop"}))
-	assert.Empty(t, rec.calls)
+	assert.Equal(t, []string{"podman ps -a --filter label=com.docker.compose.project=brickkit-shop --format {{.Names}}"}, rec.calls,
+		"没装过单元：只查一遍 compose 留下的容器")
+}
+
+// 部署文件从 compose 改成了 Quadlet：up 先删掉这个项目由 compose 建的容器（按 compose 的项目标签，不要 docker-compose），
+// 并报出来——两种都留着会抢同一批端口。
+func TestQuadletUpRemovesComposeContainers(t *testing.T) {
+	rec := newQuadletRecorder()
+	rec.output["label=com.docker.compose.project=brickkit-shop"] = "brickkit-shop-api-1-0-0-1\n"
+	q := quadletWith(t, rec, false)
+	var pruned []string
+	require.NoError(t, q.Up(context.Background(), UpRequest{
+		Project: "brickkit-shop", Quadlet: units(), OnPrune: func(s string) { pruned = append(pruned, s) },
+	}))
+	assert.True(t, rec.called("podman rm -f brickkit-shop-api-1-0-0-1"))
+	assert.Equal(t, []string{"brickkit-shop-api-1-0-0-1"}, pruned)
+}
+
+// 反过来：从 Quadlet 改回 compose，Podman 的 compose 引擎在 up 之前把这个项目的单元卸下并报出来。
+func TestPodmanComposeUpRemovesQuadletUnits(t *testing.T) {
+	qrec := newQuadletRecorder()
+	q := quadletWith(t, qrec, false)
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
+
+	c := podmanWith(newRecorder())
+	c.quadlet = q
+	qrec.calls = nil
+	var pruned []string
+	require.NoError(t, c.Up(context.Background(), UpRequest{
+		File: "compose.yaml", Project: "brickkit-shop", OnPrune: func(s string) { pruned = append(pruned, s) },
+	}))
+	assert.True(t, qrec.called("systemctl --user stop"))
+	assert.Contains(t, pruned, "brickkit-shop-api-1-0-0.service")
+	_, err := os.Stat(q.Dir("brickkit-shop"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 // status：按单元找容器，按 brickkit.io/service 归并副本（取最差的），健康取自 Status 的括号；

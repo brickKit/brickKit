@@ -29,7 +29,7 @@ const k8sDirName = "k8s"
 
 // upK8s 生成 K8s 清单并交给集群。
 func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) error {
-	if err := pruneOtherTarget(plan.proj.Layout, true); err != nil {
+	if err := pruneOtherTarget(plan.proj.Layout, keepK8s); err != nil {
 		return err
 	}
 	dir := filepath.Join(plan.proj.Layout.GeneratedDir(), k8sDirName)
@@ -179,6 +179,10 @@ func resolveEngineFor(opts *Options, proj *project.Project) (engine.Engine, erro
 	if proj != nil && proj.Deploy.Target == deployfile.TargetPodman {
 		if opts.Engine != nil {
 			return opts.Engine, nil
+		}
+		// podman.units: quadlet 是显式写的：单元交给 systemd，不走 podman compose
+		if proj.Deploy.Quadlet() {
+			return engine.NewQuadlet(), nil
 		}
 		return engine.NewPodman(), nil
 	}

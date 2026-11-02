@@ -107,6 +107,9 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	if err := q.checkVersion(ctx); err != nil {
 		return err
 	}
+	if err := q.removeComposeContainers(ctx, req.Project, req.OnPrune); err != nil {
+		return err
+	}
 	if req.Network != "" {
 		if _, err := q.podman(ctx, nil, "network", "exists", req.Network); err != nil {
 			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.EngineNetworkMissing, req.Network)).
@@ -254,6 +257,9 @@ func UnitOf(file string) string {
 
 // Down 停掉并卸下本项目的全部单元，删掉它的网络与 secret。不删数据卷（BrickKit 本来就不建卷）。
 func (q *Quadlet) Down(ctx context.Context, req DownRequest) error {
+	if err := q.removeComposeContainers(ctx, req.Project, nil); err != nil {
+		return err
+	}
 	dir := q.Dir(req.Project)
 	files, err := q.installed(dir)
 	if err != nil {
@@ -297,6 +303,30 @@ func (q *Quadlet) Down(ctx context.Context, req DownRequest) error {
 		}
 	}
 	return q.pruneSecrets(ctx, req.Project, nil)
+}
+
+// removeComposeContainers 删掉这个项目由 compose 建的容器（部署文件从 compose 改成了 podman.units: quadlet）：
+// 两种都留着，Quadlet 的单元会与它们抢同一批端口。按 compose 写在容器上的项目标签认，直接用 podman，
+// 不要 docker-compose——Quadlet 的机器上未必装了它。项目网络与 Quadlet 的同名，留给 Quadlet 接着用。
+// 删掉的容器经 onPrune 报出。
+func (q *Quadlet) removeComposeContainers(ctx context.Context, project string, onPrune func(string)) error {
+	out, err := q.podman(ctx, nil, "ps", "-a", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.Names}}")
+	if err != nil {
+		return err
+	}
+	names := strings.Fields(string(out))
+	if len(names) == 0 {
+		return nil
+	}
+	if _, err := q.podman(ctx, nil, append([]string{"rm", "-f"}, names...)...); err != nil {
+		return err
+	}
+	if onPrune != nil {
+		for _, name := range names {
+			onPrune(name)
+		}
+	}
+	return nil
 }
 
 // networkNameIn 读 .network 单元里的 NetworkName=。

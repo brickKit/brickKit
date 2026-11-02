@@ -111,3 +111,11 @@ R96	容器崩溃后由引擎拉起、开机时再启动：docker 生成 restart:
 R97	所有 Podman 调用以 "failed to reexec: Permission denied" 失败时（AppArmor 不让 Podman 建用户命名空间），报错带一条指向排障页的提示；别的 Permission denied 不带	.	./internal/engine	TestPodmanUserNamespaceBlockedByAppArmorGetsAHint
 R98	podman.units: quadlet 与 k8s 一样是活得比 up 长的部署：写了 mode: local / debug 的条目（含外壳）与 focus 在装载时就被拒绝、指出字段；podman.units 只认 compose 与 quadlet	.	./internal/deployfile	TestValidateRejects
 R99	podman: 块写在 target: podman 以外时不起作用：警告并点名写了的键，不按 Quadlet 部署	.	./internal/deployfile	TestPodmanBlockIgnoredOnOtherTargets
+R100	podman.units: quadlet：每个组件、每个迁移一个 .container，项目网络一个 .network；别的组件按服务名找到它；单元不写生成时间（两次生成逐字节相同）	.	./internal/quadlet	TestComponentUnit
+R101	Quadlet：迁移先单独跑完，任何一个失败就报 MIGRATION_FAILED、点名单元与日志命令，组件一个都不重启（旧版本照跑）	.	./internal/engine	TestQuadletMigrationFailureTouchesNoComponent
+R102	Quadlet：密钥、file://、${VAR} 模板与带换行的值在生成时求值、进 Podman secret，单元文件里只有引用	.	./internal/quadlet	TestSecretsGoToPodmanSecrets
+R103	Quadlet：写进单元的值按 systemd 转义（$ 与 % 双写、引号与反斜杠），容器拿到的与配置逐字节相同	.	./internal/quadlet	TestInlineValuesAreEscapedForSystemd
+R104	Quadlet：再 up 一次只重启单元内容变了的组件（模板变了重启它的每个实例），其余只 start	.	./internal/engine	TestQuadletRestartsOnlyWhatChanged
+R105	部署文件从 compose 改成 Quadlet：up 先删掉这个项目由 compose 建的容器并报出来；改回 compose 时 Podman 的 compose 引擎先卸下单元	.	./internal/engine	TestQuadletUpRemovesComposeContainers
+R106	Podman 低于 5.3 时 podman.units: quadlet 的 up 报出现有版本与要的版本，什么都不装	.	./internal/engine	TestQuadletRefusesOldPodman
+R107	Quadlet 迁移失败时，up 的报错点名是哪个组件的迁移（引擎只认得单元名）	.	./internal/cli	TestUpQuadletMigrationFailureNamesTheComponent

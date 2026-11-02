@@ -185,6 +185,18 @@ func (p *liveProject) debugRefs() []resolver.Ref {
 // （实测 v5.3.1：删掉部署文件后 `-p X logs <服务>` 照常输出，且没有变量警告）。
 // 去掉 `-f`，`--project-directory` 也就一起没了，两个坑同时消失。
 func logsCommand(engineName, project, service string) string {
+	if engineName == logsQuadlet {
+		// 单元的日志在 journald 里（LogDriver=journald）。服务名后面接 *：多副本时是 <单元>@<n>，
+		// 迁移单元是 <单元>-migration，看一个组件时它们都该在
+		pattern := project + "-*"
+		if service != "" {
+			pattern = project + "-" + service + "*"
+		}
+		if quadletRootful(nil) {
+			return fmt.Sprintf("journalctl -u '%s'", pattern)
+		}
+		return fmt.Sprintf("journalctl --user -u '%s'", pattern)
+	}
 	if engineName == engine.K8s {
 		target := "deployment/" + service
 		if service == "" || service == i18n.T(msgid.ServiceNamePlaceholder) {
