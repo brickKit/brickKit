@@ -45,6 +45,8 @@ type Spec struct {
 	Project string
 	Target  string
 	K8s     *deployfile.K8s
+	// Podman 写部署文件的 podman: 块（podman.units）。
+	Podman *deployfile.Podman
 	// Network 写部署文件的 network:（项目自己提供的网络）。
 	Network string
 	Entries []Entry
@@ -82,7 +84,7 @@ func Render(t testing.TB, spec Spec) Files {
 		spec.Target = deployfile.TargetDocker
 	}
 	decl := projfile.File{Project: spec.Project}
-	deploy := deployfile.File{Target: spec.Target, K8s: spec.K8s, Network: spec.Network}
+	deploy := deployfile.File{Target: spec.Target, K8s: spec.K8s, Podman: spec.Podman, Network: spec.Network}
 	files := Files{}
 	hasDebug := false
 	// 成员条目嵌在外壳条目下面，一律写 id@version

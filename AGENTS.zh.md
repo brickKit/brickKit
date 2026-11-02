@@ -231,6 +231,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/shell/` | 外壳分组与成员的 JSON 配置 |
 | `internal/machine/` | 一台机器上的部署计划，几个渲染器共用：哪些组件进容器、哪些是本机进程，外壳承载，迁移链，启动等待，宿主机端口与改写后的地址，以文件交付的配置项 |
 | `internal/compose/` | 把这份计划给 docker / podman 渲染成 `compose.yaml` |
+| `internal/quadlet/` | 把这份计划渲染成 Podman 的 Quadlet 单元（`podman.units: quadlet`）：每个组件、每个迁移一个 `.container`，项目的 `.network`，要建的 Podman secret |
 | `internal/k8s/` | 渲染 Kubernetes 清单 |
 | `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
 | `internal/docspec/` | 组件与项目文档规范本身（写成数据）：文件、小节、各语言的标题、译本的文件名 |

@@ -236,6 +236,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/shell/` | Shell grouping and the members' JSON config |
 | `internal/machine/` | The plan for one machine, shared by its renderers: which components run in containers and which as processes, shell hosting, the migration chain, start waits, host ports and rewritten addresses, values delivered as files |
 | `internal/compose/` | Rendering that plan as `compose.yaml` for docker / podman |
+| `internal/quadlet/` | Rendering that plan as Podman Quadlet units (`podman.units: quadlet`): one `.container` per component and per migration, the project's `.network`, the Podman secrets |
 | `internal/k8s/` | Rendering Kubernetes manifests |
 | `internal/deploy/` | Naming rules and file headers shared by both targets |
 | `internal/docspec/` | The component and project documentation spec as data: files, sections, heading names per language, translation names |
