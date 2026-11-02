@@ -15,7 +15,9 @@ shape is decided.
 | Show it or try it on a machine without a container engine | Every component `mode: local` — a demo or a trial, never a delivery |
 
 Whichever of these, the topology is decided separately: start with every component standalone, move components into
-shells when the memory really doesn't add up, and expect to end up mixed.
+shells when their memory or CPU really doesn't add up, and expect to end up mixed. In one measured project, shells cut
+the components' memory by about a third and their CPU by 14–28%, while the whole stack's memory hardly moved — the
+saving is largest for components on heavy runtimes ([measured](#measured-what-each-shape-costs)).
 
 **Containers are the main line.** The engine restarts a crashed container and starts it again at boot, and the image
 pins the runtime the component was tested with. **Processes on this machine are the convenient alternative**: they need
@@ -33,6 +35,102 @@ container engine is no burden; so the cases left for processes are development, 
 
 The first two are independent axes: any topology runs on any target, and switching either is switching one deploy
 file, without a word of `config/` changing. [The matrix](#the-matrix-topology--where-it-runs) lists their six cells.
+What each choice costs in CPU and memory is measured in the next section.
+
+## Measured: what each shape costs
+
+The numbers below come from one project that ran every shape on one machine. They are a reference for the size of
+the differences, not a prediction for your project: measure your own before you size a machine.
+
+**What was measured**
+
+| | |
+| --- | --- |
+| Machine | Intel i5-12450H (12 threads), 14 GiB, NVMe, Linux 7.0, performance power mode |
+| Components | 12: 11 in Go, 1 in Python (printing); one business chain from quotation to invoice and print |
+| Topologies | **All standalone**: 12 processes. **All in shells**: 3 shells — security and master data (7 members), trading (4), printing (1). **Mixed**: only the first shell (7 members), the other 5 standalone |
+| Infrastructure | PostgreSQL 16, NATS JetStream, an object store, an identity provider — on every row in Docker on the same machine |
+| Data and load | 2 companies, 2,000 products, 500 customers, 20,000 historical orders; an open-loop mixed load of 7 requests a second (lists, quotations, confirmations, deliveries, invoices), 15 minutes after a 5-minute warm-up |
+| Versions | Podman 5.7.0 (rootless), Docker 29.9.2, minikube v1.38.1 (Kubernetes v1.35.1, one node), BrickKit v1.10 |
+
+**How to read the numbers**
+
+- **Components** are the component processes (or shells) alone; **the whole stack** adds the infrastructure and the
+  platform (the container engine, the cluster, or the launcher of processes on this machine). On the Podman,
+  Kubernetes and processes rows it also counts the Docker that served the infrastructure.
+- Memory is the working set without page cache, under the load; CPU is CPU seconds per 1,000 requests (lower is
+  better) — 100 CPU seconds per 1,000 requests at 7 requests a second is 0.7 cores.
+- Each cell was measured once. Comparisons are made only within one batch of measurements: different batches differed by
+  up to about 8% overall, so compare across a row, not down a column. Differences under 10% count as no difference.
+
+### All standalone, all in shells, mixed: the components
+
+| Where it runs | Memory: standalone → shells / mixed | CPU per 1,000 requests: standalone → shells / mixed |
+| --- | --- | --- |
+| Docker | 383 → 243 MiB (−37%) / 290 MiB (−24%) | 36.5 → 28.3 s (−22%) / 32.3 s (−12%) |
+| Rootless Podman | 377 → 244 MiB (−35%) / 288 MiB (−24%) | 35.4 → 25.5 s (−28%) / 29.8 s (−16%) |
+| Kubernetes, one node | 354 → 245 MiB (−31%) / 291 MiB (−18%) | 34.3 → 29.4 s (−14%) / 31.5 s (−8%, no difference) |
+| Processes on this machine (`mode: local`) | 370 → 234 MiB (−37%) / 281 MiB (−24%) | 31.2 → 26.4 s (−15%) / 29.2 s (−6%, no difference) |
+
+On every shape, all in shells cut the components' memory by about a third and their CPU by 14–28%; mixed saved about
+two thirds of that memory and half of that CPU. Latency didn't change: p95 was 49.6–54.2 ms in every cell.
+
+### All standalone, all in shells, mixed: the whole stack
+
+| Where it runs | Memory: standalone / shells / mixed | CPU per 1,000 requests: standalone / shells / mixed |
+| --- | --- | --- |
+| Docker | 1.97 / 2.04 / 1.88 GiB | 101.2 / 88.2 (−13%) / 94.0 s (−7%) |
+| Rootless Podman | 1.37 / 1.36 / 1.29 GiB | 106.8 / 94.2 (−12%) / 96.5 s (−10%) |
+| Kubernetes, one node | 2.38 / 2.46 / 2.36 GiB | 109.3 / 103.2 (−6%) / 105.4 s (−4%) |
+| Processes on this machine | 1.43 / 1.43 / 1.32 GiB | 101.9 / 97.8 (−4%) / 101.6 s (0%) |
+
+The whole stack's memory hardly moved with the topology (between −8% and +4%), and its CPU fell by at most 13%. Each
+row is its own batch, so don't compare rows here — the engines are compared [further down](#the-engines-the-platforms-own-cost).
+
+### Why the components save and the whole stack doesn't
+
+- **What a process costs on its own.** Idle, a Go component took 29 MiB and 0.012 cores, a Python one 101 MiB and
+  0.017 cores; each member a shell hosts adds only 1–2 MiB and about 0.01 cores (its background polling). Merging saves
+  the runtime once per process removed — so components on a heavy runtime (Python here; JVM, typically hundreds of MB,
+  wasn't measured) save far more per merge than Go ones.
+- **The infrastructure is the largest part.** The four infrastructure services alone took 0.64–1.15 GiB without page
+  cache, more than all the components; the topology doesn't change them.
+- **A shell's database connections are bigger.** One connection of a shell serves several members and keeps caches for
+  each of them: 10.1 MiB of private memory per connection against 4.2 MiB standalone. Connections went from 102 to 63,
+  yet PostgreSQL grew by about 210 MiB — cancelling the about 130 MiB the components saved (Docker batch). The shells'
+  pool limits and connection lifetimes could be tuned further; that wasn't measured.
+
+So shells reliably save CPU and processes — and with them start-up time, logs and things to restart. Whether they save
+memory depends on the runtime and the database: with mostly Go components on one database, it was a wash. Measure your
+own before merging for memory.
+
+### The engines: the platform's own cost
+
+All standalone, one batch (Kubernetes re-measured in a second batch with Docker as its reference):
+
+| | Components | The platform's own memory | The platform's CPU per 1,000 requests | Whole-stack CPU against Docker |
+| --- | --- | --- | --- | --- |
+| Docker | 378 MiB, 35.6 s | 548 MiB (dockerd, containerd, shims, port proxies) | 14.7 s | — |
+| Rootless Podman | 377 MiB, 35.4 s | 135 MiB (`conmon` per container, `pasta`): 55 MiB with the 3 shells | 16.0 s | +6% (no difference) |
+| Kubernetes, one node | 354 MiB, 34.3 s | about 2 GiB (control plane and kubelet; 0.75 GiB without page cache) and about 0.25 GiB of published-port proxies | 14.8 s | +8% (no difference) |
+| Processes on this machine | 370 MiB, 31.2 s | 435 MiB (`go run` beside each process): 116 MiB with the 3 shells | 0.5 s | +1% (no difference) |
+
+- The components cost the same on every engine; the difference is the platform's memory. Running everything on rootless
+  Podman instead of Docker saves that difference once per machine — about 0.4 GiB here (Docker's daemon grew to about
+  0.7 GiB in another batch, after a day of image builds).
+- Rootless Podman's user-space networking costs CPU: Podman's own share was 13.1 CPU seconds per 1,000 requests rootless
+  and 2.9 rootful; rootful Podman used 9–10% less CPU across the whole stack (another batch), at the price of a root
+  engine.
+- Processes on this machine reached the infrastructure through Docker's published ports, so Docker's port proxy carried
+  that traffic once more: 20.5 CPU seconds per 1,000 requests, the largest platform cost of that row.
+- **A few processes on this machine, the rest in containers** (a later batch, after a change in the components that cut
+  every cell by about 17%): against all-in-containers in the same batch, no difference (+2% with Docker, +4% with
+  Podman); shells saved the same there — components −20% CPU and −35–36% memory, the whole stack −8 to −10%.
+
+**Sizing.** Doubling the load (7 → 14 requests a second) added 50–56% to the cores of the components and the database,
+with no rise in latency; doubling the data added 10–15% to the database. The whole stack in containers ran unchanged
+under a 4 GiB and a 6 GiB memory limit — only page cache gave way. Not measured: the load ceiling, more components on
+one machine, several machines, high availability, multi-node Kubernetes, components on other runtimes.
 
 ## Decision one: where the containers run
 
@@ -52,22 +150,10 @@ same on both. What differs is the engine on the host:
 | **Docker** | The Docker daemon (`dockerd`, `containerd`), as root | The most widespread, the most surrounding tooling; setting it up is installing it | The daemon's resident memory | Machines that already run Docker; tools that only speak Docker |
 | **Rootful Podman** | Podman as root; the kernel carries the network | No user-space networking | The engine runs as root; next to Docker on one machine, containers can't reach each other until Podman's bridges are let through (see [the troubleshooting section](../10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out)) | When the networking CPU matters and root is acceptable |
 
-**What one project measured.** One machine (Intel i5-12450H, 14 GiB, Linux); 12 components (11 Go, 1 Python) and 3
-shells, with PostgreSQL, NATS, object storage and an identity provider; a mixed load of 7 requests a second; Podman
-5.7.0, Docker 29.9.2, a single-node minikube v1.38.1.
-
-| | Rootless Podman | Docker | Kubernetes, single node |
-| --- | --- | --- | --- |
-| The platform's own resident memory | about 0.14 GiB | about 0.55–0.7 GiB (the daemon) | about 2 GiB (control plane and kubelet) |
-| CPU of the whole stack | no difference from Docker (6% more, within the noise) | — | about 8% more (within the noise) |
-| Latency | no difference | — | no difference |
-
-- The engine's or the cluster's own cost is paid once per machine, whatever the components do, so it weighs most on a
-  small machine: on this stack (about 1.4 GiB in all on Podman) the Docker daemon's half GiB was about a third of the
-  total.
-- Rootful Podman used 9–10% less CPU across the stack than rootless: that is the user-space networking.
-- These are one project's numbers on one machine; the components' own memory and CPU were the same on every engine.
-  Measure your own stack before sizing a machine.
+**What the measurement says** ([the engines](#the-engines-the-platforms-own-cost)): the components cost the same on every
+engine, and the whole stack's CPU didn't differ; what differs is the platform's own memory, paid once per machine —
+about 0.14 GiB for rootless Podman against about 0.55 GiB for Docker's daemon, about 2 GiB for a one-node cluster. It
+weighs most on a small machine. Rootful Podman saves the user-space networking's CPU (9–10% of the whole stack).
 
 ### Setting up a host for rootless Podman
 
@@ -93,8 +179,8 @@ and the Compose binary hasn't been verified end to end.
 
 For a cluster you already have, or when you need self-healing and scaling across machines. What it costs:
 
-- **The cluster's own resources.** On one node, the control plane and kubelet are a fixed cost (about 2 GiB in the
-  measurement above): a single-node cluster for a small project mostly buys that cost.
+- **The cluster's own resources.** On one node, the control plane and kubelet are a fixed cost (about 2 GiB in
+  [the measurement](#the-engines-the-platforms-own-cost)): a single-node cluster for a small project mostly buys that cost.
 - **Operations.** It needs real cluster administration, and the machine running `up` needs `kubectl` and a context that
   reaches the cluster (`k8s.context`).
 - **A crash.** The Pod is restarted and ready again within a few seconds; requests sent to it meanwhile wait or fail.
@@ -145,11 +231,11 @@ first: give the expensive components a lighter runtime (compiling JVM components
 memory floor from hundreds of MB to tens, with the deployment shape unchanged); check whether the components driving the
 number up could be `mode: disable` this time anyway.
 
-**What merging saved in one project** (the measurement above): with every component in shells, the components used
-14–28% less CPU and 32–37% less memory on every engine, with no difference in latency, and the platform's cost fell with
-the number of containers. The memory of the whole stack didn't necessarily fall: one database connection of a shell keeps
-caches for each of its members, and PostgreSQL grew by about 210 MiB, cancelling what the components saved. Merging
-reliably saves CPU and containers; measure the memory.
+**What merging saves** ([measured](#all-standalone-all-in-shells-mixed-the-components)): about a third of the components'
+memory and 14–28% of their CPU, with no difference in latency; the whole stack's memory hardly moved, because the
+infrastructure is the largest part and a shell's database connections are bigger
+([why](#why-the-components-save-and-the-whole-stack-doesnt)). Merging reliably saves CPU and processes; for memory,
+it pays most with heavy runtimes.
 
 ## The matrix: topology × where it runs
 
@@ -294,10 +380,9 @@ What they have in common, against containers:
   no long-running process (see [`mode`](../01-three-layers/03-deploy-yaml.md#mode-whether-it-runs-and-how)).
 - **The runtime is the machine's.** The process runs on the toolchain installed here, not one pinned by an image, so two
   machines can run a component on two versions of its language. Its source has to be on the machine.
-- **What they cost.** In the project measured above, every component as a process used the same CPU as Docker. For a Go
-  component the start command is `go run`, which stays resident beside the program it built (about 0.4 GiB for 12
-  processes, 116 MiB once merged into 3 shells). Mixed with containers, the processes reach the containers through host
-  ports, so the engine's port forwarding carries that traffic once more — a few percent of CPU.
+- **What they cost** ([measured](#the-engines-the-platforms-own-cost)): the same CPU as containers. For a Go component
+  the start command is `go run`, which stays resident beside the program it built; mixed with containers, the
+  processes reach the containers through host ports, so the engine's port forwarding carries that traffic once more.
 
 ### Containers plus a few processes
 

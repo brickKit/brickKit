@@ -17,4 +17,4 @@ For developers who have already run a project with BrickKit and are starting to 
 | [Test types and scenario acceptance](03-test-types-and-acceptance.md) | Look up conditions, minimum outcomes and tiers; specific criteria for contention, recovery, shell equivalence, upgrades and real assembly |
 | [Seed data](04-seed-data.md) | Two paths for demo data and test data; why to isolate them physically; why seed mechanisms must never reach production |
 | [Calling dependencies reliably](05-service-calling.md) | What Go / Python / Node clients each do when a dependency's container is replaced; how to set timeouts and retries |
-| [Choosing a deployment shape](06-deployment-selection.md) | Containers on rootless Podman, Docker or K8s as the main line, × standalone / shell / mixed; processes on this machine for development and demos; coming back after a reboot |
+| [Choosing a deployment shape](06-deployment-selection.md) | Containers on rootless Podman, Docker or K8s as the main line, × standalone / shell / mixed, with the measured CPU and memory of each; processes on this machine for development and demos; coming back after a reboot |

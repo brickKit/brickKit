@@ -196,7 +196,7 @@ that would break the file is refused before anything is written.
 **13. What keeps running is containers; processes on this machine don't.**
 
 Choose the target by where the deployment must keep running. One machine (a delivery, a small
-production): `target: podman` with rootless Podman is the recommendation — no root daemon, about half a
+production): `target: podman` with rootless Podman is the recommendation — no root daemon, about 0.4
 GiB less resident memory than Docker's daemon, the same CPU; `target: docker` is equally supported, for a
 machine that already runs Docker or tools that only speak Docker. A cluster, or self-healing and scaling
 across machines: `target: k8s` (on one node its control plane is a fixed cost of about 2 GiB). Coming

@@ -176,7 +176,7 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 **15. 长期运行的是容器；本机进程不是。**
 
 按部署要在哪里长期运行来选 target。一台机器（一次交付、小规模生产）：推荐 `target: podman`，用无根 Podman——
-没有 root 守护进程，常驻内存比 Docker 的守护进程少约半个 GiB，CPU 一样；`target: docker` 同等支持，给已经在跑
+没有 root 守护进程，常驻内存比 Docker 的守护进程少约 0.4 GiB，CPU 一样；`target: docker` 同等支持，给已经在跑
 Docker 的机器、或只认 Docker 的周边工具。集群，或者要自愈、跨机器扩容：`target: k8s`（单节点时控制面是约 2 GiB
 的固定开销）。重启机器之后回来是引擎的事，要把引擎设好：Docker 服务开机启动；无根 Podman 要
 `sudo loginctl enable-linger <用户>` 与 `systemctl --user enable podman-restart.service`（`up` 本身还要 `podman.socket`）。
