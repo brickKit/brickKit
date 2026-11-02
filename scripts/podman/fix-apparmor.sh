@@ -11,8 +11,9 @@
 #   * This DELETES all of your existing Podman containers, images and
 #     volumes (rm -rf ~/.local/share/containers). It resets Podman, it does
 #     not patch around your current data.
-#   * It needs sudo, and it purges + reinstalls the `podman` and
-#     `apparmor-utils` packages via apt.
+#   * It needs sudo, and it purges + reinstalls the `podman` package via apt.
+#   * It edits two AppArmor files: it restores /etc/apparmor.d/podman when
+#     missing, and adds one signal rule to /etc/apparmor.d/usr.bin.pasta.
 #   * Verified on Ubuntu/Debian (apt-based systems) only.
 #   * It does NOT touch Docker, /etc/docker or /etc/cni — only Podman's own
 #     footprint.
@@ -34,15 +35,15 @@ pkill -x -9 slirp4netns || true
 # This wipes all existing rootless Podman containers/images/volumes.
 rm -rf ~/.local/share/containers ~/.config/containers ~/.cache/containers
 
-sudo apt purge -y podman podman-docker apparmor-utils
+sudo apt purge -y podman podman-docker
 sudo apt autoremove -y
 
 # Only Podman's own config — deliberately not /etc/cni or /etc/docker.
 sudo rm -rf /etc/containers
 
-echo "🚀 Step 2: Installing Podman and apparmor-utils..."
+echo "🚀 Step 2: Installing Podman..."
 sudo apt update
-sudo apt install -y podman apparmor-utils
+sudo apt install -y podman
 
 # --- Keep the podman AppArmor profile ---------------------------------------
 # The apparmor package ships /etc/apparmor.d/podman: `flags=(unconfined)` with
@@ -88,23 +89,33 @@ echo "🔌 Step 5: Enabling the Podman API socket..."
 # directory", before anything AppArmor-related even comes into play.
 systemctl --user enable --now podman.socket
 
-echo "🛡️ Step 6: Fixing AppArmor's signal block on pasta (complain mode)..."
+echo "🛡️ Step 6: Letting pasta receive podman's SIGTERM..."
 
-# aa-complain is the standard Ubuntu/Debian tool for switching one profile
-# into complain mode (log violations, don't enforce them) — safer and less
-# error-prone than hand-editing the profile file (it's easy to edit the
-# wrong one: `passt` and `pasta` are two distinct binaries in the same
-# package with near-identical names and separate profiles).
+# When the last container on a bridge network goes, rootless Podman sends
+# pasta (the helper carrying that network) SIGTERM. pasta's AppArmor profile,
+# as the passt package ships it, doesn't allow receiving a signal from the
+# `podman` profile, so the teardown fails with "rootless netns: kill network
+# process: permission denied". One rule fixes exactly that:
 #
-# This is the step that fixes the teardown: verified with the podman profile
-# above in place (Ubuntu 26.04, Podman 5.7.0), containers are removed cleanly.
+#   signal (receive) set=(term) peer=podman,
 #
-# Trade-off worth knowing: this removes AppArmor's enforcement for the
-# `pasta` process specifically — nothing else on the system is affected,
-# but `pasta` itself is no longer confined, only monitored.
-sudo aa-complain /usr/bin/pasta 2>/dev/null \
-  || sudo aa-complain pasta 2>/dev/null \
-  || echo "ℹ️  pasta's profile isn't loaded yet — run this step again after your first 'podman run'."
+# Verified on Ubuntu 26.04 (Podman 5.7.0, passt 0.0~git20260120): with the
+# shipped profile the teardown fails and the kernel logs the denied signal;
+# with this rule added it succeeds, and pasta stays enforced. The profile has
+# no local include, so the rule goes into the packaged file — a later passt
+# upgrade asks whether to keep it. Edit pasta's profile, not passt's: they are
+# two binaries in the same package with near-identical names. An earlier
+# version of this script put pasta into complain mode instead; that flag is
+# removed here, so the profile is enforced again.
+PASTA=/etc/apparmor.d/usr.bin.pasta
+if [[ -f "$PASTA" ]]; then
+  sudo sed -E -i '/^profile pasta /{s/, ?complain//;s/flags=\(complain, ?/flags=(/;s/ flags=\(complain\)//}' "$PASTA"
+  grep -q 'signal (receive) set=(term) peer=podman' "$PASTA" \
+    || sudo sed -i '/^profile pasta .*{$/a\  signal (receive) set=(term) peer=podman,' "$PASTA"
+  sudo apparmor_parser -r "$PASTA"
+else
+  echo "ℹ️  No pasta AppArmor profile on this system; nothing to change."
+fi
 
 echo "✅ Done. Podman has been reset to a clean, working state."
 echo "   Verify with: scripts/podman/check-environment.sh"

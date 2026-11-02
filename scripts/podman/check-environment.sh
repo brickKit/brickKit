@@ -191,15 +191,42 @@ fi
 # Reading config files can't tell you whether the AppArmor denial actually
 # fires — it depends on the loaded kernel policy, not just what's on disk.
 # The only reliable check is to actually create and tear down a container.
+# Rootless Podman tears its shared network down — sending pasta SIGTERM — only
+# when the last container on a bridge network leaves (its ref-count drops to
+# 0). While the count is above 0, removing one container doesn't get there and
+# would pass for the wrong reason; a count left over from an earlier failed
+# teardown, with no container running, does the same. Run as the user's
+# systemd runs podman (the boot unit, ssh), not as this terminal: a snap's
+# AppArmor profile would change what is being checked.
 echo
 echo "Running a real create+remove cycle to check teardown reliability..."
 
-if ! podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/null 2>&1; then
+in_user_systemd() {
+  if [[ $EUID -ne 0 ]] && command -v systemd-run >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    systemd-run --user --wait --pipe --quiet "$@"
+  else
+    "$@"
+  fi
+}
+
+refs=0
+if [[ $EUID -ne 0 ]]; then
+  refs="$(cat "/run/user/$(id -u)/containers/networks/rootless-netns/ref-count" 2>/dev/null || echo 0)"
+fi
+if [[ "$refs" =~ ^[0-9]+$ ]] && (( refs > 0 )); then
+  running="$(podman ps -q | wc -l)"
+  warn "Rootless Podman's shared network is still held (ref-count $refs, $running running containers):"
+  warn "removing a test container wouldn't reach the network teardown, so it can't be checked now."
+  if (( running == 0 )); then
+    echo "  The count is left over from an earlier teardown that failed. Reset it (nothing is running), or reboot:"
+    echo "    printf 0 > /run/user/$(id -u)/containers/networks/rootless-netns/ref-count"
+  else
+    echo "  Rerun with no containers running."
+  fi
+elif ! in_user_systemd podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/null 2>&1; then
   fail "Could not even start a test container — investigate 'podman run' directly."
   exit 2
-fi
-
-if podman rm -f "$NAME" >"$LOG" 2>&1; then
+elif in_user_systemd podman rm -f "$NAME" >"$LOG" 2>&1; then
   pass "Container removed cleanly. This machine does not show the AppArmor teardown issue."
   echo "You don't need scripts/podman/fix-apparmor.sh."
 else
@@ -210,8 +237,10 @@ else
   if grep -qi "rootless netns" "$LOG"; then
     fail "This matches the known AppArmor/pasta signal issue."
     echo
-    echo "Next step: read docs/en/10-troubleshooting/01-up-down-issues.md"
-    echo "and consider running scripts/podman/fix-apparmor.sh (review it first — it's destructive)."
+    echo "Let pasta receive podman's SIGTERM (one rule in pasta's profile), then load it:"
+    echo "  sudo sed -i '/^profile pasta .*{\$/a\\  signal (receive) set=(term) peer=podman,' /etc/apparmor.d/usr.bin.pasta"
+    echo "  sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta"
+    echo "Details: docs/en/10-troubleshooting/01-up-down-issues.md (scripts/podman/fix-apparmor.sh does it as part of a full reset)."
   else
     warn "This doesn't match the known signature (no 'rootless netns' in the error)."
     echo "This looks like a different problem — the fix script below is unlikely to help."

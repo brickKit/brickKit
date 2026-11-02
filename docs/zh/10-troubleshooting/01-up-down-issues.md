@@ -335,28 +335,34 @@ BrickKit 认出这个特征，会在报错的建议里加一句：
 
 **原因**
 
-无根 Podman 靠 `pasta` 给容器接网络。停止容器时，Podman 要给 `pasta` 发一个 `SIGTERM`，让它把网络拆干净。
-Ubuntu / Debian 默认的 AppArmor 策略拦下了这个信号。这是发行版打包安全策略时的缺口，Podman 上游有完全相同的报告
+无根 Podman 用一个共享的 `pasta` 进程给桥接网络上的容器接网络。这些容器里最后一个离开时，Podman 给 `pasta` 发一个 `SIGTERM`，让它把网络拆掉。
+`pasta` 跑在 passt 包带的 AppArmor 配置下（`/etc/apparmor.d/usr.bin.pasta`），这份配置不允许接收来自 `podman` 配置的信号，内核就拒绝了——内核日志里是
+`apparmor="DENIED" operation="signal" ... profile="pasta" ... signal=term peer="podman"`。这是发行版打包安全策略时的缺口，Podman 上游有完全相同的报告
 （[containers/podman#27372](https://github.com/containers/podman/issues/27372)），Debian 也追查过同一个报错
 （[Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)）。
 
-**先确认自己是否受影响**：以普通用户跑 `scripts/podman/check-environment.sh`（见 [上面](#podman先跑一遍环境检查)），它会实际删一次测试容器。
+**先确认自己是否受影响**：以普通用户跑 `scripts/podman/check-environment.sh`（见 [上面](#podman先跑一遍环境检查)），它会实际删一次测试容器。没有容器在跑时它能走到拆网络那一步；
+有容器占着共享网络——或者之前一次失败的拆卸留下的计数说有——时，它会说现在查不了，以及怎样清掉。
 
 **修复**
 
+给 pasta 的配置加一条规则——允许接收来自 `podman` 的 `SIGTERM`——再加载它：
+
 ```bash
-scripts/podman/fix-apparmor.sh
+sudo sed -i '/^profile pasta .*{$/a\  signal (receive) set=(term) peer=podman,' /etc/apparmor.d/usr.bin.pasta
+sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta
 ```
 
-**跑之前先读一遍脚本——它是破坏性的。** 它把 Podman 重置成干净状态：删除你已有的 Podman 容器、镜像、卷，用 apt 重装 `podman` 与 `apparmor-utils`，
-重新生成基础配置。需要 `sudo`，只在 Ubuntu / Debian 上验证过，不碰 Docker。解决这个信号问题的是：
+在 Ubuntu 26.04（Podman 5.7.0、passt 0.0~git20260120）上验证过，删的是桥接网络上的最后一个容器：配置保持原样时，拆卸以上面的报错失败，内核记下被拒的信号；
+加了这条规则后成功，`pasta` 仍处于 enforce。这份配置没有本地 include，所以规则只能写进包里的文件：以后升级 passt 时会问你保留哪一版。
+改的是 `usr.bin.pasta`，不是 `usr.bin.passt`——同一个包里名字几乎一样的两个程序。不要为这个删掉 `podman` 的 AppArmor 配置（`/etc/apparmor.d/podman`）：
+它与这个信号无关，而且在 Ubuntu 23.10 起正是它让 Podman 能建用户命名空间（见[下一节](#podman-报-failed-to-reexec-permission-denied)）。
 
-- **把 `pasta` 切成 complain 模式**（`aa-complain /usr/bin/pasta`）：AppArmor 对这一个进程只记录、不拦截。系统其它部分不受影响；
-  代价是这一个进程从此只被监控、不再被限制。在 Ubuntu 26.04、Podman 5.7.0 上验证过：下面那份 `podman` 配置在的情况下，容器能干净地删掉。
-- **保留 apparmor 包自带的 `podman` AppArmor 配置**（`/etc/apparmor.d/podman`）。它什么都不限制，但在 Ubuntu 23.10 起正是它让无根 Podman 能建用户命名空间，
-  所以脚本在它缺了时把它恢复。脚本的早先版本删掉了它，结果 Podman 在开机时、ssh 里、普通终端里都会失败（见[下一节](#podman-报-failed-to-reexec-permission-denied)）。
+把 `pasta` 切成 complain 模式（`aa-complain /usr/bin/pasta`）也能让拆卸成功，但 pasta 配置里的其余限制也一起不再执行；`fix-apparmor.sh` 的早先版本就是这样做的，现在的版本会把它切回 enforce。
 
-脚本还顺手处理了三件与这个信号无关、但同样会让 `up` 失败或卡住的事：给 `registries.conf` 配上默认的镜像仓库（否则拉 `alpine:3` 这种不带仓库前缀的镜像会失败，
+**Podman 还有别的问题时**，`scripts/podman/fix-apparmor.sh` 在一次完整的重置里做同样的事。**跑之前先读一遍——它是破坏性的**：删除你已有的 Podman 容器、镜像、卷，
+用 apt 重装 `podman`，重新生成基础配置。需要 `sudo`，只在 Ubuntu / Debian 上验证过，不碰 Docker。除了上面那条规则，它还在 `podman` 配置缺了时把它恢复，
+并处理三件与这个信号无关、但同样会让 `up` 失败或卡住的事：给 `registries.conf` 配上默认的镜像仓库（否则拉 `alpine:3` 这种不带仓库前缀的镜像会失败，
 或者弹出交互式选择，把非交互的 `up` 卡住）；设置 `policy.json`（否则 Podman 拒绝拉任何镜像）；启用无根的 `podman.socket`
 （见 [上面](#up-在-podman-上失败failed-to-connect-to-the-docker-api)）。
 
