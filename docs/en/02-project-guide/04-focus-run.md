@@ -171,7 +171,8 @@ refuses it without changing any file.
 ```
 
 A focus run needs a process on your machine that the other components reach, so it works with `target: docker` and
-`podman`. With `target: k8s`, nothing is written and `up` stops:
+`podman` (with Podman, compose: `podman.units` left out). With `target: k8s` or `podman.units: quadlet`, nothing is
+written and `up` stops — for Quadlet units saying that systemd keeps them running past any `up`. The k8s case:
 
 ```text
 ❌ Error: deploy.local.yaml failed validation

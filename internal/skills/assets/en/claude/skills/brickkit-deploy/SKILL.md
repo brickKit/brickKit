@@ -185,8 +185,8 @@ nothing is verified, whatever `requireSignature` says.
 
 **12. `focus:` is the personal "run just this one" switch.**
 
-`focus: <id>` exists only in `deploy.local.yaml` (`deploy.yaml` rejects it, and so does
-`target: k8s`). While it is set, `up` starts only that component — from its local source, as if it
+`focus: <id>` exists only in `deploy.local.yaml` (`deploy.yaml` rejects it, and so do
+`target: k8s` and `podman.units: quadlet`). While it is set, `up` starts only that component — from its local source, as if it
 were `mode: local` (a `mode: debug` you wrote is kept) — and what it needs; pinned components
 (`enabled` / `local` / `debug`) still start. `brickkit up` in a component's directory or
 `up --focus <id>` writes it (turning local mode on if needed), `up --all` removes it; `-f` and
@@ -195,35 +195,56 @@ that would break the file is refused before anything is written.
 
 **13. What keeps running is containers; processes on this machine don't.**
 
-Choose the target by where the deployment must keep running. One machine (a delivery, a small
-production): `target: podman`, rootful when the engine may run as root on that host, rootless when it
-may not; `target: docker` is equally supported, for a machine that already runs Docker or tools that
-only speak Docker. Rootful Podman comes back at boot with one system unit and uses the kernel's
-networking (9–10% less CPU than rootless); rootless never runs the engine as root but needs several host
-settings, each failing silently until the next reboot, and uses about 0.4 GiB less memory than
-Docker's daemon (rootful wasn't measured for memory). A cluster, or self-healing and scaling across machines: `target: k8s` (on one node its
-control plane is a fixed cost of about 2 GiB). Coming back after a reboot is the engine's job and needs
-the engine set up for it: the Docker service enabled; for rootful Podman, `sudo systemctl enable
-podman-restart.service`, and next to Docker a one-shot unit putting the `DOCKER-USER` rules for
-`podman+` back after Docker starts (without them containers can't reach each other); for rootless
-Podman, `sudo loginctl enable-linger <user>`, `systemctl --user enable
-podman-restart.service` with a drop-in making it wait for `podman-user-wait-network-online.service`, on
-Ubuntu 23.10+ the apparmor package's `/etc/apparmor.d/podman` profile (without it Podman fails at boot
-and over ssh with `failed to reexec: Permission denied`); `RequiresMountsFor` on the boot unit
-(rootless: `user@<uid>.service`) when Podman's storage is on a `nofail` disk; plus `podman.socket` for
-`up` itself (rootful: a `SocketGroup=` and `CONTAINER_HOST` to run `brickkit` without sudo). With a root
-engine, images must run as a non-root `USER`. `scripts/podman/check-environment.sh` checks the boot
-settings (run it as the deploying user: root for rootful); the steps are in
-`brickkit docs 09-patterns/06-deployment-selection`. BrickKit generates `restart: always` on
-Podman, because Podman's boot unit starts only that policy; at boot the engine ignores the start order,
-so components must retry their connections. `mode: local` / `debug` are for development, demos and
-trials — every component `mode: local` runs without any engine, but stops with the `up` session and
-never comes back after a reboot. Never propose them as a delivery.
+Choose where the deployment must keep running:
+
+- One machine (a delivery, a small production): `target: podman` with `podman.units: quadlet` —
+  rootful when the engine may run as root on that host, rootless when it may not. `target: docker` is
+  equally supported, for a machine that already runs Docker or tools that only speak Docker.
+- A cluster, or self-healing and scaling across machines: `target: k8s` (on one node its control plane
+  is a fixed cost of about 2 GiB).
+
+Rootful Podman uses the kernel's networking (9–10% less CPU than rootless); rootless never runs the
+engine as root but needs host settings that each fail silently until the next reboot, and uses about
+0.4 GiB less memory than Docker's daemon (rootful wasn't measured for memory). With a root engine,
+images must run as a non-root `USER`.
+
+`podman.units: quadlet` hands systemd one unit per component and per migration (Podman 5.3+): each
+starts at boot by itself, waits for the network, runs its migration first and starts after the
+components it needs are healthy; unhealthy is killed and restarted (unless the component declares a
+separate `readinessCheck`); a failed migration leaves every component on its previous version; logs
+are in journald (`journalctl [--user] -u 'brickkit-<project>-*'`); secrets, `file://` contents,
+`${VAR}` templates and multi-line values are evaluated at `up` into Podman secrets. Rootful needs
+`sudo brickkit up`. It refuses `mode: local` / `debug` and `focus` — a development machine leaves
+`podman.units` out and gets compose (`podman compose`, Docker's `docker-compose`, `podman.socket`).
+Switching `podman.units` and running `up` removes what the other way left.
+
+Coming back after a reboot is the engine's job and needs the engine set up for it:
+
+- Docker: the Docker service enabled.
+- Podman, either way: next to Docker, rootful, a one-shot unit putting the `DOCKER-USER` rules for
+  `podman+` back after Docker starts (without them containers can't reach each other; Quadlet units order
+  after it by themselves); rootless, `sudo loginctl enable-linger <user>` and, on Ubuntu 23.10+, the
+  apparmor package's `/etc/apparmor.d/podman` profile (without it Podman fails at boot and over ssh with
+  `failed to reexec: Permission denied`); storage on a `nofail` disk mounted in time (`RequiresMountsFor`
+  on `user@<uid>.service` rootless; rootful, on `podman-restart.service` for compose or in the prefix
+  drop-in `/etc/systemd/system/brickkit-.service.d/` for Quadlet units).
+- Podman with compose only: `podman-restart.service` enabled (BrickKit generates `restart: always`
+  because that unit starts only that policy); rootless, a drop-in making it want and follow
+  `podman-user-wait-network-online.service`; `podman.socket` for `up` itself (rootful: a `SocketGroup=`
+  and `CONTAINER_HOST` to run `brickkit` without sudo). At boot it ignores the start order and doesn't
+  rerun migrations, so components must retry their connections — they should anyway.
+
+`scripts/podman/check-environment.sh [--units quadlet]` checks these (run it as the deploying user: root
+for rootful); the steps are in `brickkit docs 09-patterns/06-deployment-selection`. `mode: local` /
+`debug` are for development, demos and trials — every component `mode: local` runs without any engine,
+but stops with the `up` session and never comes back after a reboot. Never propose them as a delivery.
 
 ## How the mechanism works
 
 **Targets**: `target: docker | podman | k8s` in the deploy file. Podman runs the same generated
-compose file through `podman compose`. K8s settings live in the `k8s:` block (`context`, `namespace`,
+compose file through `podman compose`, or, with `podman.units: quadlet`, systemd units generated into
+`.brickkit/generated/quadlet/` and installed under `~/.config/containers/systemd/brickkit-<project>/`
+(rootful: `/etc/containers/systemd/`); the `podman:` block warns on other targets. K8s settings live in the `k8s:` block (`context`, `namespace`,
 `createNamespace`, `podSecurity`, `imagePullSecrets`, `ingressClass`, `ingressAnnotations`,
 `serviceAccount`, `networkPolicy`) and warn on other targets; per-entry `hostname`, `tlsSecret` and
 `serviceAccountName` are K8s only; `exposePort` and `skipWaitFor` are docker / podman only.

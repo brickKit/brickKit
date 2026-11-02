@@ -116,6 +116,7 @@ if bus is None:
 | --- | --- | --- |
 | Docker / Podman 的普通值 | 原样写进 `compose.yaml`，`docker compose` 启动时展开；CLI 生成时核对它有定义，没有就停下 | CLI 读出内容，按密钥写进 0600 的 env 文件 |
 | Docker / Podman 的密钥（`secret: true`） | 原样写进 0600 的 env 文件，`docker compose` 启动时展开；同样先核对有定义 | 同上 |
+| Podman 加 `podman.units: quadlet` | CLI 在 `up` 时展开（systemd 开机时重新创建容器，没有 shell 的环境），值变成 Podman secret；取不到就停下 | CLI 读出内容放进 Podman secret |
 | Kubernetes | CLI 生成清单时展开（`kubectl` 不做替换）；取不到就停下 | CLI 读出内容 |
 | 外壳的 `BRICKKIT_SERVED_MEMBERS_CONFIG` | CLI 生成时展开并做 JSON 编码；取不到就停下 | CLI 读出内容并做 JSON 编码 |
 | `mode: local` 进程的环境 | CLI 启动进程前展开；取不到就拒绝启动 | CLI 读出内容 |
@@ -124,7 +125,8 @@ if bus is None:
 外壳的 JSON 必须提前求值：`docker compose` 的替换是不懂 JSON 的纯文本替换，一个带引号或换行的值替换进去，JSON 就坏了
 （见 [特殊字符](../04-shell/06-special-characters.md)）。Kubernetes 必须提前求值：`kubectl` 根本不做替换。
 
-密钥在哪一种情况下都不会明文出现在 `compose.yaml` 或 Deployment 里：Docker 下它在 0600 的 env 文件里，Kubernetes 下它在生成的 Secret 里，
+密钥在哪一种情况下都不会明文出现在 `compose.yaml`、Quadlet 单元或 Deployment 里：Docker 下它在 0600 的 env 文件里，Quadlet 单元时在 Podman secret 里，
+Kubernetes 下它在生成的 Secret 里，
 Deployment 用 `secretKeyRef` 引用（见 [敏感值](../01-three-layers/07-sensitive-values.md)）。
 
 ## 迁移容器与本机进程拿到的是同一份

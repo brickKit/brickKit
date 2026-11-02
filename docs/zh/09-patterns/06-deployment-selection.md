@@ -7,7 +7,7 @@
 
 | 你要 | 就这样跑 |
 | --- | --- |
-| 在一台机器上长期运行：一次交付、一个小规模的生产 | 容器，用 Podman：引擎可以以 root 运行就用**有根**，不可以就用**无根**；Docker 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具 |
+| 在一台机器上长期运行：一次交付、一个小规模的生产 | 容器，用 Podman 的 systemd 单元（`podman.units: quadlet`）：引擎可以以 root 运行就用**有根**，不可以就用**无根**；Docker 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具 |
 | 长期运行，还要自愈、跨机器扩容，或者已经有集群 | 容器，用 Kubernetes |
 | 改一两个组件，对着真实的其余部分 | 容器，这几个组件以本机进程运行（`mode: debug` / `mode: local`） |
 | 在一台没有容器引擎的机器上演示或试用 | 每个组件都 `mode: local`——只用于演示、试用，不用于交付 |
@@ -20,7 +20,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 ## 三个决定
 
-1. **容器在哪跑**——部署文件里的 `target: podman`、`docker` 或 `k8s`。
+1. **容器在哪跑**——部署文件里的 `target: podman`、`docker` 或 `k8s`（用 Podman 时还有 `podman.units`：systemd 单元还是 compose）。
 2. **拓扑**——组件最终收拢成几个容器：全部独立、全部进外壳，还是混搭。
 3. **这一次要不要让几个组件以本机进程运行**——开发时的叠加手段；所有组件都这样时，就是不用容器的演示。放在最后讲：[主线之外](#主线之外本机进程)。
 
@@ -101,40 +101,77 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 ## 决定一：容器在哪跑
 
-这几乎完全是基础设施问题，不是性能问题：你有没有 Kubernetes 集群、需不需要跨机器调度和自愈？没有的话，一台机器用 `podman compose` 或 `docker compose`
-驱动一切，运维最简单。有的话，`k8s` 生成 Deployment / Service / Ingress。
+这几乎完全是基础设施问题，不是性能问题：你有没有 Kubernetes 集群、需不需要跨机器调度和自愈？没有的话，一台机器用 Podman 或 Docker 驱动一切，运维最简单。
+有的话，`k8s` 生成 Deployment / Service / Ingress。
 
 ### 一台机器：Podman（有根或无根），或 Docker
 
-`target: podman` 与 `target: docker` 生成的是同一份 `compose.yaml`——唯一的不同是重启策略（见[重启机器之后](#重启机器之后)）——每个 `brickkit` 命令在两者上用法也一样。
 不同的是主机上的引擎：
 
 | 引擎 | 主机上跑着什么 | 好处 | 代价 | 适合 |
 | --- | --- | --- | --- | --- |
-| **有根 Podman**（引擎可以以 root 运行时推荐） | Podman 以 root 运行，没有守护进程：每个容器一个小的看护进程（`conmon`）；容器的网络由内核转发 | 开机回来只要一个系统单元；没有用户态转发（整套的 CPU 比无根少 9–10%）；任何端口都能发布 | 引擎以 root 运行，和 Docker 一样：一个进程逃出容器就是主机上的 root，除非镜像以非 root 用户运行；与 Docker 同机时，要在 Docker 的防火墙链里放行 Podman 的网桥（[见下](#为有根-podman-准备主机)） | 接受 root 的单机交付 |
-| **无根 Podman**（不可以时推荐） | Podman 以部署的那个用户运行：每个容器一个 `conmon`；容器的网络由用户态的辅助进程（`pasta`）转发 | 引擎从不以 root 运行；常驻内存最少 | 用户态转发网络要花 CPU；开机回来要做好几项主机设置，每一项缺了都要等到下次重启才暴露（[见下](#为无根-podman-准备主机)）；1024 以下的端口不能直接发布 | 不允许引擎以 root 运行的主机 |
+| **有根 Podman**（引擎可以以 root 运行时推荐） | Podman 以 root 运行，没有守护进程：每个容器一个小的看护进程（`conmon`）；容器的网络由内核转发 | 开机回来不用 systemd 以外的东西；没有用户态转发（整套的 CPU 比无根少 9–10%）；任何端口都能发布 | 引擎以 root 运行，和 Docker 一样：一个进程逃出容器就是主机上的 root，除非镜像以非 root 用户运行；与 Docker 同机时，要在 Docker 的防火墙链里放行 Podman 的网桥（[见下](#为有根-podman-准备主机)） | 接受 root 的单机交付 |
+| **无根 Podman**（不可以时推荐） | Podman 以部署的那个用户运行：每个容器一个 `conmon`；容器的网络由用户态的辅助进程（`pasta`）转发 | 引擎从不以 root 运行；常驻内存最少 | 用户态转发网络要花 CPU；开机回来要做主机设置，每一项缺了都要等到下次重启才暴露（[见下](#为无根-podman-准备主机)）；1024 以下的端口不能直接发布 | 不允许引擎以 root 运行的主机 |
 | **Docker** | Docker 守护进程（`dockerd`、`containerd`），以 root 运行 | 最普及，周边工具最多；装上就能用 | 守护进程的常驻内存；root，与有根 Podman 一样 | 已经在跑 Docker 的机器；只认 Docker 的周边工具 |
 
-**怎样选。** 先问这台主机允不允许引擎以 root 运行。允许，就用有根 Podman：开机的路是系统自己的——一个单元，按平常的办法等网络——网络也是内核转发的。不允许，就用无根 Podman，
-做下面那几项主机设置；缺了哪项，[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)会指出来。Docker 与有根 Podman 是同一种选择、多一个守护进程：机器上已经有 Docker 时用它。
+**怎样选。** 先问这台主机允不允许引擎以 root 运行。允许，就用有根 Podman：开机的路是系统自己的，网络也是内核转发的。不允许，就用无根 Podman，做下面那几项主机设置；
+缺了哪项，[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)会指出来。Docker 与有根 Podman 是同一种选择、多一个守护进程：机器上已经有 Docker 时用它。
 
 **实测说明了什么**（[引擎之间](#引擎之间平台自己的开销)）：组件在每种引擎上花的一样，无根 Podman 与 Docker 整套的 CPU 也看不出差别；不同的是平台自己的内存，每台机器付一次——
 无根 Podman 约 0.14 GiB，Docker 守护进程约 0.55 GiB，单节点集群约 2 GiB。机器越小越显眼。有根 Podman 省掉用户态网络的 CPU（整套的 9–10%）；它的内存没有单独量过（同样每个容器一个 `conmon`，没有 `pasta`）。
 
-**重启机器实测**（同一台机器——Ubuntu 26.04、Podman 5.7.0、旁边装着 Docker、Wi-Fi 经 DHCP——同样 12 个组件）：有根 Podman 第一次真重启就回来了，只配了系统的开机单元与防火墙的单元——
-12 个全部 healthy、没有一个重启过，网络在线后 3.5 秒 Podman 的开机单元就跑完了。无根 Podman 重启了三次才找齐它要的东西：AppArmor 配置（一个都没回来）、
-开机单元等网络（容器回来了，却到不了主机），然后才通过——就是下面的第 3–7 步。
+**重启机器实测**（同一台机器——Ubuntu 26.04、Podman 5.7.0、旁边装着 Docker、Wi-Fi 经 DHCP——同样 12 个组件，用 compose 跑）：有根 Podman 第一次真重启就回来了，
+只配了系统的开机单元与防火墙的单元——12 个全部 healthy、没有一个重启过，网络在线后 3.5 秒 Podman 的开机单元就跑完了。无根 Podman 重启了三次才找齐它要的东西：
+AppArmor 配置（一个都没回来）、开机单元等网络（容器回来了，却到不了主机），然后才通过。
+
+### Podman 怎样跑它们：Quadlet 单元，或 compose
+
+用 Podman 时，部署文件用 `podman.units` 选 BrickKit 交给它的是什么：
+
+```yaml
+target: podman
+podman:
+  units: quadlet      # 不写就是 compose
+```
+
+- **`quadlet`**（交付时推荐）：`up` 写出 Podman 的 Quadlet 格式的 systemd 单元——每个组件、每个迁移一个 `.container`，一个 `.network`——由 systemd 让容器一直跑着、
+  开机拉起。
+- **`compose`**（不写 `podman.units` 时）：`up` 生成 `compose.yaml`，用 `podman compose` 启动，与 `target: docker` 是同一份文件。开发机用它：只有它能让一些组件以
+  本机进程运行（`mode: local` / `mode: debug`、焦点运行），与容器一起跑。
+
+| | Quadlet 单元 | compose |
+| --- | --- | --- |
+| 开机时 | 每个单元自己起来，不用另外启用什么 | Podman 的开机单元 `podman-restart.service`，要手动启用 |
+| 开机时等网络 | 自带（无根也是） | 无根：要手写一个 drop-in |
+| 开机时的顺序 | 迁移先跑，每个组件等它需要的组件健康之后才启动 | 没有：容器一起起来，靠重试 |
+| 迁移 | 每次 `up` 跑，开机也跑 | 只在每次 `up` 时跑 |
+| 组件变得不健康 | 杀掉、重新拉起（只在它没有单独声明 `readinessCheck` 时） | 不管 |
+| 日志 | journald：`journalctl [--user] -u 'brickkit-<项目名>-*'` | `podman compose logs` |
+| 迁移失败 | `up` 在动任何组件之前就停下：它们照旧跑着上一个版本 | 组件等着迁移，不启动 |
+| 主机上要装的 | Podman 5.3 或更新 | Podman、Docker 的 Compose V2（`docker-compose`）、`podman.socket` |
+| 本机进程、焦点运行 | 装载时就拒绝 | 支持 |
+| 谁跑 `up` | 无根：部署的那个用户。有根：root（`sudo brickkit up`）——要装进 `/etc/containers/systemd` | 部署的那个用户；有根时也可以经套接字组（[第 5 步](#为有根-podman-准备主机)） |
+
+单元就是你看到的那些：`up` 先写进 `.brickkit/generated/quadlet/`（`up --dry-run` 到此为止），再复制进它们自己的目录，`~/.config/containers/systemd/brickkit-<项目名>/`（无根）
+或 `/etc/containers/systemd/brickkit-<项目名>/`（有根），`down` 删掉这个目录。不能写在文件里让人看到的值——密钥、`file://` 的内容、`${VAR}` 模板、跨好几行的值——
+在 `up` 时求值、作为 Podman secret 交过去，单元里只写它们的名字。一个项目同一时刻只用一种方式：改了 `podman.units` 再 `up`，会把另一种留下的（compose 的容器，或者那些单元）
+卸下，并说出来。
+
+在 BrickKit 上验证过的：Quadlet 单元、无根、Podman 5.7.0——`up`、改一个组件只重启它、迁移失败时上一个版本照跑、多副本、切到 compose 再切回来、`down`。
+Quadlet 单元的真重启还没有验证。
 
 ### 为有根 Podman 准备主机
 
-以 root 或用 `sudo`：
+以 root 或用 `sudo`。标着 *compose* 的步骤用 Quadlet 单元时不需要，反过来也一样：
 
-1. 装 Podman 与 Docker 的 Compose V2（`docker-compose`），同[无根 Podman](#为无根-podman-准备主机) 的第 1 步。
-2. `systemctl enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman（`/run/podman/podman.sock`）。
-3. `systemctl enable podman-restart.service`——开机时把容器重新拉起来。它是系统单元，所以它的 `After=network-online.target` 真的会等网络。
-4. **同一台机器上有 Docker**：在 Docker 的防火墙链里放行 Podman 的网桥，并且每次开机在 Docker 之后、Podman 的开机单元之前把规则加回去；没有它们，容器之间互相不通
-   （[那个单元](../10-troubleshooting/01-up-down-issues.md#podman-上全部-healthy容器之间的调用却超时)）。
-5. 谁来跑 `brickkit`：root（`sudo brickkit up`），或者一个组里的用户，你让这个组用 root 的套接字。后一种做法：`systemctl edit podman.socket`，加上
+1. 装 Podman，用 Quadlet 单元要 5.3 或更新。*compose*：还要 Docker 的 Compose V2（`docker-compose`），同[无根 Podman](#为无根-podman-准备主机) 的第 1 步。
+2. *compose*：`systemctl enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman（`/run/podman/podman.sock`）。
+3. *compose*：`systemctl enable podman-restart.service`——开机时把容器重新拉起来。它是系统单元，所以它的 `After=network-online.target` 真的会等网络。
+   Quadlet 单元开机时自己起来。
+4. **同一台机器上有 Docker**：在 Docker 的防火墙链里放行 Podman 的网桥，并且每次开机在 Docker 之后、容器启动之前把规则加回去；没有它们，容器之间互相不通
+   （[那个单元](../10-troubleshooting/01-up-down-issues.md#podman-上全部-healthy容器之间的调用却超时)）。Quadlet 单元自己排在那个单元之后。
+5. 谁来跑 `brickkit`：用 Quadlet 单元时是 root（`sudo brickkit up`）。*compose*：同样可以是 root，或者一个组里的用户，你让这个组用 root 的套接字。后一种做法：
+   `systemctl edit podman.socket`，加上
 
    ```ini
    [Socket]
@@ -146,23 +183,33 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
    然后 `systemctl restart podman.socket`，并给那个用户设 `export CONTAINER_HOST=unix:///run/podman/podman.sock`。要 `chmod` 是因为 Podman 包自带的 `tmpfiles.d` 条目每次开机都把
    `/run/podman` 建成 `0700`。这个组的成员等同 root，与 Docker 的 `docker` 组一样。
 6. 镜像以非 root 用户运行（`Dockerfile` 里写 `USER` 与一个非 0 的 uid）：引擎是 root 时，容器里的 root 就是主机上的 root（[为什么](../03-component-guide/02-component-yaml-reference.md#deployment我怎么跑)）。
-7. Podman 的存储在一块以 `nofail` 挂载的盘上：用 `systemctl edit podman-restart.service`，在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>`。
-8. 以 root 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)：它实测容器之间能不能互通、能不能干净地删掉，并对第 3、4、7 步里缺了的给出警告。
+7. Podman 的存储在一块以 `nofail` 挂载的盘上：这时 systemd 不保证它在容器启动之前挂上。*compose*：用 `systemctl edit podman-restart.service`，在 `[Unit]` 下加
+   `RequiresMountsFor=<那个挂载点>`。Quadlet 单元：一个 drop-in 管住所有名字以 `brickkit-` 开头的单元：
 
-在 BrickKit 上验证过的：有根 Podman、同一台机器上也装着 Docker，第 1–5 步（用组的做法），包括真重启一次机器（没有人登录、也没跑 `up`，12 个组件全部 healthy）。
+   ```bash
+   mkdir -p /etc/systemd/system/brickkit-.service.d
+   printf '[Unit]\nRequiresMountsFor=<那个挂载点>\n' > /etc/systemd/system/brickkit-.service.d/storage.conf
+   systemctl daemon-reload
+   ```
+
+8. 以 root 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)，用 Quadlet 单元时带 `--units quadlet`：它实测容器之间能不能互通、能不能干净地删掉，
+   并对第 1、3、4、7 步里缺了的给出警告。
+
+在 BrickKit 上验证过的：有根 Podman 用 compose、同一台机器上也装着 Docker，第 1–5 步（用组的做法），包括真重启一次机器（没有人登录、也没跑 `up`，12 个组件全部 healthy）。
 只装 Podman 的机器没有端到端验证过；那里没有第 4 步。
 
 ### 为无根 Podman 准备主机
 
-用将来拥有这套部署的那个用户：
+用将来拥有这套部署的那个用户。标着 *compose* 的步骤用 Quadlet 单元时不需要：
 
-1. 装 Podman 与 Docker 的 Compose V2（`docker-compose`）。`podman compose` 自己没有 compose 实现，只是把调用转给这个程序，由它连 Podman；
-   不需要装 Docker Engine 本身。`podman compose version` 应当打印 `Executing external compose provider ".../docker-compose"`；另一个项目 `podman-compose` 没有在 BrickKit 上验证过。
-2. `systemctl --user enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman。
-3. `sudo loginctl enable-linger <用户>`——这个用户的服务在退出登录后继续运行，开机时不用有人登录也会启动。
-4. `systemctl --user enable podman-restart.service`——开机时把容器再启动起来。
-5. 让这个单元等网络。它写的是 `After=network-online.target`，这在用户的 systemd 里不起作用：网络起来得晚时（Wi-Fi、慢一点的 DHCP），
-   Podman 的网络辅助进程在没有地址时就起来了，容器从此连不上宿主机。Podman 为此带了 `podman-user-wait-network-online.service`，用一个 drop-in 加上它：
+1. 装 Podman，用 Quadlet 单元要 5.3 或更新。*compose*：还要 Docker 的 Compose V2（`docker-compose`）。`podman compose` 自己没有 compose 实现，只是把调用转给这个程序，
+   由它连 Podman；不需要 Docker 引擎本身。`podman compose version` 应当打印 `Executing external compose provider ".../docker-compose"`；独立的 `podman-compose` 项目
+   与 BrickKit 的配合没有验证过。
+2. *compose*：`systemctl --user enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman。
+3. `sudo loginctl enable-linger <用户>`——这个用户注销之后服务照常跑，开机时不用有人登录也会启动。两种方式都要：单元也是这个用户的服务。
+4. *compose*：`systemctl --user enable podman-restart.service`——开机时把容器重新拉起来。
+5. *compose*：让这个单元等网络。它写的是 `After=network-online.target`，在用户的 systemd 里不起作用：网络起得晚（Wi-Fi、DHCP 慢）时，Podman 的网络辅助进程在没有地址时
+   就起来了，容器一直到不了主机。Podman 为此带了 `podman-user-wait-network-online.service`；用一个 drop-in 加上它（Quadlet 单元自己就依赖它）：
 
    ```bash
    mkdir -p ~/.config/systemd/user/podman-restart.service.d
@@ -178,11 +225,11 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 7. Podman 的存储在一块以 `nofail` 挂载的盘上：这时 systemd 不保证它在用户的 systemd 启动之前挂上。用 `sudo systemctl edit user@<uid>.service`，在 `[Unit]` 下加
    `RequiresMountsFor=<那个挂载点>`。
 8. 1024 以下的端口（比如 `exposePort: 443`）无根的引擎不能直接发布：发布一个 1024 及以上的端口，由前面的网关接 443；或者在主机上调低 `net.ipv4.ip_unprivileged_port_start`。
-9. 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)：它实测 Podman 在开机单元跑它的地方能不能建用户命名空间、容器之间能不能互通、
-   能不能干净地删掉，并对第 3–5、7 步里缺了的给出警告。
+9. 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)，用 Quadlet 单元时带 `--units quadlet`：它实测 Podman 在 systemd 跑它的地方能不能建用户命名空间、
+   容器之间能不能互通、能不能干净地删掉，并对第 1、3–5、7 步里缺了的给出警告。
 
-在 BrickKit 上验证过的：无根 Podman、同一台机器上也装着 Docker，包括做完第 1–7 步之后真重启一次机器（Ubuntu 26.04、Podman 5.7.0、Wi-Fi 经 DHCP；
-没有人登录、也没跑 `up`，12 个组件全部 healthy）。只装 Podman 与 Compose 二进制的机器没有端到端验证过。
+在 BrickKit 上验证过的：无根 Podman 用 compose、同一台机器上也装着 Docker，包括做完第 1–7 步之后真重启一次机器（Ubuntu 26.04、Podman 5.7.0、Wi-Fi 经 DHCP；
+没有人登录、也没跑 `up`，12 个组件全部 healthy）。只装 Podman 的机器没有端到端验证过。
 
 ### Kubernetes
 
@@ -193,6 +240,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 - **崩溃时。** Pod 被重启，几秒内重新就绪；这几秒里发给它的请求会等待或失败。
 
 本机进程不能与 `k8s` 组合：部署文件里 `mode: debug` / `mode: local` 碰上 `target: k8s`，装载阶段就被拒绝，报错指出是哪个条目（`components[N].mode`）——集群里的 Pod 到不了你的机器。
+`podman.units: quadlet` 也一样：单元活得比任何一次 `up` 都长，本机进程不是。
 
 ### 重启机器之后
 
@@ -201,14 +249,16 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 | 引擎 | 崩溃之后 | 开机时 |
 | --- | --- | --- |
 | Docker | 生成 `restart: unless-stopped` | Docker 服务设为开机启动（多数安装包已经设好；`systemctl is-enabled docker` 查） |
-| 有根 Podman | 生成 `restart: always` | 启用系统单元 `podman-restart.service`；与 Docker 同机时，把 Podman 的防火墙规则加回去的那个单元；它的存储按时挂上（[第 3、4、7 步](#为有根-podman-准备主机)） |
-| 无根 Podman | 生成 `restart: always` | 给这个用户开 linger，启用用户单元 `podman-restart.service` 并让它等网络，Podman 能建用户命名空间，它的存储按时挂上（[第 3–7 步](#为无根-podman-准备主机)） |
+| Podman，Quadlet 单元，有根 | 生成 `Restart=always`；不健康的杀掉重启 | 不用启用什么；与 Docker 同机时，把 Podman 的防火墙规则加回去的那个单元；它的存储按时挂上（[第 4、7 步](#为有根-podman-准备主机)） |
+| Podman，Quadlet 单元，无根 | 生成 `Restart=always`；不健康的杀掉重启 | 给这个用户开 linger，Podman 能建用户命名空间，它的存储按时挂上（[第 3、6、7 步](#为无根-podman-准备主机)） |
+| Podman，compose，有根 | 生成 `restart: always` | 启用系统单元 `podman-restart.service`；与 Docker 同机时，把 Podman 的防火墙规则加回去的那个单元；它的存储按时挂上（[第 3、4、7 步](#为有根-podman-准备主机)） |
+| Podman，compose，无根 | 生成 `restart: always` | 给这个用户开 linger，启用用户单元 `podman-restart.service` 并让它等网络，Podman 能建用户命名空间，它的存储按时挂上（[第 3–7 步](#为无根-podman-准备主机)） |
 | Kubernetes | kubelet | 集群 |
 
-- Podman 用 `always`，是因为它的开机单元只启动策略为 `always` 的容器；除此之外两种策略在 Podman 里行为相同。Docker 上用 `unless-stopped`，手动停掉的容器保持停止。
-- 回来的是上一次 `up` 建出来的那些容器。`down` 会删掉容器，所以 `down` 之后重启机器什么都不会回来。
-- 开机时由引擎自己启动容器：不按 `up` 等待的那个顺序（`depends_on`），迁移也不再跑——上一次 `up` 时已经跑过。一个组件比它的依赖先起来时，要一直重试，不能放弃；
-  依赖重启时它本来也需要这样。
+- 用 compose 时 Podman 用 `always`，是因为它的开机单元只启动策略为 `always` 的容器；除此之外两种策略在 Podman 里行为相同。Docker 上用 `unless-stopped`，手动停掉的容器保持停止。
+- 回来的是上一次 `up` 建出来的那些。`down` 会删掉容器（以及单元），所以 `down` 之后重启机器什么都不会回来。
+- 用 compose 或 Docker 时，开机由引擎自己启动容器：不按 `up` 等待的那个顺序（`depends_on`），迁移也不再跑——上一次 `up` 时已经跑过。Quadlet 单元保留这个顺序：
+  每个迁移先跑，组件等它需要的组件健康之后才启动。不管哪种，一个组件比它的依赖先起来时，要一直重试，不能放弃；依赖重启时它本来也需要这样。
 - 本机进程永远不会回来：没有谁重启它们，也没有谁开机启动它们。
 
 ## 决定二：拓扑——组件最终收拢成几个容器？
@@ -239,7 +289,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 ### 1. 全部独立 × 一台机器
 
-**是什么**：每个组件一个 Compose 服务，`brickkit up` 端到端驱动：地址注入、健康检查、按依赖顺序启动、迁移。
+**是什么**：每个组件一个容器——一个 Compose 服务，或者 `podman.units: quadlet` 时一个 Quadlet 单元——`brickkit up` 端到端驱动：地址注入、健康检查、按依赖顺序启动、迁移。
 
 **什么时候用**：组件数量单机装得下时的默认形态（见[什么时候合并](#决定二拓扑组件最终收拢成几个容器)）。
 
@@ -264,7 +314,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 ### 3. 全部进外壳 × 一台机器
 
-**是什么**：尽量多的组件编进少数几个外壳；每个外壳一个 Compose 服务，成员不生成自己的服务容器。
+**是什么**：尽量多的组件编进少数几个外壳；每个外壳一个容器，成员没有自己的容器。
 调用方拿到的成员 `*_ENDPOINT` 就是成员自己的地址：`http://<成员的服务名>:<它自己的端口>`，和它单独运行时一样；这个名字解析到外壳——
 是外壳容器的网络别名（K8s 上是选中外壳 Pod 的 Service）。调用方代码不用改，成员并进或拆出外壳时地址也不变。
 
@@ -338,7 +388,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 ### 容器加几个本机进程
 
-**是什么**：除了你标成 `mode: debug` 或 `mode: local` 的组件，其余都是真实容器。
+**是什么**：除了你标成 `mode: debug` 或 `mode: local` 的组件，其余都是真实容器。用 Podman 时要用 compose（不写 `podman.units`）：Quadlet 单元不接受本机进程。
 
 - `mode: debug`：进程由你在 IDE 里启动，平台只负责让别人找到它。只能写在个人的 `deploy.local.yaml` 里。
 - `mode: local`：平台从组件源码识别启动命令、启动这个进程（组件写了 `local.migrationCommand` 时先从源码跑迁移），在那次 `up` 运行期间看管它。

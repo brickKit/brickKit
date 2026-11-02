@@ -156,7 +156,8 @@ brickkit up --all
    - [deploy] focus: demo/hello（当前未设置）
 ```
 
-焦点运行要在你的机器上起一个进程、让别的组件连过来，所以只适用于 `target: docker` 和 `podman`。`target: k8s` 时什么都不写，`up` 直接停下：
+焦点运行要在你的机器上起一个进程、让别的组件连过来，所以只适用于 `target: docker` 和 `podman`（用 Podman 时是 compose：不写 `podman.units`）。
+`target: k8s` 或 `podman.units: quadlet` 时什么都不写，`up` 直接停下——Quadlet 单元时说的是 systemd 让它们活得比任何一次 `up` 都长。k8s 的样子：
 
 ```text
 ❌ 错误：deploy.local.yaml 校验失败

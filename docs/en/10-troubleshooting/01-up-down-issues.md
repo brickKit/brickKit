@@ -109,6 +109,10 @@ from a process on this machine that reaches it; the suggestion matches the sourc
 The migration exited non-zero, so the main service won't start. Read the migration container's logs as the suggestion
 says, fix it, and `up` again; the migration runs once more. More in [Migration problems](07-migration-issues.md).
 
+With `podman.units: quadlet` the error names the migration's unit and its log (`journalctl [--user] -u <unit>`), and `up`
+stopped before touching any component: they keep running their previous version. `brickkit status` keeps saying that the
+last migration failed until one succeeds.
+
 ## The component's logs look fine, yet the platform says it's unhealthy
 
 **Symptom**
@@ -230,7 +234,9 @@ Add `-p`:
 docker compose -p brickkit-my-shop logs -f demo-caller-1-0-0
 ```
 
-The "View the logs" line `up` prints at the end is the right command.
+The "View the logs" line `up` prints at the end is the right command. With `podman.units: quadlet` there is no Compose
+project: the logs are in journald, `journalctl --user -u 'brickkit-<project name>-<service name>*'` (without `--user`
+for rootful Podman), and `podman logs <container>` shows the same.
 
 ## Deployed to the wrong cluster (or nearly)
 
@@ -262,10 +268,13 @@ With the deploy target `podman`, the problems in the next few sections all come 
 BrickKit or Podman bug. When you hit any of them, or the first time you use Podman on a machine, run:
 
 ```bash
-scripts/podman/check-environment.sh
+scripts/podman/check-environment.sh                  # podman.units left out: compose
+scripts/podman/check-environment.sh --units quadlet  # podman.units: quadlet
 ```
 
-**Run it as the user that runs `brickkit up`.** Podman runs in two ways, and their environment problems differ:
+**Run it as the user that runs `brickkit up`.**
+Give the script's `--units` the deploy file's `podman.units`: compose needs `podman.socket` and a boot unit, Quadlet units
+need Podman 5.3 or later and neither of those. Podman runs in two ways, and their environment problems differ:
 
 - **Rootless** (run as a normal user): a helper process called `pasta` connects containers to the network in user space,
   without going through the host's firewall forwarding.
@@ -380,7 +389,7 @@ policy is `DROP` and Docker's `DOCKER-USER` chain exists, it recognises this pro
    ```
 
    It adds each rule only when it's missing, so running it again changes nothing. At boot it runs right after Docker, and
-   Podman's boot unit right after it. Where the host's firewall is managed by something else (firewalld, a saved
+   Podman's boot unit right after it; units generated with `podman.units: quadlet` are ordered after it by themselves. Where the host's firewall is managed by something else (firewalld, a saved
    `iptables` rule set), put the two rules there instead; the
    [environment check](#podman-run-the-environment-check-first) warns when this unit isn't enabled.
 2. **Use rootless Podman**, running `brickkit up` as a normal user.
@@ -516,7 +525,10 @@ failing their calls — and `brickkit up` brings them back.
 
 BrickKit starts nothing at boot: the engine does, and only when it is set up to. Start with the boot unit's log —
 `journalctl --user -b -u podman-restart.service` for rootless Podman (without `--user` for rootful Podman;
-`journalctl -b -u docker` for Docker) — then find what you see:
+`journalctl -b -u docker` for Docker) — then find what you see below. With `podman.units: quadlet` there is no boot
+unit: each unit starts by itself and waits for the network itself, so read the units' own log,
+`journalctl --user -b -u 'brickkit-<project name>-*'` (without `--user` for rootful Podman). The rows about linger,
+`failed to reexec` and the storage mount apply to it as well; the ones about the boot unit and the restart policy don't.
 
 | What you see | Cause | Fix |
 | --- | --- | --- |
@@ -524,7 +536,7 @@ BrickKit starts nothing at boot: the engine does, and only when it is set up to.
 | The boot unit failed with `failed to reexec: Permission denied` | AppArmor keeps Podman from creating its user namespace | [The section above](#podman-fails-with-failed-to-reexec-permission-denied) |
 | The containers are up, but components keep restarting and can't reach anything on the host (`host.docker.internal`, ports published on the host) | Rootless Podman's network helper (`pasta`) started before the machine had an address, and it never picks one up later. The boot unit is written `After=network-online.target`, which means nothing in the user's systemd; Podman ships `podman-user-wait-network-online.service` for this, but the boot unit doesn't depend on it | Make the boot unit wait for the network (below); this time, stop and start the containers once — `systemctl --user restart podman-restart.service` does both, and the new `pasta` has the network |
 | Rootful Podman next to Docker: all healthy, yet calls between containers time out — it worked before the reboot | The rules letting Podman's bridges through Docker's `DOCKER-USER` chain were lost: they live only in memory, and Docker rebuilds its chains at every start | The unit that puts them back after Docker: [All healthy on Podman, yet calls between containers time out](#all-healthy-on-podman-yet-calls-between-containers-time-out) |
-| Podman reports no containers, or its storage missing | Podman's storage is on a disk mounted with `nofail`, which may mount after the boot unit starts (rootless: after the user's systemd starts) | Rootless: `sudo systemctl edit user@<uid>.service`; rootful: `sudo systemctl edit podman-restart.service`; add `[Unit]` `RequiresMountsFor=<that mount point>` |
+| Podman reports no containers, or its storage missing | Podman's storage is on a disk mounted with `nofail`, which may mount after the boot unit starts (rootless: after the user's systemd starts) | Rootless: `sudo systemctl edit user@<uid>.service`; rootful: `sudo systemctl edit podman-restart.service`, or for Quadlet units the drop-in `/etc/systemd/system/brickkit-.service.d/storage.conf` ([step 7](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootful-podman)); add `[Unit]` `RequiresMountsFor=<that mount point>` |
 | A few components restart a couple of times right after boot, then turn healthy | At boot the engine starts the containers without the start order `up` waits through (`depends_on`); a component started before its dependency was reachable | Nothing — the restart policy keeps trying; a component should retry its connections rather than exit |
 | Nothing came back, and `brickkit down` ran before the restart | `down` removes the containers; there is nothing to start | `brickkit up` |
 | On Podman, the containers' restart policy is `unless-stopped` (`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <container>`) | They were created by an older BrickKit; Podman's boot unit starts only containers whose policy is `always` | `brickkit up` once: it recreates containers whose restart policy changed |
@@ -535,6 +547,28 @@ The drop-in that makes the rootless boot unit wait for the network is step 5 of
 `scripts/podman/check-environment.sh` reports each of the boot settings above as a warning when it's missing. The whole
 setup, in order: [Setting up a host for rootful Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootful-podman),
 [Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
+
+## A Quadlet unit doesn't start
+
+**Symptom**
+
+The deploy file has `podman.units: quadlet`, and `up` fails with one of:
+
+| What you see | Cause | Fix |
+| --- | --- | --- |
+| `these units did not start`, each with a `journalctl` command | The container started and exited, or never turned healthy within the unit's start limit | Read the unit's log with that command; `systemctl --user --failed 'brickkit-<project name>-*'` lists every failed unit |
+| `Podman <version> is too old for podman.units: quadlet` | The units use keys Podman 5.3 brought (`Notify=healthy`, templates, `NetworkAlias=`, the rootless wait for the network) | Upgrade Podman, or leave `podman.units` out on this machine and run with compose |
+| `could not write the units into /etc/containers/systemd/…` | Rootful Podman: the units go into the system's systemd, which only root may write | `sudo brickkit up` |
+| `Unit brickkit-….service not found` right after the reload | Podman's Quadlet generator rejected a unit file and generated nothing for it | `/usr/libexec/podman/quadlet -dryrun -user` (without `-user` for rootful Podman) prints why; the units are in `.brickkit/generated/quadlet/` |
+
+**Worth knowing**
+
+- `up` copies the units into `~/.config/containers/systemd/brickkit-<project name>/` (rootful:
+  `/etc/containers/systemd/brickkit-<project name>/`). That directory is what is deployed; `down` removes it. An edit made
+  there by hand is overwritten by the next `up`.
+- A value delivered as a Podman secret reaches the container when it is created. `podman exec <container> printenv`
+  re-reads the secret and may show a newer value than the running process has; the process's own environment is
+  `/proc/1/environ` inside the container. `up` restarts a component whenever one of its secrets changed.
 
 ## `down` can't stop a `mode: local` component
 

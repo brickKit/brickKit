@@ -19,7 +19,9 @@ description: 把 BrickKit 项目部署到 Docker、Podman 或 Kubernetes，编�
 **1. 部署怎么跑写在 `deploy.yaml`，不在 `brickkit.yaml`。**
 
 `brickkit.yaml` 只管有什么组件、什么版本。`deploy.yaml` 顶层是 `target`（`docker` / `podman` /
-`k8s`，必填；Podman 用 `podman compose` 跑同一份生成的 compose 文件）、`k8s:` 块（`context`、`namespace`、
+`k8s`，必填；Podman 用 `podman compose` 跑同一份生成的 compose 文件，或者 `podman.units: quadlet` 时生成 systemd 单元到
+`.brickkit/generated/quadlet/`、装进 `~/.config/containers/systemd/brickkit-<项目名>/`（有根：`/etc/containers/systemd/`））、`podman:` 块
+（只在 `target: podman` 时生效）、`k8s:` 块（`context`、`namespace`、
 `createNamespace`、`podSecurity`、`imagePullSecrets`、`ingressClass`、`ingressAnnotations`、`serviceAccount`、
 `networkPolicy`，只在 `target: k8s` 时生效，别的 target 下写了会警告）、`vars:`，以及
 `components:` 下每个组件版本一个条目：`mode`、`localPort`、`expose` / `exposePort` / `hostname` /
@@ -167,7 +169,7 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 
 **14. `focus:` 是个人的「只跑这一个」开关。**
 
-`focus: <id>` 只存在于 `deploy.local.yaml`（`deploy.yaml` 里会被拒，`target: k8s` 下也会被拒）。写了它，
+`focus: <id>` 只存在于 `deploy.local.yaml`（`deploy.yaml` 里会被拒，`target: k8s` 与 `podman.units: quadlet` 下也会被拒）。写了它，
 `up` 只启动这个组件——从本地源码跑，相当于 `mode: local`（你写的 `mode: debug` 会保留）——和它需要的；
 钉住的组件（`enabled` / `local` / `debug`）照样启动。在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它
 （需要时顺手打开本地模式），`up --all` 去掉它；`-f` 与 `--no-local` 跳过它；`sync` 不看它；`local refresh`
@@ -175,22 +177,36 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 
 **15. 长期运行的是容器；本机进程不是。**
 
-按部署要在哪里长期运行来选 target。一台机器（一次交付、小规模生产）：`target: podman`，那台主机允许引擎以 root 运行就用有根，
-不允许就用无根；`target: docker` 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具。有根 Podman 开机回来只要一个
-系统单元，网络由内核转发（CPU 比无根少 9–10%）；无根的引擎从不以 root 运行，但要做好几项主机设置，每一项缺了都要到下次重启才暴露，
-常驻内存比 Docker 的守护进程少约 0.4 GiB（有根的内存没量过）。集群，或者要自愈、跨机器扩容：`target: k8s`（单节点时控制面是约
-2 GiB 的固定开销）。重启机器之后回来是引擎的事，要把引擎设好：Docker 服务开机启动；有根 Podman 要
-`sudo systemctl enable podman-restart.service`，与 Docker 同机时还要一个一次性单元，在 Docker 启动之后把放行 `podman+` 的
-`DOCKER-USER` 规则加回去（没有它们容器之间不通）；无根 Podman 要 `sudo loginctl enable-linger <用户>`、
-`systemctl --user enable podman-restart.service` 并用 drop-in 让它等 `podman-user-wait-network-online.service`、
-Ubuntu 23.10 起要有 apparmor 包带的 `/etc/apparmor.d/podman` 配置（没有它 Podman 在开机时、ssh 里以
-`failed to reexec: Permission denied` 失败）；存储在 `nofail` 的盘上时给开机单元加 `RequiresMountsFor`（无根：`user@<uid>.service`）；
-`up` 本身还要 `podman.socket`（有根：不用 sudo 跑 `brickkit` 时给套接字设 `SocketGroup=`、给用户设 `CONTAINER_HOST`）。引擎是 root 时，
-镜像要以非 root 的 `USER` 运行。`scripts/podman/check-environment.sh` 查开机的各项设置（用部署的那个用户跑：有根用 root），步骤在
-`brickkit docs 09-patterns/06-deployment-selection`。
-BrickKit 在 Podman 上生成 `restart: always`，因为 Podman 的开机单元只启动这种策略；开机时引擎不按启动顺序，组件要自己重试连接。
-`mode: local` / `debug` 用于开发、演示与试用——每个组件都 `mode: local` 时不要任何引擎，但会话结束就停、重启机器之后不会回来。
-不要把它们当成交付方案提出来。
+按部署要在哪里长期运行来选：
+
+- 一台机器（一次交付、小规模生产）：`target: podman` 加 `podman.units: quadlet`——那台主机允许引擎以 root 运行就用有根，
+  不允许就用无根。`target: docker` 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具。
+- 集群，或者要自愈、跨机器扩容：`target: k8s`（单节点时控制面是约 2 GiB 的固定开销）。
+
+有根 Podman 的网络由内核转发（CPU 比无根少 9–10%）；无根的引擎从不以 root 运行，但要做主机设置，每一项缺了都要到下次重启才暴露，
+常驻内存比 Docker 的守护进程少约 0.4 GiB（有根的内存没量过）。引擎是 root 时，镜像要以非 root 的 `USER` 运行。
+
+`podman.units: quadlet` 交给 systemd 每个组件、每个迁移一个单元（Podman 5.3 起）：开机时每个单元自己起来、自己等网络，迁移先跑，
+组件等它需要的组件健康之后才启动；不健康的杀掉重启（组件单独声明了 `readinessCheck` 时不杀）；迁移失败时每个组件照旧跑着上一个版本；
+日志在 journald（`journalctl [--user] -u 'brickkit-<项目名>-*'`）；密钥、`file://` 的内容、`${VAR}` 模板、多行的值在 `up` 时求值、
+放进 Podman secret。有根要 `sudo brickkit up`。它拒绝 `mode: local` / `debug` 与 `focus`——开发机不写 `podman.units`，用 compose
+（`podman compose`、Docker 的 `docker-compose`、`podman.socket`）。改了 `podman.units` 再 `up`，会卸下另一种方式留下的。
+
+重启机器之后回来是引擎的事，要把引擎设好：
+
+- Docker：Docker 服务开机启动。
+- Podman，两种方式都要：与 Docker 同机、有根时，一个一次性单元在 Docker 启动之后把放行 `podman+` 的 `DOCKER-USER` 规则加回去
+  （没有它们容器之间不通；Quadlet 单元自己排在它之后）；无根时 `sudo loginctl enable-linger <用户>`，Ubuntu 23.10 起还要 apparmor 包带的
+  `/etc/apparmor.d/podman` 配置（没有它 Podman 在开机时、ssh 里以 `failed to reexec: Permission denied` 失败）；存储在 `nofail` 的盘上时
+  要按时挂上（无根：给 `user@<uid>.service` 加 `RequiresMountsFor`；有根：compose 加在 `podman-restart.service` 上，Quadlet 单元加在前缀
+  drop-in `/etc/systemd/system/brickkit-.service.d/` 里）。
+- 只有 compose 要：启用 `podman-restart.service`（BrickKit 生成 `restart: always`，因为这个单元只启动这种策略）；无根时用 drop-in 让它
+  Wants/After `podman-user-wait-network-online.service`；`up` 本身要 `podman.socket`（有根：不用 sudo 跑 `brickkit` 时给套接字设
+  `SocketGroup=`、给用户设 `CONTAINER_HOST`）。开机时它不按启动顺序、也不再跑迁移，所以组件要自己重试连接——本来也该如此。
+
+`scripts/podman/check-environment.sh [--units quadlet]` 查这些（用部署的那个用户跑：有根用 root），步骤在
+`brickkit docs 09-patterns/06-deployment-selection`。`mode: local` / `debug` 用于开发、演示与试用——每个组件都 `mode: local` 时不要任何引擎，
+但会话结束就停、重启机器之后不会回来。不要把它们当成交付方案提出来。
 
 ## 机制是怎么运作的
 

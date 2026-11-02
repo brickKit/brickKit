@@ -675,15 +675,18 @@ Start the project in one go:
 3. check required dependencies (missing: error) and optional ones (missing: a warning, and no environment variable at all);
 4. sort topologically into a start order;
 5. resolve config, inject environment variables, merge resource settings, and generate the deployment files:
-   `docker` / `podman` get `.brickkit/generated/compose.yaml`, `k8s` gets Kubernetes manifests;
+   `docker` / `podman` get `.brickkit/generated/compose.yaml`, `podman` with `podman.units: quadlet` gets systemd units in
+   `.brickkit/generated/quadlet/`, `k8s` gets Kubernetes manifests;
 6. for components running as processes on this machine, generate `local-debug.<versioned-service-name>.env`: a
    `mode: debug` one you start from your IDE with it; a `mode: local` one is started by `up`, and the file is there for
    running its migration or another one-off command by hand;
 7. check images: locally built images must already exist (otherwise it points at `brickkit build`), pulled images must
    be reachable; a pulled local-source component with a `Dockerfile` next to it gets a warning that the `Dockerfile`
    isn't used;
-8. call the engine; database migrations run first (a one-shot container on Docker, a Job on Kubernetes), and a failure
-   holds back the main service;
+8. call the engine; database migrations run first (a one-shot container on Docker, a Job on Kubernetes, a one-shot unit
+   with Quadlet units), and a failure holds back the main service. With Quadlet units `up` installs the units into
+   systemd, runs every migration, then restarts the components whose unit changed and starts the rest; a migration that
+   fails leaves every component on its previous version;
 9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Before
    starting any, `up` checks their ports are free (`PORT_CONFLICT` otherwise), and runs a component's
    `local.migrationCommand` before starting it — for a shell, also those of the members it compiles in from their local
@@ -712,7 +715,8 @@ brickkit up [flags]
 
 **Focus runs.** `up` in a component's directory focuses on that component, the same as `--focus <id>`; the focus stays
 in `deploy.local.yaml` until you change it. `--focus` and `--all` can't be combined with each other, nor with `-f` or
-`--no-local` (those skip the personal file the focus lives in), and a focus doesn't work with `target: k8s`. The whole
+`--no-local` (those skip the personal file the focus lives in), and a focus doesn't work with `target: k8s` or
+`podman.units: quadlet`. The whole
 story: [Developing inside the project](../02-project-guide/04-focus-run.md).
 
 ```bash
@@ -755,7 +759,8 @@ the engine.
 (or `docker compose down -v`; the same with Podman). To stop only some components, write `mode: disable` on their deploy
 entries and `up` — the engine removes their containers too, and the config keeps a record, so the next `up` doesn't bring
 them back. A `mode: local` process belongs to the terminal that ran `up`; `down` can't reach it and only names that
-session's process ID.
+session's process ID. With `podman.units: quadlet`, `down` stops the units, removes them from systemd, and removes the
+project's network and Podman secrets.
 
 ```text
 brickkit down [flags]
@@ -779,13 +784,15 @@ deploy file's `target`:
 | --- | --- |
 | `docker` | `docker compose ps -a --format json` |
 | `podman` | `podman compose ps -a --format json` |
+| `podman` with `podman.units: quadlet` | `podman ps -a --format json` for the containers of the project's units, and systemd for units that failed |
 | `k8s` | `kubectl get deployments -o json` (in the project's namespace) |
 
 The output shows running components, components not started and why (marked when the reason comes from
 `deploy.local.yaml`), and local debug components (`mode: debug`). `mode: local` components are processes watched by `up`
 in another terminal, so they aren't in the table; when such a session is running, it says which process. When a
 component has several replicas, its status is the worst replica's, followed by how many are ready (`running (healthy),
-2/2 replicas ready`): with one replica down, the component is listed under "Not running".
+2/2 replicas ready`): with one replica down, the component is listed under "Not running". A migration that failed last
+time is named after the table, with the command for its logs.
 
 ```text
 brickkit status [flags]

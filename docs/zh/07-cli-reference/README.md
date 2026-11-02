@@ -602,11 +602,12 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 2. 启停判定（跟着上层走：顶层没写 `mode` 就跑，下层跟上层；有焦点时，起点只有焦点和写明总要运行的组件）；
 3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）；
 4. 拓扑排序得出启动顺序；
-5. 解析配置、注入环境变量、合并资源配额，生成部署文件：`docker` / `podman` 生成 `.brickkit/generated/compose.yaml`，`k8s` 生成 Kubernetes 清单；
+5. 解析配置、注入环境变量、合并资源配额，生成部署文件：`docker` / `podman` 生成 `.brickkit/generated/compose.yaml`，`podman` 加 `podman.units: quadlet` 时在 `.brickkit/generated/quadlet/` 生成 systemd 单元，`k8s` 生成 Kubernetes 清单；
 6. 在本机跑进程的组件生成 `local-debug.<版本化服务名>.env`：`mode: debug` 的，你在 IDE 里拿它启动；`mode: local` 的由 `up`
    启动，这份文件留给你手动跑迁移或别的一次性命令；
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；本地源里拉取的组件旁边放着 `Dockerfile` 时，警告它没被用到；
-8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
+8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job、Quadlet 单元时一次性的单元），失败则阻断主服务。Quadlet 单元时 `up` 把单元装进 systemd、跑完每个迁移，
+   再重启单元变了的组件、启动其余的；有迁移失败时，每个组件照旧跑着上一个版本；
 9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。启动任何一个之前先确认它们的端口空着（否则
    `PORT_CONFLICT`），组件写了 `local.migrationCommand` 时先跑它再启动——外壳还有从本地仓库编进去的成员的（失败就不启动：`MIGRATION_FAILED`）。每个进程继承这个终端的环境，只有平台管的名字除外
    （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见
@@ -630,7 +631,7 @@ brickkit up [flags]
 | `--all` | 从 `deploy.local.yaml` 里去掉焦点，所有组件重新都跑 |
 
 **焦点运行。** 在组件目录里 `up`，就以这个组件为焦点，和 `--focus <id>` 一样；焦点一直留在 `deploy.local.yaml` 里，直到你改掉它。
-`--focus` 和 `--all` 不能一起用，也不能和 `-f`、`--no-local` 一起用（那两个跳过焦点所在的个人文件）；`target: k8s` 下焦点不能用。
+`--focus` 和 `--all` 不能一起用，也不能和 `-f`、`--no-local` 一起用（那两个跳过焦点所在的个人文件）；`target: k8s` 与 `podman.units: quadlet` 下焦点不能用。
 完整说明见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
 
 ```bash
@@ -670,7 +671,7 @@ brickkit up --ignore-shells --dry-run
 
 **`down` 不删除数据卷**，数据库数据始终保留；要彻底清理，自己执行 `docker volume rm`（或 `docker compose down -v`，Podman 同理）。
 只想停其中几个：在部署文件里给它们的条目写 `mode: disable` 再 `up`——引擎会把对应的容器一并移除，而且配置里留下了痕迹，
-下次 `up` 不会又把它们拉起来。`mode: local` 的进程属于运行 `up` 的那个终端，`down` 够不着它，只提示那个会话的进程号。
+下次 `up` 不会又把它们拉起来。`mode: local` 的进程属于运行 `up` 的那个终端，`down` 够不着它，只提示那个会话的进程号。`podman.units: quadlet` 时，`down` 停掉单元、从 systemd 里卸下，并删掉项目的网络与 Podman secret。
 
 ```text
 brickkit down [flags]
@@ -693,11 +694,12 @@ brickkit down
 | --- | --- |
 | `docker` | `docker compose ps -a --format json` |
 | `podman` | `podman compose ps -a --format json` |
+| `podman` 加 `podman.units: quadlet` | 对本项目单元的容器用 `podman ps -a --format json`，失败的单元问 systemd |
 | `k8s` | `kubectl get deployments -o json`（在项目的命名空间里） |
 
 输出包含：运行中的组件、未启动的组件及原因（原因来自 `deploy.local.yaml` 时会标出来）、本地调试组件（`mode: debug`）。
 `mode: local` 的组件是另一个终端里 `up` 看护的进程，不在表里；有这样的会话在跑时，会提示是哪个进程。
-组件有多个副本时，状态说的是最差的那个副本，后面跟着几个就绪（`运行中（healthy），2/2 个副本就绪`）：有一个副本没起来，这个组件就列在「未在运行」里。
+组件有多个副本时，状态说的是最差的那个副本，后面跟着几个就绪（`运行中（healthy），2/2 个副本就绪`）：有一个副本没起来，这个组件就列在「未在运行」里。上一次失败的迁移列在表格之后，附看日志的命令。
 
 ```text
 brickkit status [flags]

@@ -36,8 +36,9 @@ components:
 
 | 字段 | 含义 |
 | --- | --- |
-| `target` | 必填。`docker`、`podman` 或 `k8s`：决定生成 `compose.yaml` 还是 K8s 清单、调用哪个引擎 |
+| `target` | 必填。`docker`、`podman` 或 `k8s`：决定生成 `compose.yaml`、Podman 的 systemd 单元还是 K8s 清单、调用哪个引擎 |
 | `k8s` | K8s 专属的项目级设置：`context`、`namespace`、`createNamespace`、`podSecurity`、`imagePullSecrets`、`ingressClass`、`ingressAnnotations`、`networkPolicy`、`serviceAccount`。`target` 不是 `k8s` 时写了只警告 |
+| `podman` | 只对 Podman 的项目级设置：`units`，`compose`（不写时）或 `quadlet`——见 [Podman 怎样跑它们](../09-patterns/06-deployment-selection.md#podman-怎样跑它们quadlet-单元或-compose)。写在别的 `target` 下只警告 |
 | `network` | 只对 Docker / Podman。项目自己提供的网络：写了就加入它，不再由 brickkit 建 `brickkit-<项目名>-net`。项目之外的东西（自己起的数据库、IdP、网关）要和组件在同一个网络里时用，见 [部署文件的生成](../06-architecture/04-deploy-file-generation.md) |
 | `vars` | 覆盖 `config/vars.yaml` 的同名公共变量，只影响 `$var:` 引用（见 [公共变量](06-vars-and-var-ref.md)） |
 | `components` | 组件的部署条目 |
@@ -76,7 +77,7 @@ Docker / Podman 下有两点和 K8s 不同：
 
 - **多个副本不能映射宿主机端口。** 一个宿主机端口只能映射给一个容器。组件写了 `expose`，或者有本机进程（`mode: local` / `debug`）
   要经宿主机端口连它时，`up` 在生成阶段就报错，并按端口的来源给出路；只在自己机器上调试时，在 `deploy.local.yaml` 里把它改成 `replicas: 1`。
-- **没有滚动升级。** `up` 换镜像或配置时，所有副本一起重建。
+- **没有滚动升级。** `up` 换镜像或配置时，所有副本一起重建。`podman.units: quadlet` 时每个副本是同一个模板单元的一个实例（`<单元>@1`、`<单元>@2`……）。
 
 所以单机上的多副本是为了在本机验证组件同时跑几份时的行为（定时任务只跑一次、队列里的任务只被一份认领，
 见[后台任务](../09-patterns/01-component-design.md#后台任务同一份代码可能同时跑着好几份)），不是为了不停机升级。
@@ -165,7 +166,8 @@ Traefik 在你自己的 compose 里跑，接在同一个网络上（`network:` �
    建议：完整字段说明：brickkit docs 11-reference/03-deploy-yaml-schema（网页版：https://github.com/brickKit/brickKit/blob/v1.1.0/docs/zh/11-reference/03-deploy-yaml-schema.md）
 ```
 
-`local` 和 `debug` 的进程跑在你的机器上，所以只在 `docker` / `podman` 目标下有意义；集群里的 Pod 连不到你的笔记本。
+`local` 和 `debug` 的进程跑在你的机器上，所以只在 `docker` / `podman` 目标下有意义；集群里的 Pod 连不到你的笔记本。`podman.units: quadlet` 时同样拒绝：
+systemd 让那些单元活得比任何一次 `up` 都长、开机就拉起，而本机进程只活一次 `up`。
 怎么用它们调试见 [本地调试工作流](../02-project-guide/03-local-debug-workflow.md)。
 
 ## `members`：外壳承载谁

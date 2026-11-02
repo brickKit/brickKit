@@ -133,6 +133,7 @@ the value lands:
 | --- | --- | --- |
 | An ordinary value on Docker / Podman | Written into `compose.yaml` as it is and expanded when `docker compose` starts; the CLI checks it's defined when generating, and stops if not | The CLI reads the contents and writes them, as a secret, into an env file with mode 0600 |
 | A secret on Docker / Podman (`secret: true`) | Written into the 0600 env file as it is and expanded when `docker compose` starts; checked to be defined first, likewise | As above |
+| Podman with `podman.units: quadlet` | Expanded by the CLI at `up` (systemd recreates the containers at boot, with no shell environment); the value becomes a Podman secret; stops if it can't be found | The CLI reads the contents into a Podman secret |
 | Kubernetes | Expanded by the CLI when generating the manifests (`kubectl` substitutes nothing); stops if it can't be found | The CLI reads the contents |
 | A shell's `BRICKKIT_SERVED_MEMBERS_CONFIG` | Expanded by the CLI when generating, and JSON-encoded; stops if it can't be found | The CLI reads the contents and JSON-encodes them |
 | A `mode: local` process's environment | Expanded by the CLI before starting the process; refuses to start if it can't be found | The CLI reads the contents |
@@ -143,8 +144,8 @@ and substituting a value with a quote or a newline breaks the JSON (see
 [Special characters](../04-shell/06-special-characters.md)). Kubernetes must be worked out beforehand: `kubectl` doesn't
 substitute at all.
 
-In no case does a secret appear in plain text in `compose.yaml` or a Deployment: on Docker it's in the 0600 env file, on
-Kubernetes it's in the generated Secret, referenced by the Deployment through `secretKeyRef` (see
+In no case does a secret appear in plain text in `compose.yaml`, a Quadlet unit or a Deployment: on Docker it's in the
+0600 env file, with Quadlet units in a Podman secret, on Kubernetes it's in the generated Secret, referenced by the Deployment through `secretKeyRef` (see
 [Sensitive values](../01-three-layers/07-sensitive-values.md)).
 
 ## Migration containers and processes on this machine get the same

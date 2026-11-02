@@ -72,6 +72,11 @@ however many replicas the main service has (with a Pod InitContainer, three repl
 times at once). On Docker / Podman likewise: there's one migration container, and every replica of the main service waits
 for it to succeed.
 
+With `podman.units: quadlet` the migration is a one-shot unit (`brickkit-<project>-<service>-migration.container`) that
+the component's unit requires (`Requires=` + `After=`), and one version's migration requires the previous version's. `up`
+runs every migration before it touches any component; at boot systemd runs each migration first, too, so with Quadlet
+units the migrations also run at every boot — one more reason they must be idempotent (below).
+
 `up` tells you beforehand which ones it will run:
 
 ```text
@@ -96,6 +101,10 @@ When the migration exits non-zero, the main service doesn't start:
 ```text
 shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "warehouse" already exists
 ```
+
+With `podman.units: quadlet` the error names the migration's unit and its `journalctl` command instead, and no component
+was restarted: each keeps running its previous version, and `brickkit status` names the failed migration until one
+succeeds.
 
 Fix it and `up` again: the migration container runs on every `up`. So **a migration must be idempotent** — running a
 change that was already made again does nothing. The usual way is a migration-record table noting which steps have run.

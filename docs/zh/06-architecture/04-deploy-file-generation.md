@@ -5,6 +5,7 @@
 | `target` | 生成 | 位置 |
 | --- | --- | --- |
 | `docker`、`podman` | 一份 `compose.yaml` | `.brickkit/generated/compose.yaml` |
+| `podman` 加 `podman.units: quadlet` | Podman 的 systemd 单元（Quadlet） | `.brickkit/generated/quadlet/` |
 | `k8s` | 一组 Kubernetes 清单 | `.brickkit/generated/k8s/` |
 
 它们是生成物：不要手改，下次 `up` 会覆盖。要改什么，改三层文件。
@@ -142,6 +143,60 @@ components:
   ```
 
 外壳在 Compose 里的样子（网络别名、`BRICKKIT_SERVED_MEMBERS`、成员迁移）见 [开发一个外壳](../04-shell/05-shell-development.md#地址怎么指过来)。
+
+## Podman Quadlet 单元
+
+`podman.units: quadlet` 时，同一份计划变成 Podman 的 Quadlet 格式的 systemd 单元：每个组件一个 `.container`、每个迁移一个，加上项目的 `.network`
+（部署文件写了自己的 `network:` 时没有）。`up` 把它们复制进 `~/.config/containers/systemd/brickkit-<项目名>/`（无根）或
+`/etc/containers/systemd/brickkit-<项目名>/`（有根），重新加载 systemd，跑完每个迁移，再启动组件；systemd 让它们一直跑着、开机拉起。示例里的 `demo/caller`：
+
+```ini
+[Unit]
+Description=demo/caller@1.0.0 — BrickKit project qtest
+Requires=brickkit-qtest-demo-caller-1-0-0-migration.service
+After=brickkit-qtest-demo-caller-1-0-0-migration.service
+Wants=brickkit-qtest-demo-hello-1-0-0.service
+After=brickkit-qtest-demo-hello-1-0-0.service
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Container]
+Image=brickkit-demo/caller:1.0.0
+Network=brickkit-qtest.network
+Environment="COMPONENT_ID=demo/caller"
+Environment="DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080"
+Environment="PORT=8080"
+ContainerName=brickkit-qtest-demo-caller-1-0-0
+NetworkAlias=demo-caller-1-0-0
+PublishPort=18555:8080
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
+HealthInterval=10s
+HealthTimeout=3s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
+Label="brickkit.io/project=qtest"
+Label="brickkit.io/service=demo-caller-1-0-0"
+LogDriver=journald
+
+[Install]
+WantedBy=default.target
+```
+
+和 Compose 不同的地方，以及为什么：
+
+- **自己的迁移是必需的**（`Requires=` + `After=`）：它先跑，`up` 时和开机时都是，失败了组件就不启动。迁移单元是一次性的，跑完回到 inactive，下一次启动会再跑一遍。
+- **依赖只管顺序**（`Wants=` + `After=`）：`Requires=` 会在依赖被停止或重启时连带停掉、重启这个组件，而组件自己会重试连接——与 Compose 的 `depends_on` 一样。
+  依赖自己的 `Notify=healthy` 让它的启动在健康之后才算完成，所以 `After=` 等的是健康，相当于 `service_healthy`。
+- **不健康就杀掉重启**（`HealthOnFailure=kill`），但只在探的是存活检查时：声明了 `readinessCheck` 的组件探的是就绪，暂时不接流量不会因此被杀，与 Kubernetes 一样。
+- **不能让文件里看到的值**——密钥、`file://` 的内容、`${VAR}` 模板、跨好几行的值——在 `up` 时求值（开机时没有 shell 的环境），作为 Podman secret 交过去
+  （`Secret=<名字>,type=env,target=<键>`）；单元带着 `Label="brickkit.io/secret-digest=…"`，换了值组件就会重启。普通的值写成 `Environment=`，`%` 与 `$` 双写：
+  Quadlet 把它们放进 `ExecStart`，systemd 会在那里展开。
+- **多副本**是一个模板单元（`…@.container`）加每个实例一个链接；每个实例挂同一个 `NetworkAlias`。
+- 文件里**不写生成时间**：`up` 正好重启单元变了的那些组件。
 
 ## Kubernetes
 
@@ -295,7 +350,7 @@ spec:
 | `k8s.serviceAccount.enabled: true` | 每个组件一个 ServiceAccount，不挂载令牌 |
 | `k8s.podSecurity: restricted` | 每个容器的 `securityContext` |
 
-## 两边唯一相同的东西
+## 大家唯一相同的东西
 
-Docker 的 Compose 文件和 Kubernetes 的清单几乎没有一行相同——但**组件看到的东西完全相同**：同样的环境变量名、同样的值、同样格式的依赖地址
+Docker 的 Compose 文件、Podman 的单元和 Kubernetes 的清单几乎没有一行相同——但**组件看到的东西完全相同**：同样的环境变量名、同样的值、同样格式的依赖地址
 `http://<版本化服务名>:<端口>`。所以换部署目标只是换一份部署文件，组件代码一行不改。

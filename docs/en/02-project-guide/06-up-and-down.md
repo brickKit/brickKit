@@ -53,12 +53,15 @@ In order:
    its address isn't injected. The dependencies give the start order.
 4. **Generate the deployment files.** Resolve config, inject environment variables (dependency addresses, the
    component's own config), write `.brickkit/generated/compose.yaml` (a set of Kubernetes manifests when the target is
-   `k8s`). It's a generated file, rewritten every time — don't edit it by hand.
+   `k8s`; systemd units in `.brickkit/generated/quadlet/` with `podman.units: quadlet`). It's a generated file, rewritten
+   every time — don't edit it by hand.
 5. **Check images.** See the next section.
 6. **Run database migrations.** A component that declares `migration.command` first runs its migration with the same
    image; if the migration fails, that component doesn't start.
 7. **Call the engine.** `docker compose up` (or `podman compose`, `kubectl apply`), waiting for every component's health
-   check to pass.
+   check to pass. With `podman.units: quadlet` the units are installed into systemd instead: every migration runs first,
+   and only if all succeed are the components whose unit changed restarted and the rest started — a failed migration
+   leaves every component on its previous version.
 8. **Start the `mode: local` processes**, when there are any. First, every port they will bind is checked: one another
    program already holds stops `up` with `PORT_CONFLICT`, and none starts. Then, in start order, a component that declares
    `local.migrationCommand` has its migration run from source — for a shell, first those of its members compiled in from
@@ -130,6 +133,8 @@ brickkit down
 - **To stop only some components:** write `mode: disable` on their deploy entries and `up`. Their containers are removed,
   components further down that ran only for them stop too, and the deploy file keeps a record, so the next `up` doesn't
   bring them back.
+- **With `podman.units: quadlet`** `down` stops the units, removes them from systemd (nothing comes back at boot), and
+  removes the project's network and Podman secrets.
 - **`mode: local` components** are processes watched in the foreground by the terminal that ran `up`; they can only be
   stopped there with `Ctrl+C` (or by closing that terminal). `down` can't reach them and only names that session's process
   ID. If one of them crashes, the other `mode: local` processes are stopped and `up` ends; nothing restarts it.

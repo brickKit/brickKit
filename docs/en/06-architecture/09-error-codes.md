@@ -103,7 +103,7 @@ common error code, with many situations behind it, told apart by their titles.
 | Title | Situation | What to do |
 | --- | --- | --- |
 | `Error: <…> failed validation` | The structure of `brickkit.yaml` or a deploy file is wrong: an unknown field, a wrong type, a required field missing | The error names the field and line; fix it there |
-| `Error: <…> failed validation` (on the focus field) | `focus:` written in `deploy.yaml` (it's personal), with `target: k8s` (a cluster can't reach a process on your machine), or not a component ID; `up --focus` refuses to write such a focus | Keep `focus` in `deploy.local.yaml` on `docker` / `podman`; see [Developing inside the project](../02-project-guide/04-focus-run.md) |
+| `Error: <…> failed validation` (on the focus field) | `focus:` written in `deploy.yaml` (it's personal), with `target: k8s` (a cluster can't reach a process on your machine) or `podman.units: quadlet` (systemd keeps the units running past any `up`), or not a component ID; `up --focus` refuses to write such a focus | Keep `focus` in `deploy.local.yaml` on `docker` / `podman` with compose; see [Developing inside the project](../02-project-guide/04-focus-run.md) |
 | `Error: <…> is not valid YAML` | A YAML syntax error | Check indentation and colons at the line the error gives |
 | `Error: <…> contains more than one YAML document (a stray --- line?)` | The file has an extra `---` line, and the part after it would be dropped silently | Delete the extra `---` |
 | `Error: a required component config item has no value` | An item in `configSchema.required` has no default, and nothing was filled in under `config/` | Fill it in in `config/<component>.yaml` |
@@ -289,7 +289,7 @@ addresses and the like are ordinary config items of the component.
 
 | Title | Situation | What to do |
 | --- | --- | --- |
-| `Error: database migration failed` | A component's migration exited non-zero (the migration container on Docker, the Job on K8s, or a `mode: local` component's `local.migrationCommand`); the main service or process didn't start | Read the migration logs with the command the error gives — for `local.migrationCommand`, its output above, prefixed with `<service name>-migration` — fix it, then `up` again |
+| `Error: database migration failed` | A component's migration exited non-zero (the migration container on Docker, the Job on K8s, the migration's unit with `podman.units: quadlet`, or a `mode: local` component's `local.migrationCommand`); the main service or process didn't start — with Quadlet units no component was touched and the previous version keeps running | Read the migration logs with the command the error gives — for `local.migrationCommand`, its output above, prefixed with `<service name>-migration` — fix it, then `up` again |
 
 ### MIGRATION_SKIPPED
 
@@ -308,6 +308,8 @@ why already.
 | `Error: <…> failed to run` | `docker compose` / `podman compose` returned a failure | Read the "Output" in the error. Three Podman failures get a hint of their own — `podman.socket` not on, AppArmor blocking network teardown, AppArmor keeping Podman from creating its user namespace (`failed to reexec: Permission denied`) — see [up / down problems](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) |
 | `Error: kubectl failed to run` | `kubectl` returned a failure | As above |
 | `Error: some components did not start properly` | The engine finished, but some components aren't healthy | Read that component's logs as the hint says |
+| `Error: these units did not start` | `podman.units: quadlet`: systemd couldn't start these units | Read each unit's log with the `journalctl` command given ([A Quadlet unit doesn't start](../10-troubleshooting/01-up-down-issues.md#a-quadlet-unit-doesnt-start)) |
+| `Error: could not write the units into <…>` | `podman.units: quadlet`: the units' directory isn't writable — for rootful Podman, `/etc/containers/systemd` needs root | `sudo brickkit up`, or check the directory's permissions |
 | `<…> local component(s) crashed` | A `mode: local` process exited unexpectedly | Read the last lines of output in the crash summary; the exit code shown is the started command's, and a launcher such as `go run` reports its own ([When a `mode: local` process crashes](../02-project-guide/06-up-and-down.md#when-a-mode-local-process-crashes)) |
 
 ### ENGINE_MISSING
@@ -318,6 +320,7 @@ why already.
 | `Error: container engine <…> not found` | The engine for the deploy file's `target` isn't installed | Install it, or change `target` |
 | `Error: kubectl not found` | `target: k8s`, but there's no `kubectl` | Install `kubectl` |
 | `Error: Podman is installed, but not enabled` | Only Podman is installed, while the deploy file says `target: docker` | Change `target` to `podman` |
+| `Error: Podman <…> is too old for podman.units: quadlet, which needs <…> or later` | The installed Podman can't read the generated units | Upgrade Podman, or leave `podman.units` out on this machine (compose) |
 
 ### NETWORK_UNREACHABLE
 

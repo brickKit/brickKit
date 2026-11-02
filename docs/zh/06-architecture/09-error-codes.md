@@ -94,7 +94,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | 标题 | 什么情况 | 怎么办 |
 | --- | --- | --- |
 | `错误：<…> 校验失败` | `brickkit.yaml` 或部署文件的结构不对：未知字段、类型不对、必填字段没写 | 报错点名了字段与行号，照着改 |
-| `错误：<…> 校验失败`（focus 字段） | `focus:` 写在了 `deploy.yaml` 里（它是个人的事）、配了 `target: k8s`（集群够不着你机器上的进程），或者不是组件 ID；`up --focus` 不会写出这样的焦点 | `focus` 只写在 `deploy.local.yaml` 里、只用于 `docker` / `podman`；见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
+| `错误：<…> 校验失败`（focus 字段） | `focus:` 写在了 `deploy.yaml` 里（它是个人的事）、配了 `target: k8s`（集群够不着你机器上的进程）或 `podman.units: quadlet`（systemd 让单元活得比任何一次 `up` 都长），或者不是组件 ID；`up --focus` 不会写出这样的焦点 | `focus` 只写在 `deploy.local.yaml` 里、只用于 `docker` / 用 compose 的 `podman`；见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
 | `错误：<…> 不是合法的 YAML` | YAML 语法错误 | 按报错的行号检查缩进与冒号 |
 | `错误：<…> 里有不止一个 YAML 文档（多写了一行 ---？）` | 文件里多了一行 `---`，后半段会被悄悄丢掉 | 删掉多余的 `---` |
 | `错误：必填的组件配置没有值` | `configSchema.required` 里的项没有默认值，`config/` 里也没填 | 在 `config/<组件>.yaml` 里填上 |
@@ -265,7 +265,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 | 标题 | 什么情况 | 怎么办 |
 | --- | --- | --- |
-| `错误：数据库迁移失败` | 组件的迁移以非零退出（Docker 下是迁移容器，K8s 下是 Job，`mode: local` 下是组件的 `local.migrationCommand`）；主服务或进程没有启动 | 按报错给出的命令看迁移日志——`local.migrationCommand` 的输出就在上面，行首是 `<服务名>-migration`——修好之后重新 `up` |
+| `错误：数据库迁移失败` | 组件的迁移以非零退出（Docker 下是迁移容器，K8s 下是 Job，`podman.units: quadlet` 下是迁移的单元，`mode: local` 下是组件的 `local.migrationCommand`）；主服务或进程没有启动——Quadlet 单元时一个组件都没动，上一个版本照旧跑着 | 按报错给出的命令看迁移日志——`local.migrationCommand` 的输出就在上面，行首是 `<服务名>-migration`——修好之后重新 `up` |
 
 ### MIGRATION_SKIPPED
 
@@ -281,6 +281,8 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：<…> 执行失败` | `docker compose` / `podman compose` 返回失败 | 看报错里的"输出"。Podman 的三种失败另有提示——`podman.socket` 没开、AppArmor 拦下网络拆卸、AppArmor 不让 Podman 建用户命名空间（`failed to reexec: Permission denied`）——见 [up / down 常见问题](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查) |
 | `错误：kubectl 执行失败` | `kubectl` 返回失败 | 同上 |
 | `错误：部分组件没有正常启动` | 引擎跑完了，但有组件没健康 | 按提示看那个组件的日志 |
+| `错误：这些单元没有起来` | `podman.units: quadlet`：systemd 起不来这些单元 | 用给出的 `journalctl` 命令看每个单元的日志（[Quadlet 单元起不来](../10-troubleshooting/01-up-down-issues.md#quadlet-单元起不来)） |
+| `错误：单元写不进 <…>` | `podman.units: quadlet`：单元的目录写不了——有根 Podman 的 `/etc/containers/systemd` 要 root | `sudo brickkit up`，或者查那个目录的权限 |
 | `<…> 个本地组件崩溃了` | `mode: local` 的进程意外退出 | 看崩溃摘要里的最后几行输出；列出的退出码是启动的那条命令的，`go run` 这类启动器报它自己的（[`mode: local` 的进程崩了](../02-project-guide/06-up-and-down.md#mode-local-的进程崩了)） |
 
 ### ENGINE_MISSING
@@ -291,6 +293,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：找不到容器引擎 <…>` | 部署文件的 `target` 对应的引擎没装 | 安装它，或换 `target` |
 | `错误：找不到 kubectl` | `target: k8s` 但没有 `kubectl` | 安装 `kubectl` |
 | `错误：检测到 Podman，但尚未启用` | 只装了 Podman，部署文件却是 `target: docker` | 把 `target` 改成 `podman` |
+| `错误：Podman <…> 太旧，podman.units: quadlet 要 <…> 或更新的版本` | 装的 Podman 读不懂生成的单元 | 升级 Podman；或者这台机器不写 `podman.units`（用 compose） |
 
 ### NETWORK_UNREACHABLE
 

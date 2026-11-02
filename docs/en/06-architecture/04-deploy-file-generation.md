@@ -6,6 +6,7 @@ following the deploy file's `target`, from the three layers and each component's
 | `target` | Generates | Where |
 | --- | --- | --- |
 | `docker`, `podman` | One `compose.yaml` | `.brickkit/generated/compose.yaml` |
+| `podman` with `podman.units: quadlet` | Podman's systemd units (Quadlet) | `.brickkit/generated/quadlet/` |
 | `k8s` | A set of Kubernetes manifests | `.brickkit/generated/k8s/` |
 
 They are generated files: don't edit them by hand, the next `up` overwrites them. To change something, change the three
@@ -161,6 +162,71 @@ Item by item:
 
 What a shell looks like in Compose (network aliases, `BRICKKIT_SERVED_MEMBERS`, members' migrations) is in
 [Writing a shell](../04-shell/05-shell-development.md#how-addresses-are-pointed-at-it).
+
+## Podman Quadlet units
+
+With `podman.units: quadlet` the same plan becomes systemd units in Podman's Quadlet format: one `.container` per
+component, one per migration, and the project's `.network` (none when the deploy file names its own `network:`). `up`
+copies them into `~/.config/containers/systemd/brickkit-<project>/` (rootless) or
+`/etc/containers/systemd/brickkit-<project>/` (rootful), reloads systemd, runs every migration, then starts the
+components; systemd keeps them running and starts them at boot. `demo/caller` from the example:
+
+```ini
+[Unit]
+Description=demo/caller@1.0.0 — BrickKit project qtest
+Requires=brickkit-qtest-demo-caller-1-0-0-migration.service
+After=brickkit-qtest-demo-caller-1-0-0-migration.service
+Wants=brickkit-qtest-demo-hello-1-0-0.service
+After=brickkit-qtest-demo-hello-1-0-0.service
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Container]
+Image=brickkit-demo/caller:1.0.0
+Network=brickkit-qtest.network
+Environment="COMPONENT_ID=demo/caller"
+Environment="DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080"
+Environment="PORT=8080"
+ContainerName=brickkit-qtest-demo-caller-1-0-0
+NetworkAlias=demo-caller-1-0-0
+PublishPort=18555:8080
+HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
+HealthInterval=10s
+HealthTimeout=3s
+HealthRetries=3
+HealthStartPeriod=60s
+Notify=healthy
+HealthOnFailure=kill
+Label="brickkit.io/project=qtest"
+Label="brickkit.io/service=demo-caller-1-0-0"
+LogDriver=journald
+
+[Install]
+WantedBy=default.target
+```
+
+What differs from Compose, and why:
+
+- **Its own migration is required** (`Requires=` + `After=`): it runs first, at `up` and at boot, and a failure keeps the
+  component from starting. The migration unit is a one-shot that returns to inactive when done, so the next start runs it
+  again.
+- **A dependency only orders it** (`Wants=` + `After=`): `Requires=` would stop or restart the component whenever the
+  dependency is stopped or restarted, while a component retries its connections by itself — as with Compose's
+  `depends_on`. The dependency's own `Notify=healthy` makes its start complete only once it's healthy, so `After=` waits
+  for healthy, like `service_healthy`.
+- **Unhealthy is killed and restarted** (`HealthOnFailure=kill`), but only when the probe is the liveness check: a
+  component that declares a `readinessCheck` is probed on readiness and not killed for not taking traffic yet, as on
+  Kubernetes.
+- **Values a file mustn't show** — secrets, `file://` contents, `${VAR}` templates, values over several lines — are
+  evaluated at `up` (there is no shell environment at boot) and handed over as Podman secrets
+  (`Secret=<name>,type=env,target=<key>`); the unit carries `Label="brickkit.io/secret-digest=…"` so that changing one
+  restarts the component. Plain values are written as `Environment=`, with `%` and `$` doubled: Quadlet puts them into
+  `ExecStart`, where systemd would expand them.
+- **Replicas** are one template unit (`…@.container`) and one link per instance; every instance carries the same
+  `NetworkAlias`.
+- **No timestamp** in the files: `up` restarts exactly the components whose unit changed.
 
 ## Kubernetes
 
@@ -327,9 +393,9 @@ A few more things are generated depending on the deploy file's settings:
 | `k8s.serviceAccount.enabled: true` | One ServiceAccount per component, with no token mounted |
 | `k8s.podSecurity: restricted` | A `securityContext` on every container |
 
-## The one thing both sides share
+## The one thing they all share
 
-Docker's Compose file and Kubernetes' manifests have hardly a line in common — but **what components see is exactly the
+Docker's Compose file, Podman's units and Kubernetes' manifests have hardly a line in common — but **what components see is exactly the
 same**: the same environment variable names, the same values, dependency addresses in the same format
 `http://<versioned service name>:<port>`. So switching the deploy target is switching one deploy file, without a line of
 component code changing.

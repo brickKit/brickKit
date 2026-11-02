@@ -49,10 +49,11 @@ brickkit up
    每一行都写着理由——"顶层"、"demo/caller 需要"、"mode: debug"。
 3. **依赖检查与排序。** 强依赖缺了报错；弱依赖缺了警告、不注入它的地址。按依赖关系排出启动顺序。
 4. **生成部署文件。** 解析配置、注入环境变量（依赖的地址、组件自己的配置），写出 `.brickkit/generated/compose.yaml`
-   （部署目标是 `k8s` 时是一组 Kubernetes 清单）。这份文件是生成物，每次都重写，不要手改。
+   （部署目标是 `k8s` 时是一组 Kubernetes 清单；`podman.units: quadlet` 时是 `.brickkit/generated/quadlet/` 下的 systemd 单元）。这份文件是生成物，每次都重写，不要手改。
 5. **检查镜像。** 见下一节。
 6. **跑数据库迁移。** 组件声明了 `migration.command` 的，先用同一个镜像跑一次迁移；迁移失败，这个组件就不启动。
-7. **调用引擎。** `docker compose up`（或 `podman compose`、`kubectl apply`），等每个组件的健康检查通过。
+7. **调用引擎。** `docker compose up`（或 `podman compose`、`kubectl apply`），等每个组件的健康检查通过。`podman.units: quadlet` 时改成把单元装进 systemd：
+   每个迁移先跑，全部成功才重启单元变了的组件、启动其余的——迁移失败时每个组件照旧跑着上一个版本。
 8. **启动 `mode: local` 的进程**（有的话）。先检查它们要绑的每个端口：有被别的程序占着的，`up` 报 `PORT_CONFLICT` 停下，一个都不启动。
    然后按启动顺序，组件写了 `local.migrationCommand` 的先从源码跑迁移——外壳还要先跑从本地仓库编进去的成员的迁移——失败了进程就不启动，
    和第 6 步一样——再启动进程；
@@ -119,6 +120,7 @@ brickkit down
 - **不删数据卷。** 数据库的数据还在；下次 `up` 接着用。要彻底清掉，自己执行 `docker volume rm`——误删数据的代价太大，这一步只能由人来做。
 - **只想停几个：** 在部署文件里给它们写 `mode: disable` 再 `up`。它们的容器会被移除，下层只为它们而跑的组件也一起停下，
   而且部署文件里留下了痕迹，下次 `up` 不会又把它们拉起来。
+- **`podman.units: quadlet` 时**，`down` 停掉单元、从 systemd 里卸下（开机时什么都不会回来），并删掉项目的网络与 Podman secret。
 - **`mode: local` 的组件**是运行 `up` 的那个终端在前台看护的进程，只能在那个终端里 `Ctrl+C`（或关掉那个终端）停止；`down` 够不着它，只会提示那个会话的进程号。
   其中一个崩了，其余 `mode: local` 进程也被停掉、`up` 结束；没有东西会重启它。
   崩了之后看到什么，见 [`mode: local` 的进程崩了](#mode-local-的进程崩了)。

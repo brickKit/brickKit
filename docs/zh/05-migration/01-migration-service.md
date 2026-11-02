@@ -60,6 +60,10 @@ Kubernetes 下它是一个 Job：`up` 先删掉上一次留下的同名 Job，�
 而且只跑一次——不论主服务有几个副本（用 Pod 的 InitContainer 的话，三个副本会并发跑三次同一个迁移）。
 Docker / Podman 下同样：迁移容器只有一个，主服务的每个副本都等它成功结束。
 
+`podman.units: quadlet` 时，迁移是一个一次性单元（`brickkit-<项目名>-<服务名>-migration.container`），组件的单元依赖它（`Requires=` + `After=`），
+同一组件后一个版本的迁移依赖前一个版本的。`up` 在动任何组件之前先跑完每个迁移；开机时 systemd 也先跑每个迁移，所以用 Quadlet 单元时，
+每次开机都会再跑一遍迁移——这也是迁移必须幂等的又一个理由（见下）。
+
 `up` 会提前告诉你这次会动哪些库：
 
 ```text
@@ -83,6 +87,9 @@ Docker / Podman 下同样：迁移容器只有一个，主服务的每个副本�
 ```text
 shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "warehouse" already exists
 ```
+
+`podman.units: quadlet` 时，报错点名的是迁移的单元和它的 `journalctl` 命令，而且没有重启任何组件：它们照旧跑着上一个版本，
+迁移成功之前 `brickkit status` 会一直点名这个失败的迁移。
 
 修好之后再 `up` 就行：迁移容器每次 `up` 都会跑。所以**迁移必须是幂等的**——已经做过的变更再跑一遍什么都不做。
 常见的做法是一张迁移记录表，记下已经执行过哪些步骤。几个组件共用一个库时，这张表的主键要带上组件标识，否则它们的记录会互相覆盖。同一组件几个版本并存时，旧版本的迁移还会面对被新版本迁移过的库，也要把它当作已完成（见[多版本的迁移顺序](03-multi-version-chain.md#旧版本的迁移会面对新版本迁移过的库)）。

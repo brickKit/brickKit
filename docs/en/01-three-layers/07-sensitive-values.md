@@ -25,7 +25,7 @@ TLS_KEY: file://.secrets/tls.key
 
 An item the component marks `secret: true` in its `configSchema` is a secret — the component's author decides, and the
 platform never guesses from a name. Secrets take a separate path when deployment files are generated (see below) and are
-never written in plain text into `compose.yaml` or a Deployment.
+never written in plain text into `compose.yaml`, a Quadlet unit or a Deployment.
 
 `up` also takes a look at the files you commit: an item declared `secret: true`, or with a secret-looking name, written in
 plain text in `config/` gets a warning:
@@ -62,6 +62,12 @@ component's `configSchema` keys are removed from that environment before it star
 | A `secret: true` value, the content of a `file://` | `.brickkit/generated/env/<service>.env`, file mode 0600, referenced by `env_file`; a `${VAR}` there is also left for compose to expand at start, while a `file://`'s content is read and written by the CLI |
 | `existingSecret` | Docker has no such concept: the item isn't injected, and you're told so |
 | A secret declared `mount: file` | Written as a file mounted into the container; the environment variable holds the path — see [Delivered as a file](#delivered-as-a-file-mount-file) |
+
+With `podman.units: quadlet` systemd recreates the containers at boot, when there is no shell environment or `.env` to
+expand from, so `${VAR}` is expanded at `up`, as on Kubernetes. A plain value goes into the unit as `Environment=`; a
+`secret: true` value, a `file://`'s content, anything with a `${VAR}` in it and a value over several lines become a Podman
+secret (`podman secret create`), which the unit only names. A unit also carries a digest of its secrets, so `up`
+restarts the component when one changes. `down` removes the project's secrets.
 
 Although `${VAR}` is left for compose to expand, the CLI checks at generation time, with the same order (process
 environment, then `.env`), that it **is defined**. If it isn't, generation stops rather than handing it to compose:
@@ -188,7 +194,7 @@ key is what the component reads. The path is `/run/brickkit/secrets/<versioned s
 
 | Target | Where the file comes from |
 | --- | --- |
-| Docker / Podman | The value is written to `.brickkit/generated/secrets/<service name>/<key>`, and that directory is mounted read-only into the container. `${VAR}` is expanded at generation (nothing substitutes variables in a file) |
+| Docker / Podman (compose and Quadlet units alike) | The value is written to `.brickkit/generated/secrets/<service name>/<key>`, and that directory is mounted read-only into the container. `${VAR}` is expanded at generation (nothing substitutes variables in a file). With Quadlet units this is the one thing that ties the deployment to the project directory: keep it where it is |
 | Kubernetes | The value goes into the generated Secret and that key is mounted as a file (a projected volume); an external Secret named by `existingSecret` is mounted the same way, into the same directory |
 | A process on your machine (`mode: local` / `debug`) | The environment variable holds the file's absolute path on your machine |
 

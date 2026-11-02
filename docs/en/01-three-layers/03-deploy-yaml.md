@@ -37,8 +37,9 @@ components:
 
 | Field | Meaning |
 | --- | --- |
-| `target` | Required. `docker`, `podman` or `k8s`: decides whether a `compose.yaml` or Kubernetes manifests are generated, and which engine is called |
+| `target` | Required. `docker`, `podman` or `k8s`: decides whether a `compose.yaml`, Podman's systemd units or Kubernetes manifests are generated, and which engine is called |
 | `k8s` | Kubernetes-only project settings: `context`, `namespace`, `createNamespace`, `podSecurity`, `imagePullSecrets`, `ingressClass`, `ingressAnnotations`, `networkPolicy`, `serviceAccount`. Written under another `target`, it only warns |
+| `podman` | Podman-only project settings: `units`, `compose` (when left out) or `quadlet` — see [How Podman runs them](../09-patterns/06-deployment-selection.md#how-podman-runs-them-quadlet-units-or-compose). Written under another `target`, it only warns |
 | `network` | Docker / Podman only. A network the project provides: when set, the project joins it instead of `brickkit-<project>-net`, which is then not created. For when things outside the project (a database you run, an IdP, a gateway) must share a network with the components; see [Generating the deploy files](../06-architecture/04-deploy-file-generation.md) |
 | `vars` | Overrides shared variables of the same name in `config/vars.yaml`; affects only `$var:` references (see [Shared variables](06-vars-and-var-ref.md)) |
 | `components` | The components' deployment entries |
@@ -82,6 +83,7 @@ On Docker / Podman two things differ from Kubernetes:
   way out that matches where the port comes from; when it's only you debugging on your machine, set `replicas: 1` for it
   in `deploy.local.yaml`.
 - **There's no rolling update.** When `up` changes the image or the configuration, all replicas are recreated together.
+  With `podman.units: quadlet` each replica is an instance of one template unit (`<unit>@1`, `<unit>@2`, …).
 
 So several replicas on one machine are for checking, on your own machine, how a component behaves when several copies
 run at once (a scheduled job runs once, a queued task is claimed by one copy, see
@@ -186,7 +188,8 @@ it from a `git pull`. In `deploy.yaml` it is rejected:
 ```
 
 `local` and `debug` processes run on your machine, so they only make sense on the `docker` / `podman` targets; a Pod in
-a cluster can't reach your laptop. How to debug with them: [Local debugging](../02-project-guide/03-local-debug-workflow.md).
+a cluster can't reach your laptop. With `podman.units: quadlet` they are refused too: systemd keeps those units running
+past any `up` and starts them at boot, while a process on this machine lives only as long as one `up`. How to debug with them: [Local debugging](../02-project-guide/03-local-debug-workflow.md).
 
 ## `members`: which components a shell hosts
 

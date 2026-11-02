@@ -9,7 +9,7 @@ shape is decided.
 
 | You want to | Run it as |
 | --- | --- |
-| Keep it running on one machine: a delivery, a small production | Containers on Podman: **rootful** when the engine may run as root, **rootless** when it may not; Docker is equally supported, for a machine that already runs Docker or tools that only speak Docker |
+| Keep it running on one machine: a delivery, a small production | Containers on Podman as systemd units (`podman.units: quadlet`): **rootful** when the engine may run as root, **rootless** when it may not; Docker is equally supported, for a machine that already runs Docker or tools that only speak Docker |
 | Keep it running with self-healing and scaling across machines, or on a cluster you already have | Containers on Kubernetes |
 | Change one or two components against the real rest | Containers, with those components as processes on this machine (`mode: debug` / `mode: local`) |
 | Show it or try it on a machine without a container engine | Every component `mode: local` — a demo or a trial, never a delivery |
@@ -27,7 +27,8 @@ container engine is no burden; so the cases left for processes are development, 
 
 ## Three decisions
 
-1. **Where the containers run** — `target: podman`, `docker` or `k8s` in the deploy file.
+1. **Where the containers run** — `target: podman`, `docker` or `k8s` in the deploy file (on Podman also `podman.units`:
+   systemd units or compose).
 2. **The topology** — how many containers the components end up in: all standalone, all in shells, or mixed.
 3. **Whether some components run as processes on this machine this time** — a development overlay, or, with every
    component that way, a demo without containers. It is described last, in
@@ -136,26 +137,24 @@ one machine, several machines, high availability, multi-node Kubernetes, compone
 ## Decision one: where the containers run
 
 This is almost entirely an infrastructure question, not a performance one: do you have a Kubernetes cluster, do you need
-scheduling across machines and self-healing? If not, one machine runs everything with `podman compose` or
-`docker compose`, the simplest to operate. If so, `k8s` generates Deployments / Services / Ingresses.
+scheduling across machines and self-healing? If not, one machine runs everything on Podman or Docker, the simplest to
+operate. If so, `k8s` generates Deployments / Services / Ingresses.
 
 ### One machine: Podman, rootful or rootless, or Docker
 
-BrickKit generates the same `compose.yaml` for `target: podman` and `target: docker` — the only difference is the
-restart policy (see [Coming back after a reboot](#coming-back-after-a-reboot)) — and every `brickkit` command works the
-same on both. What differs is the engine on the host:
+What differs is the engine on the host:
 
 | Engine | What runs on the host | Upside | Cost | For |
 | --- | --- | --- | --- | --- |
-| **Rootful Podman** (recommended when the engine may run as root) | Podman as root, no daemon: each container has a small monitor process (`conmon`); the kernel carries the containers' network | Comes back at boot with one system unit; no user-space networking (9–10% less CPU across the whole stack than rootless); any port can be published | The engine runs as root, as Docker's does: a process that escapes its container is root on the host unless the image runs as a non-root user; next to Docker, Podman's bridges must be let through Docker's firewall chain ([below](#setting-up-a-host-for-rootful-podman)) | Single-machine delivery where root is acceptable |
-| **Rootless Podman** (recommended when it may not) | Podman as the deploying user: each container has its `conmon`; a user-space helper (`pasta`) carries the containers' network | The engine never runs as root; the least resident memory | The user-space networking costs CPU; coming back at boot takes several host settings, each of which fails silently until the next reboot ([below](#setting-up-a-host-for-rootless-podman)); ports below 1024 can't be published as they are | Hosts that don't allow a root engine |
+| **Rootful Podman** (recommended when the engine may run as root) | Podman as root, no daemon: each container has a small monitor process (`conmon`); the kernel carries the containers' network | Coming back at boot needs nothing beyond systemd; no user-space networking (9–10% less CPU across the whole stack than rootless); any port can be published | The engine runs as root, as Docker's does: a process that escapes its container is root on the host unless the image runs as a non-root user; next to Docker, Podman's bridges must be let through Docker's firewall chain ([below](#setting-up-a-host-for-rootful-podman)) | Single-machine delivery where root is acceptable |
+| **Rootless Podman** (recommended when it may not) | Podman as the deploying user: each container has its `conmon`; a user-space helper (`pasta`) carries the containers' network | The engine never runs as root; the least resident memory | The user-space networking costs CPU; coming back at boot takes host settings, each of which fails silently until the next reboot ([below](#setting-up-a-host-for-rootless-podman)); ports below 1024 can't be published as they are | Hosts that don't allow a root engine |
 | **Docker** | The Docker daemon (`dockerd`, `containerd`), as root | The most widespread, the most surrounding tooling; setting it up is installing it | The daemon's resident memory; root, as for rootful Podman | Machines that already run Docker; tools that only speak Docker |
 
 **Choosing between them.** Ask first whether the engine may run as root on this host. If it may, rootful Podman: the
-boot path is the system's own — one unit, which waits for the network the ordinary way — and the networking is the
-kernel's. If it may not, rootless Podman, with the host settings below; the
-[environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) tells you which of
-them is missing. Docker is the same choice as rootful Podman with a daemon: take it where Docker is already there.
+boot path is the system's own and the networking is the kernel's. If it may not, rootless Podman, with the host settings
+below; the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) tells
+you which of them is missing. Docker is the same choice as rootful Podman with a daemon: take it where Docker is already
+there.
 
 **What the measurement says** ([the engines](#the-engines-the-platforms-own-cost)): the components cost the same on every
 engine, and the whole stack's CPU didn't differ between rootless Podman and Docker; what differs is the platform's own
@@ -164,25 +163,67 @@ memory, paid once per machine — about 0.14 GiB for rootless Podman against abo
 (9–10% of the whole stack); its memory wasn't measured separately (the same `conmon` per container, no `pasta`).
 
 **What a reboot showed** (the same machine — Ubuntu 26.04, Podman 5.7.0, Docker installed beside it, Wi-Fi by DHCP — and
-the same 12 components): rootful Podman came back on the first real reboot with only the system boot unit and the firewall
-unit in place — all 12 healthy, none restarted, Podman's boot unit done 3.5 seconds after the network was online.
-Rootless Podman took three reboots to find what it needs: the AppArmor profile (nothing came back), the boot unit waiting
-for the network (the containers came back without a route to the host), and then it passed — steps 3–7 below.
+the same 12 components, run with compose): rootful Podman came back on the first real reboot with only the system boot
+unit and the firewall unit in place — all 12 healthy, none restarted, Podman's boot unit done 3.5 seconds after the network
+was online. Rootless Podman took three reboots to find what it needs: the AppArmor profile (nothing came back), the boot
+unit waiting for the network (the containers came back without a route to the host), and then it passed.
+
+### How Podman runs them: Quadlet units, or compose
+
+On Podman the deploy file chooses what BrickKit hands over, with `podman.units`:
+
+```yaml
+target: podman
+podman:
+  units: quadlet      # left out: compose
+```
+
+- **`quadlet`** (recommended for a delivery): `up` writes systemd units in Podman's Quadlet format — one `.container` per
+  component and per migration, one `.network` — and systemd keeps the containers running and starts them at boot.
+- **`compose`** (when `podman.units` is left out): `up` generates `compose.yaml` and runs it with `podman compose`, the
+  same file as `target: docker`. This is the one for a development machine: only it can run some components as processes
+  on this machine (`mode: local` / `mode: debug`, a focus run) next to the containers.
+
+| | Quadlet units | compose |
+| --- | --- | --- |
+| At boot | Each unit starts by itself; nothing else to enable | Podman's boot unit `podman-restart.service`, enabled by hand |
+| Waiting for the network at boot | Built in (rootless too) | Rootless: a drop-in by hand |
+| Order at boot | Migrations first, then each component after the ones it needs are healthy | None: containers start all at once and retry |
+| Migrations | At every `up`, and at boot | At every `up` only |
+| A component turns unhealthy | Killed and restarted (only when it declares no separate `readinessCheck`) | Left running |
+| Logs | journald: `journalctl [--user] -u 'brickkit-<project>-*'` | `podman compose logs` |
+| A migration fails | `up` stops before touching any component: they keep running their previous version | The component waits for its migration and doesn't start |
+| What the host needs | Podman 5.3 or later | Podman, Docker's Compose V2 (`docker-compose`), `podman.socket` |
+| Processes on this machine, focus runs | Refused while loading | Supported |
+| Runs `up` | Rootless: the deploying user. Rootful: root (`sudo brickkit up`) — it installs into `/etc/containers/systemd` | The deploying user; rootful also through a socket group ([step 5](#setting-up-a-host-for-rootful-podman)) |
+
+The units are what you see: `up` writes them into `.brickkit/generated/quadlet/` (`up --dry-run` stops there), then
+copies them into a directory of their own, `~/.config/containers/systemd/brickkit-<project>/` (rootless) or
+`/etc/containers/systemd/brickkit-<project>/` (rootful), and `down` removes that directory. Values that must not be
+read in a file — secrets, `file://` contents, `${VAR}` templates, values spanning several lines — are evaluated at `up`
+and handed over as Podman secrets; a unit only names them. A project runs one way at a time: switching `podman.units`
+and running `up` removes what the other way left (compose's containers, or the units) and says so.
+
+Verified with BrickKit: Quadlet units, rootless, on Podman 5.7.0 — `up`, a change restarting only that component, a failed
+migration leaving the previous version running, replicas, switching to compose and back, `down`. A real reboot with
+Quadlet units hasn't been verified yet.
 
 ### Setting up a host for rootful Podman
 
-As root, or with `sudo`:
+As root, or with `sudo`. Steps marked *compose* aren't needed with Quadlet units, and the other way round:
 
-1. Install Podman and Docker's Compose V2 (`docker-compose`), as in step 1 [for rootless Podman](#setting-up-a-host-for-rootless-podman).
-2. `systemctl enable --now podman.socket` — `brickkit up`, `down` and `status` reach Podman through it
+1. Install Podman, 5.3 or later for Quadlet units. *compose*: also Docker's Compose V2 (`docker-compose`), as in step 1
+   [for rootless Podman](#setting-up-a-host-for-rootless-podman).
+2. *compose*: `systemctl enable --now podman.socket` — `brickkit up`, `down` and `status` reach Podman through it
    (`/run/podman/podman.sock`).
-3. `systemctl enable podman-restart.service` — starts the containers again at boot. It is a system unit, so its
-   `After=network-online.target` really waits for the network.
+3. *compose*: `systemctl enable podman-restart.service` — starts the containers again at boot. It is a system unit, so
+   its `After=network-online.target` really waits for the network. Quadlet units start at boot by themselves.
 4. **Docker on the same machine**: let Podman's bridges through Docker's firewall chain, and put the rules back at every
-   boot, after Docker and before Podman's boot unit; without them containers can't reach each other
+   boot, after Docker and before the containers start; without them containers can't reach each other
    ([the unit](../10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out)).
-5. Who runs `brickkit`: as root (`sudo brickkit up`), or as a user in a group you let use root's socket. For the
-   latter, `systemctl edit podman.socket` and add
+   Quadlet units are ordered after that unit by themselves.
+5. Who runs `brickkit`: with Quadlet units, root (`sudo brickkit up`). *compose*: root as well, or a user in a group you
+   let use root's socket. For the latter, `systemctl edit podman.socket` and add
 
    ```ini
    [Socket]
@@ -196,32 +237,41 @@ As root, or with `sudo`:
    Membership of that group is as good as root, the same as Docker's `docker` group.
 6. Images run as a non-root user (`USER` with a non-zero uid in the `Dockerfile`): with a root engine, root in a
    container is root on the host ([why](../03-component-guide/02-component-yaml-reference.md#deployment-how-i-run)).
-7. Podman's storage on a disk mounted with `nofail`: add `RequiresMountsFor=<that mount point>` under `[Unit]` with
-   `systemctl edit podman-restart.service`.
-8. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) as
-   root once: it tests that containers can reach each other and be removed cleanly, and warns about any of steps 3, 4 and 7
-   that is missing.
+7. Podman's storage on a disk mounted with `nofail`: systemd doesn't then guarantee it is mounted before the containers
+   start. *compose*: add `RequiresMountsFor=<that mount point>` under `[Unit]` with `systemctl edit podman-restart.service`.
+   Quadlet units: one drop-in covers every unit whose name starts with `brickkit-`:
 
-Verified with BrickKit: rootful Podman on a machine that also has Docker, steps 1–5 (with the group), including a real
-reboot (all 12 components healthy without anyone logging in or running `up`). A machine with only Podman hasn't been
-verified end to end; there, step 4 doesn't apply.
+   ```bash
+   mkdir -p /etc/systemd/system/brickkit-.service.d
+   printf '[Unit]\nRequiresMountsFor=<that mount point>\n' > /etc/systemd/system/brickkit-.service.d/storage.conf
+   systemctl daemon-reload
+   ```
+
+8. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) as
+   root once, with `--units quadlet` for Quadlet units: it tests that containers can reach each other and be removed
+   cleanly, and warns about any of steps 1, 3, 4 and 7 that is missing.
+
+Verified with BrickKit: rootful Podman with compose on a machine that also has Docker, steps 1–5 (with the group),
+including a real reboot (all 12 components healthy without anyone logging in or running `up`). A machine with only Podman
+hasn't been verified end to end; there, step 4 doesn't apply.
 
 ### Setting up a host for rootless Podman
 
-As the user who will own the deployment:
+As the user who will own the deployment. Steps marked *compose* aren't needed with Quadlet units:
 
-1. Install Podman and Docker's Compose V2 (`docker-compose`). `podman compose` has no compose implementation of its own:
-   it forwards to that program, which talks to Podman; the Docker Engine itself isn't needed. `podman compose version`
-   should print `Executing external compose provider ".../docker-compose"`; the separate `podman-compose` project hasn't
-   been verified with BrickKit.
-2. `systemctl --user enable --now podman.socket` — `brickkit up`, `down` and `status` reach Podman through it.
+1. Install Podman, 5.3 or later for Quadlet units. *compose*: also Docker's Compose V2 (`docker-compose`).
+   `podman compose` has no compose implementation of its own: it forwards to that program, which talks to Podman; the
+   Docker Engine itself isn't needed. `podman compose version` should print
+   `Executing external compose provider ".../docker-compose"`; the separate `podman-compose` project hasn't been verified
+   with BrickKit.
+2. *compose*: `systemctl --user enable --now podman.socket` — `brickkit up`, `down` and `status` reach Podman through it.
 3. `sudo loginctl enable-linger <user>` — the user's services keep running after logout, and start at boot without
-   anyone logging in.
-4. `systemctl --user enable podman-restart.service` — starts the containers again at boot.
-5. Make that unit wait for the network. It is written `After=network-online.target`, which means nothing in the user's
-   systemd: when the network comes up late (Wi-Fi, a slow DHCP), Podman's network helper starts without an address and
-   the containers never reach the host. Podman ships `podman-user-wait-network-online.service` for this; add it with a
-   drop-in:
+   anyone logging in. Both ways need it: the units are the user's services too.
+4. *compose*: `systemctl --user enable podman-restart.service` — starts the containers again at boot.
+5. *compose*: make that unit wait for the network. It is written `After=network-online.target`, which means nothing in
+   the user's systemd: when the network comes up late (Wi-Fi, a slow DHCP), Podman's network helper starts without an
+   address and the containers never reach the host. Podman ships `podman-user-wait-network-online.service` for this; add
+   it with a drop-in (Quadlet units depend on it by themselves):
 
    ```bash
    mkdir -p ~/.config/systemd/user/podman-restart.service.d
@@ -241,13 +291,13 @@ As the user who will own the deployment:
    systemd starts. Add `RequiresMountsFor=<that mount point>` under `[Unit]` with `sudo systemctl edit user@<uid>.service`.
 8. A port below 1024 (`exposePort: 443`, say) can't be published by a rootless engine as is: publish a port from 1024
    up and let the gateway in front take 443, or lower `net.ipv4.ip_unprivileged_port_start` on the host.
-9. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) once:
-   it tests that Podman can create its user namespace where the boot unit runs it, that containers can reach each other
-   and be removed cleanly, and warns about any of steps 3–5 and 7 that is missing.
+9. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) once,
+   with `--units quadlet` for Quadlet units: it tests that Podman can create its user namespace where systemd runs it, that
+   containers can reach each other and be removed cleanly, and warns about any of steps 1, 3–5 and 7 that is missing.
 
-Verified with BrickKit: rootless Podman on a machine that also has Docker, including a real reboot with steps 1–7 in place
-(Ubuntu 26.04, Podman 5.7.0, Wi-Fi by DHCP; all 12 components healthy without anyone logging in or running `up`). A
-machine with only Podman and the Compose binary hasn't been verified end to end.
+Verified with BrickKit: rootless Podman with compose on a machine that also has Docker, including a real reboot with
+steps 1–7 in place (Ubuntu 26.04, Podman 5.7.0, Wi-Fi by DHCP; all 12 components healthy without anyone logging in or
+running `up`). A machine with only Podman hasn't been verified end to end.
 
 ### Kubernetes
 
@@ -261,7 +311,7 @@ For a cluster you already have, or when you need self-healing and scaling across
 
 Processes on this machine don't combine with `k8s`: `mode: debug` / `mode: local` meeting `target: k8s` is refused while
 loading, the error pointing at the offending entry (`components[N].mode`) — a Pod in the cluster can't reach your
-machine.
+machine. The same goes for `podman.units: quadlet`: the units outlive any `up`, a process on this machine doesn't.
 
 ### Coming back after a reboot
 
@@ -271,16 +321,21 @@ has to be in place for each:
 | Engine | After a crash | At boot |
 | --- | --- | --- |
 | Docker | `restart: unless-stopped`, generated | The Docker service enabled at boot (most packages do it; check with `systemctl is-enabled docker`) |
-| Rootful Podman | `restart: always`, generated | The system unit `podman-restart.service` enabled; next to Docker, the unit that puts Podman's firewall rules back; its storage mounted in time ([steps 3, 4, 7](#setting-up-a-host-for-rootful-podman)) |
-| Rootless Podman | `restart: always`, generated | Linger for the user, the user unit `podman-restart.service` enabled and waiting for the network, Podman able to create its user namespace, its storage mounted in time ([steps 3–7](#setting-up-a-host-for-rootless-podman)) |
+| Podman, Quadlet units, rootful | `Restart=always`, generated; unhealthy is killed and restarted | Nothing to enable; next to Docker, the unit that puts Podman's firewall rules back; its storage mounted in time ([steps 4, 7](#setting-up-a-host-for-rootful-podman)) |
+| Podman, Quadlet units, rootless | `Restart=always`, generated; unhealthy is killed and restarted | Linger for the user, Podman able to create its user namespace, its storage mounted in time ([steps 3, 6, 7](#setting-up-a-host-for-rootless-podman)) |
+| Podman, compose, rootful | `restart: always`, generated | The system unit `podman-restart.service` enabled; next to Docker, the unit that puts Podman's firewall rules back; its storage mounted in time ([steps 3, 4, 7](#setting-up-a-host-for-rootful-podman)) |
+| Podman, compose, rootless | `restart: always`, generated | Linger for the user, the user unit `podman-restart.service` enabled and waiting for the network, Podman able to create its user namespace, its storage mounted in time ([steps 3–7](#setting-up-a-host-for-rootless-podman)) |
 | Kubernetes | The kubelet | The cluster |
 
-- Podman gets `always` because its boot unit starts only containers whose policy is `always`; otherwise the two
-  policies behave the same in Podman. On Docker, `unless-stopped` keeps a container you stopped by hand stopped.
-- What comes back is what the last `up` created. `down` removes the containers, so nothing comes back after it.
-- At boot the engine starts the containers by itself: not in the order `up` waits through (`depends_on`), and the
-  migrations don't run again — they ran at the last `up`. A component that starts before its dependency is reachable
-  must keep retrying rather than give up; it needs that anyway, for a dependency that restarts.
+- With compose, Podman gets `always` because its boot unit starts only containers whose policy is `always`; otherwise the
+  two policies behave the same in Podman. On Docker, `unless-stopped` keeps a container you stopped by hand stopped.
+- What comes back is what the last `up` created. `down` removes the containers (and the units), so nothing comes back
+  after it.
+- With compose or Docker the engine starts the containers by itself at boot: not in the order `up` waits through
+  (`depends_on`), and the migrations don't run again — they ran at the last `up`. Quadlet units keep the order: each
+  migration runs first, and a component starts once the ones it needs are healthy. Either way a component that starts
+  before its dependency is reachable must keep retrying rather than give up; it needs that anyway, for a dependency that
+  restarts.
 - Processes on this machine never come back: nothing restarts them or starts them at boot.
 
 ## Decision two: topology — how many containers do the components end up in?
@@ -321,8 +376,8 @@ it pays most with heavy runtimes.
 
 ### 1. All standalone × one machine
 
-**What it is**: one Compose service per component, driven end to end by `brickkit up`: address injection, health checks,
-starting in dependency order, migrations.
+**What it is**: one container per component — a Compose service, or a Quadlet unit with `podman.units: quadlet` — driven
+end to end by `brickkit up`: address injection, health checks, starting in dependency order, migrations.
 
 **When**: the default shape while one machine can hold the components (see [When to merge](#decision-two-topology--how-many-containers-do-the-components-end-up-in)).
 
@@ -353,8 +408,8 @@ the least work.
 
 ### 3. All in shells × one machine
 
-**What it is**: as many components as possible compiled into a few shells; one Compose service per shell, and members
-generate no service container of their own. A caller's `*_ENDPOINT` for a member is the member's own address,
+**What it is**: as many components as possible compiled into a few shells; one container per shell, and members
+get no container of their own. A caller's `*_ENDPOINT` for a member is the member's own address,
 `http://<member's service name>:<its own port>` — the same as when it runs on its own — and that name reaches the shell:
 a network alias of the shell's container (on K8s, a Service selecting the shell's Pod). Caller code doesn't change, and
 neither does the address when a member moves into or out of a shell.
@@ -460,7 +515,8 @@ What they have in common, against containers:
 
 ### Containers plus a few processes
 
-**What it is**: everything is a real container except the components you marked `mode: debug` or `mode: local`.
+**What it is**: everything is a real container except the components you marked `mode: debug` or `mode: local`. On
+Podman this needs compose (`podman.units` left out): Quadlet units refuse processes on this machine.
 
 - `mode: debug`: you start the process in your IDE, and the platform only makes sure others can find it. It can only be
   written in the personal `deploy.local.yaml`.

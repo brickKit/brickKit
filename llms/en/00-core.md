@@ -33,7 +33,7 @@ A project is described by three layers of files, each owning one thing:
 | Layer | Files | Owns |
 | --- | --- | --- |
 | Declaration | `brickkit.yaml` | Which components, at which exact versions, and which one is a shell. It is the lock file |
-| Deployment | `deploy.yaml` (team) / `deploy.local.yaml` (personal, never committed) | How things run: target, ports, modes, shell members, Kubernetes settings |
+| Deployment | `deploy.yaml` (team) / `deploy.local.yaml` (personal, never committed) | How things run: target, ports, modes, shell members, Podman's units (compose or systemd), Kubernetes settings |
 | Configuration | `config/<component>.yaml`, `config/vars.yaml` | The environment variables each component receives |
 
 There is no registry, no config server, no gateway and no long-running process: the CLI runs and exits, and
@@ -76,8 +76,8 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - `brickkit.yaml` is the lock file: every component version in use is written there. An undeclared required dependency is an error (the error shows the `add` to run); an undeclared optional dependency simply does not exist.
 - `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run the deployment (`up`, `down`, `status`, `sync`, `build`) read it and not `deploy.yaml`; `lint` checks both whenever `deploy.local.yaml` exists, whatever the switch says; `graph` and `deps` never read `deploy.local.yaml`, so their output is the same for everyone (`graph -f` reads the file it names). It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
 - `mode: debug` is written only in `deploy.local.yaml`: "I'm debugging this on my machine right now" is a personal fact and never goes into Git.
-- `mode: local` runs a component as a process on this machine from its source (its language's toolchain must be installed), watched by the `up` that started it in the foreground: it stops with that session, one crash ends the session, nothing restarts it. Before starting it, `up` checks its ports are free and runs the component's `local.migrationCommand` (its migration from source) when declared — for a shell, also those of the members it compiles in from their local repositories. A team may write it in `deploy.yaml`, but it is not a long-running deployment — that is what containers are for.
-- `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s`.
+- `mode: local` runs a component as a process on this machine from its source (its language's toolchain must be installed), watched by the `up` that started it in the foreground: it stops with that session, one crash ends the session, nothing restarts it. Before starting it, `up` checks its ports are free and runs the component's `local.migrationCommand` (its migration from source) when declared — for a shell, also those of the members it compiles in from their local repositories. A team may write it in `deploy.yaml`, but it is not a long-running deployment — that is what containers are for; with `target: k8s` or `podman.units: quadlet` (systemd units that outlive any `up`) it is refused while loading.
+- `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s` or `podman.units: quadlet`.
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file; `$endpoint:<id>[/path]` is another component's address, worked out like `*_ENDPOINT` (it may sit in `vars.yaml`; it adds no start order and may form cycles). The environment never overrides a value implicitly.
 - `brickkit up` never builds an image: when an image that has to be built locally is missing, it stops and tells you to run `brickkit build`.
@@ -297,7 +297,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 
 | Feature | Start here | Then |
 | --- | --- | --- |
-| `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_upgrade.go`) | `cascade`, `inject`, `machine`, `compose`, `k8s`, `engine`, `procsup` |
+| `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_quadlet.go`, `up_upgrade.go`) | `cascade`, `inject`, `machine`, `compose`, `quadlet`, `k8s`, `engine`, `procsup` |
 | `down`, `status` | `internal/cli/down.go`, `internal/cli/status.go`, `internal/cli/lifecycle.go` | `engine`, `sessionlock` |
 | `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` (release notes: `internal/source/notes.go`) |
 | `fetch` | `internal/cli/fetch.go`, `internal/cli/artifacts.go` | `source` |

@@ -131,7 +131,7 @@ focus: demo/caller
 
 `focus` 写的是项目里的一个组件。写了它，`up` 就不再启动整个项目，只启动这个组件——从它的源码跑，是你机器上的一个进程
 （按 `mode: local`，写了 `mode: debug` 就按 debug）——再加上它需要的组件。它是个人的事，理由和 `mode: debug` 一样："我现在正在改这个组件"
-说的是你自己。写在 `deploy.yaml` 里会被拒绝；`target: k8s` 下也用不了（集群够不着你的机器）。
+说的是你自己。写在 `deploy.yaml` 里会被拒绝；`target: k8s` 下也用不了（集群够不着你的机器），`podman.units: quadlet` 下也不行（systemd 让那些单元活得比任何一次 `up` 都长）。
 
 它很少需要手写：在组件目录里 `brickkit up`，或者 `brickkit up --focus <id>`，就会写上它（需要时顺手打开本地模式）；`brickkit up --all`
 把它去掉。`local refresh` 会把它列在你的本地修改里。完整说明见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
@@ -152,4 +152,5 @@ focus: demo/caller
 - **在大项目里只改一个组件：** 在它的目录里 `brickkit up`，就设好了 `focus`，见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
 - **本机端口被占：** 改这个组件的 `exposePort`；本机进程（`mode: local` / `debug`，启动前报 `PORT_CONFLICT`）改它的 `localPort`。
 - **连自己的数据库：** 在 `vars:` 里覆盖对应的公共变量，比如 `PG_HOST: localhost`。
-- **换一个引擎：** `target: podman`；团队文件是 `k8s` 时，个人文件写 `docker` 就能在本机跑起同一套组件。
+- **换一个引擎：** `target: podman`；团队文件是 `k8s` 时，个人文件写 `docker` 就能在本机跑起同一套组件。团队文件让 Podman 以 systemd 单元运行（`podman.units: quadlet`）时，
+  个人文件不写 `podman.units` 就用 compose 跑，也就能用 `mode: local` / `debug` 和焦点运行。

@@ -22,7 +22,7 @@ TLS_KEY: file://.secrets/tls.key
 ## 哪些值算密钥
 
 组件在 `configSchema` 里给某一项写了 `secret: true`，这一项就是密钥——判断权在组件作者手里，平台不按名字猜。
-密钥在生成部署文件时走单独的通道（见下文），绝不明文写进 `compose.yaml` 或 Deployment。
+密钥在生成部署文件时走单独的通道（见下文），绝不明文写进 `compose.yaml`、Quadlet 单元或 Deployment。
 
 `up` 还会替你看一眼已提交的文件：声明了 `secret: true`、或名字像密钥的项，在 `config/` 里写成了明文，就提醒你：
 
@@ -55,6 +55,10 @@ TLS_KEY: file://.secrets/tls.key
 | `secret: true` 的值、`file://` 的内容 | 写进 `.brickkit/generated/env/<服务名>.env`，文件权限 0600，由 `env_file` 引用；`${VAR}` 在这里同样留给 compose 启动时展开，`file://` 的内容由 CLI 读出后写入 |
 | `existingSecret` | Docker 没有这个概念：这一项不注入，并提醒你 |
 | 声明了 `mount: file` 的密钥 | 写成一个文件挂进容器，环境变量里是路径，见[以文件交付](#以文件交付mount-file) |
+
+`podman.units: quadlet` 时，systemd 在开机时重新创建容器，那时没有 shell 的环境、也没有 `.env` 可展开，所以 `${VAR}` 在 `up` 时就展开，与 Kubernetes 一样。
+普通值写进单元的 `Environment=`；`secret: true` 的值、`file://` 的内容、带 `${VAR}` 的值、跨好几行的值变成 Podman secret（`podman secret create`），单元里只写它的名字。
+单元还带着这些 secret 的摘要，换了值 `up` 就重启那个组件。`down` 删掉本项目的 secret。
 
 `${VAR}` 虽然留给 compose 去展开，CLI 生成时仍会用同样的顺序（进程环境，其次 `.env`）核对它**有没有定义**。
 没有的话直接报错，而不是交给 compose：compose 会把它换成空字符串、只在自己的输出里警告一句，组件就带着一个残缺的值跑起来。
@@ -169,7 +173,7 @@ JWT_PRIVATE_KEY_FILE=/run/brickkit/secrets/erp-sales-1-0-0/JWT_PRIVATE_KEY_FILE
 
 | 目标 | 文件从哪来 |
 | --- | --- |
-| Docker / Podman | 值写进 `.brickkit/generated/secrets/<服务名>/<键>`，这个目录只读挂进容器。`${VAR}` 在生成时就展开（没有人替文件做变量替换） |
+| Docker / Podman（compose 与 Quadlet 单元都是） | 值写进 `.brickkit/generated/secrets/<服务名>/<键>`，这个目录只读挂进容器。`${VAR}` 在生成时就展开（没有人替文件做变量替换）。用 Quadlet 单元时，这是部署唯一依赖项目目录的地方：别挪动它 |
 | Kubernetes | 值进平台生成的 Secret，那个键挂成文件（projected 卷）；`existingSecret` 指向的外部 Secret 同样挂成文件，和平台生成的落在同一个目录 |
 | 本机进程（`mode: local` / `debug`） | 环境变量里是这个文件在你机器上的绝对路径 |
 

@@ -145,7 +145,8 @@ focus: demo/caller
 `focus` names a component of the project. While it is set, `up` starts only that component — from its source, as a
 process on your machine (as `mode: local`, or as the `mode: debug` you wrote) — and what it needs, instead of the whole
 project. It is personal for the same reason `mode: debug` is: "I'm working on this component right now" is a fact about
-you. In `deploy.yaml` it is rejected, and with `target: k8s` it can't work (a cluster can't reach your machine).
+you. In `deploy.yaml` it is rejected, and with `target: k8s` it can't work (a cluster can't reach your machine), nor with
+`podman.units: quadlet` (systemd keeps those units running past any `up`).
 
 You rarely write it by hand: `brickkit up` in a component's directory, or `brickkit up --focus <id>`, writes it (and
 turns local mode on if needed); `brickkit up --all` removes it. `local refresh` lists it among your local changes. The
@@ -172,4 +173,5 @@ Both `--no-local` and `-f` apply to that one command only. Both skip the persona
   (`mode: local` / `debug`, `PORT_CONFLICT` before it starts), its `localPort`.
 - **Use your own database:** override the matching shared variable under `vars:`, for example `PG_HOST: localhost`.
 - **Use another engine:** `target: podman`; when the team file says `k8s`, a personal file saying `docker` runs the same
-  components on your machine.
+  components on your machine. When the team file runs Podman as systemd units (`podman.units: quadlet`), a personal file
+  without `podman.units` runs them with compose, which also allows `mode: local` / `debug` and a focus.

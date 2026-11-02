@@ -99,6 +99,9 @@ Docker / Podman 下一个宿主机端口只能映射给一个容器。端口要�
 
 迁移以非零退出，主服务不会启动。按提示看迁移容器的日志，修好之后重新 `up`，迁移会再跑一次。详见 [迁移问题](07-migration-issues.md)。
 
+`podman.units: quadlet` 时，报错点名迁移的单元和它的日志（`journalctl [--user] -u <单元>`），而且 `up` 在动任何组件之前就停下了：它们照旧跑着上一个版本。
+迁移成功之前，`brickkit status` 会一直说上一次的迁移失败了。
+
 ## 组件日志正常，平台却说它不健康
 
 **症状**
@@ -201,7 +204,8 @@ healthCheck:
 docker compose -p brickkit-my-shop logs -f demo-caller-1-0-0
 ```
 
-`up` 结束时打印的"查看日志"那一行就是正确的命令。
+`up` 结束时打印的"查看日志"那一行就是正确的命令。`podman.units: quadlet` 时没有 Compose 项目：日志在 journald 里，
+`journalctl --user -u 'brickkit-<项目名>-<服务名>*'`（有根 Podman 去掉 `--user`），`podman logs <容器>` 看到的也一样。
 
 ## 部署到了错的集群（或者差点）
 
@@ -231,10 +235,12 @@ docker compose -p brickkit-my-shop logs -f demo-caller-1-0-0
 先跑：
 
 ```bash
-scripts/podman/check-environment.sh
+scripts/podman/check-environment.sh                  # 不写 podman.units：compose
+scripts/podman/check-environment.sh --units quadlet  # podman.units: quadlet
 ```
 
-**用跑 `brickkit up` 的那个用户跑它。** Podman 有两种运行方式，环境问题各不相同：
+**用跑 `brickkit up` 的那个用户跑它。**
+脚本的 `--units` 填部署文件的 `podman.units`：compose 要 `podman.socket` 和开机单元，Quadlet 单元要 Podman 5.3 或更新、这两样都不要。 Podman 有两种运行方式，环境问题各不相同：
 
 - **无根**（rootless，普通用户运行）：容器的网络由一个叫 `pasta` 的辅助进程在用户空间里接上，不经过宿主机的防火墙转发。
 - **有根**（rootful，以 root 运行）：容器挂在宿主机的网桥上（netavark 默认叫 `podman0`、`podman1`……），容器之间的流量经过宿主机的转发链。
@@ -331,7 +337,7 @@ Docker 启动时把宿主机防火墙 `FORWARD` 链的默认策略设成 `DROP`�
    sudo systemctl enable --now podman-docker-forward.service
    ```
 
-   每条规则只在缺的时候才加，再跑一次什么也不变。开机时它紧跟 Docker 跑，Podman 的开机单元紧跟它。主机的防火墙由别的东西管着时（firewalld、保存下来的
+   每条规则只在缺的时候才加，再跑一次什么也不变。开机时它紧跟 Docker 跑，Podman 的开机单元紧跟它；`podman.units: quadlet` 生成的单元自己就排在它之后。主机的防火墙由别的东西管着时（firewalld、保存下来的
    `iptables` 规则集），把这两条规则放到那里；这个单元没启用时，[环境检查](#podman先跑一遍环境检查)会给出警告。
 2. **改用无根 Podman**，以普通用户运行 `brickkit up`。
 3. **不在同一台机器上同时用有根 Podman 和 Docker。**
@@ -439,7 +445,9 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 **原因**
 
 开机时 BrickKit 什么都不启动：启动容器的是引擎，而且要设好了才会。先看开机单元的日志——无根 Podman 用 `journalctl --user -b -u podman-restart.service`
-（有根 Podman 去掉 `--user`；Docker 用 `journalctl -b -u docker`）——再对照你看到的：
+（有根 Podman 去掉 `--user`；Docker 用 `journalctl -b -u docker`）——再对照下面你看到的。`podman.units: quadlet` 时没有开机单元：
+每个单元自己起来、自己等网络，所以看单元自己的日志，`journalctl --user -b -u 'brickkit-<项目名>-*'`（有根 Podman 去掉 `--user`）。下表关于 linger、
+`failed to reexec` 与存储挂载的几行同样适用；关于开机单元与重启策略的不适用。
 
 | 你看到的 | 原因 | 解决 |
 | --- | --- | --- |
@@ -447,7 +455,7 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 | 开机单元以 `failed to reexec: Permission denied` 失败 | AppArmor 不让 Podman 建用户命名空间 | [上一节](#podman-报-failed-to-reexec-permission-denied) |
 | 容器都起来了，组件却反复重启、连不上宿主机上的任何东西（`host.docker.internal`、宿主机上发布的端口） | 无根 Podman 的网络辅助进程（`pasta`）在机器拿到地址之前就起来了，之后也不会再拿。开机单元写的是 `After=network-online.target`，这在用户的 systemd 里不起作用；Podman 为此带了 `podman-user-wait-network-online.service`，但开机单元不依赖它 | 让开机单元等网络（见下）；这一次把容器停掉再起来——`systemctl --user restart podman-restart.service` 两样都做，新的 `pasta` 就有网络了 |
 | 有根 Podman 与 Docker 同机：全部 healthy，容器之间的调用却超时——重启之前是好的 | 在 Docker 的 `DOCKER-USER` 链里放行 Podman 网桥的规则丢了：它们只在内存里，Docker 每次启动都重建自己的链 | 在 Docker 之后把规则加回去的那个单元：[Podman 上全部 healthy，容器之间的调用却超时](#podman-上全部-healthy容器之间的调用却超时) |
-| Podman 报没有容器，或者存储不见了 | Podman 的存储在一块以 `nofail` 挂载的盘上，可能在开机单元启动之后才挂上（无根：在用户的 systemd 启动之后） | 无根：`sudo systemctl edit user@<uid>.service`；有根：`sudo systemctl edit podman-restart.service`；在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>` |
+| Podman 报没有容器，或者存储不见了 | Podman 的存储在一块以 `nofail` 挂载的盘上，可能在开机单元启动之后才挂上（无根：在用户的 systemd 启动之后） | 无根：`sudo systemctl edit user@<uid>.service`；有根：`sudo systemctl edit podman-restart.service`，Quadlet 单元则是 drop-in `/etc/systemd/system/brickkit-.service.d/storage.conf`（[第 7 步](../09-patterns/06-deployment-selection.md#为有根-podman-准备主机)）；在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>` |
 | 开机后几个组件重启一两次，然后转 healthy | 开机时引擎启动容器不按 `up` 等待的那个启动顺序（`depends_on`）；有组件比它的依赖先起来 | 不用处理——重启策略会一直重试；组件应当重试连接，而不是退出 |
 | 什么都没回来，重启前跑过 `brickkit down` | `down` 删掉了容器，开机时没有东西可启动 | `brickkit up` |
 | Podman 上容器的重启策略是 `unless-stopped`（`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <容器>`） | 容器是旧版 BrickKit 建的；Podman 的开机单元只启动策略为 `always` 的容器 | 跑一次 `brickkit up`：重启策略变了的容器会被重建 |
@@ -455,6 +463,26 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 让无根的开机单元等网络的 drop-in 是[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)的第 5 步。
 
 上面每一项开机设置缺了时，`scripts/podman/check-environment.sh` 都会给出警告。按顺序的完整设置见[为有根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为有根-podman-准备主机)、[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)。
+
+## Quadlet 单元起不来
+
+**症状**
+
+部署文件写了 `podman.units: quadlet`，`up` 以下面某一种失败：
+
+| 你看到的 | 原因 | 解决 |
+| --- | --- | --- |
+| `这些单元没有起来`，每个带一条 `journalctl` 命令 | 容器起来又退出了，或者在单元的启动时限内一直没有 healthy | 用那条命令看单元的日志；`systemctl --user --failed 'brickkit-<项目名>-*'` 列出所有失败的单元 |
+| `Podman <版本> 太旧，podman.units: quadlet 要 5.3 或更新的版本` | 单元用到 Podman 5.3 才齐的键（`Notify=healthy`、模板、`NetworkAlias=`、无根时等网络） | 升级 Podman；或者这台机器不写 `podman.units`，用 compose |
+| `单元写不进 /etc/containers/systemd/…` | 有根 Podman：单元装进系统的 systemd，只有 root 能写 | `sudo brickkit up` |
+| 重新加载之后紧接着 `Unit brickkit-….service not found` | Podman 的 Quadlet 生成器拒绝了一个单元文件，没有为它生成服务 | `/usr/libexec/podman/quadlet -dryrun -user`（有根 Podman 去掉 `-user`）会说出原因；单元在 `.brickkit/generated/quadlet/` |
+
+**值得知道**
+
+- `up` 把单元复制进 `~/.config/containers/systemd/brickkit-<项目名>/`（有根：`/etc/containers/systemd/brickkit-<项目名>/`）。这个目录就是部署出去的东西，`down` 删掉它。
+  在那里手改的，下一次 `up` 会覆盖。
+- 作为 Podman secret 交付的值，在容器创建时进去。`podman exec <容器> printenv` 会重新取 secret，可能看到比在跑的进程更新的值；进程自己的环境在容器里的
+  `/proc/1/environ`。组件的 secret 变了，`up` 就重启它。
 
 ## `down` 停不掉 `mode: local` 的组件
 
