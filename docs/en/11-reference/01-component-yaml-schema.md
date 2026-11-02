@@ -125,7 +125,7 @@ has none.
 The check interval of 10 seconds, a 3-second timeout and 3 failures in a row meaning unhealthy are fixed by the platform and
 can't be configured.
 
-What each type runs: on Docker the check runs inside the container through `/bin/sh` — `http` runs `wget`, falling back to
+What each type runs: on Docker and Podman (compose and Quadlet units alike) the check runs inside the container through `/bin/sh` — `http` runs `wget`, falling back to
 `curl`, against `http://127.0.0.1:<port><path>`, and `tcp` runs `nc -z 127.0.0.1 <port>`, so the image needs a shell and those
 tools (an image without a shell, like `scratch` or distroless, passes neither). On Kubernetes they become `httpGet` /
 `tcpSocket` probes, sent from outside the container. `none` generates no check: dependents wait only for the container to

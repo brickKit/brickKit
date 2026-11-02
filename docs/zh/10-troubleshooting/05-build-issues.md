@@ -223,7 +223,7 @@ git tag v0.1.0 '0.1.0^{commit}' && git push origin v0.1.0
 - **选小的基础镜像**：`alpine`、`*-slim`。
 - **`.dockerignore`** 排除 `.git`、`node_modules`、测试数据。
 
-只有一条要留意：Docker 下健康检查在容器**里面**经由 `/bin/sh` 执行——`type: http` 要镜像里有 `wget` 或 `curl`，`type: tcp` 要有 `nc`。
+只有一条要留意：Docker 与 Podman 下健康检查在容器**里面**经由 `/bin/sh` 执行——`type: http` 要镜像里有 `wget` 或 `curl`，`type: tcp` 要有 `nc`。
 换成根本没有 shell 的基础镜像（`scratch`、distroless）之后，**两种类型都过不了**：容器会一直被判为不健康，而组件自己的日志看起来一切正常。
 这时最终阶段改为基于 `busybox` 或 `alpine`（多几 MB，带着 `sh`、`wget`、`nc`）；镜像必须保持没有 shell 的话，就写 `healthCheck.type: none`，
 接受依赖方只等容器启动。K8s 下探针从容器外面发起，不需要这些工具。见 [up / down 常见问题](01-up-down-issues.md#组件日志正常平台却说它不健康)。

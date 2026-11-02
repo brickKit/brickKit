@@ -508,7 +508,7 @@ func HealthCheckOf(m *manifest.Manifest) *HealthCheck {
 		// wget 与 curl 都试一遍。
 		//
 		// 健康检查跑在**容器内部**，用的必须是镜像里真有的命令。
-		// 只写 wget 的话，python:slim / 各种 distroless 基础镜像上必然失败——
+		// 只写 wget 的话，只装了 curl 的镜像（不少 Debian 系的）上必然失败——
 		// 组件明明跑得好好的，平台却判它 unhealthy，依赖方永远等不到它，
 		// 而容器日志里写着"组件已就绪"。这是真跑起来撞到的。
 		//

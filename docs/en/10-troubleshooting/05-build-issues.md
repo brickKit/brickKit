@@ -252,7 +252,7 @@ Nothing to do with BrickKit — it's how the Dockerfile is written. The usual me
 - **Pick a small base image**: `alpine`, `*-slim`.
 - **`.dockerignore`** to leave out `.git`, `node_modules`, test data.
 
-Only one thing to watch: on Docker the health check runs **inside** the container, through `/bin/sh` — `type: http` needs
+Only one thing to watch: on Docker and Podman the health check runs **inside** the container, through `/bin/sh` — `type: http` needs
 `wget` or `curl` in the image, `type: tcp` needs `nc`. After switching to a base image with no shell at all (`scratch`,
 distroless), **neither type** can pass: the container stays judged unhealthy forever, while the component's own logs look
 fine. Build the final stage on `busybox` or `alpine` instead (a few MB more, with `sh`, `wget` and `nc`), or, if it must

@@ -124,7 +124,7 @@ configSchema:
 把源码克隆下来开发的人从源码构建。只写 `image`：镜像总是拉取的，来自本地源也一样——不给代码也能分发组件，就靠它；
 旁边的 `Dockerfile` 不会被用到，`up`、`build` 与 `lint` 都会警告。
 
-**镜像以非 root 用户运行。** `Dockerfile` 最后写 `USER` 与一个非 0 的 uid（Alpine 上先 `RUN adduser -D -u 10001 app` 再 `USER 10001`；distroless 镜像有 `nonroot` 版本）。
+**镜像以非 root 用户运行。** `Dockerfile` 最后写 `USER` 与一个非 0 的 uid（Alpine 上先 `RUN adduser -D -u 10001 app` 再 `USER 10001`）。
 Docker 与有根 Podman 的容器在主机上以 root 运行，所以只要有东西逃出容器，容器里的 root 就是主机上的 root；换成非 root 用户，逃出来的也只是一个普通账号。
 无根 Podman 把容器里的 root 映射成部署的那个用户，但镜像不知道自己会跑在哪。平台不检查这一点——基础镜像设好的 `USER` 一样算数——所以由你负责。
 
@@ -176,7 +176,9 @@ healthCheck:
 - 检查节奏由平台固定（每 10 秒一次、3 秒超时、连续 3 次失败算不健康）。**启动宽限期**缺省 60 秒，冷启动更久的组件（重的 Spring Boot、
   预加载很多东西的 Django、.NET 首次 JIT）要写 `startPeriodSeconds`，否则 Kubernetes 上会永远 CrashLoopBackOff。宽限期只推迟"判死"，
   不推迟"判活"，写大一点没有代价。
-- Docker 下 HTTP 检查在容器里执行 `wget` 或 `curl`：镜像里至少要有其中一个（Alpine 自带 `wget`；distroless 镜像两者都没有，改用 `type: tcp`）。
+- Docker 与 Podman 下（compose 与 Quadlet 单元都一样）检查在容器里经由 `/bin/sh` 执行：`http` 要镜像里有 `wget` 或 `curl`（Alpine 自带 `wget`），
+  `tcp` 要有 `nc`。没有 shell 的镜像——`scratch`、distroless——**两种都过不了**：最终阶段改为基于 `busybox` 或 `alpine`，或者写 `type: none`，
+  接受依赖方只等容器启动。
 
 ## readinessCheck：我能接流量了吗
 
