@@ -173,6 +173,17 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 （需要时顺手打开本地模式），`up --all` 去掉它；`-f` 与 `--no-local` 跳过它；`sync` 不看它；`local refresh`
 把它列在你的本地修改里。会让文件通不过校验的焦点，在写任何东西之前就被拒绝。
 
+**15. 长期运行的是容器；本机进程不是。**
+
+按部署要在哪里长期运行来选 target。一台机器（一次交付、小规模生产）：推荐 `target: podman`，用无根 Podman——
+没有 root 守护进程，常驻内存比 Docker 的守护进程少约半个 GiB，CPU 一样；`target: docker` 同等支持，给已经在跑
+Docker 的机器、或只认 Docker 的周边工具。集群，或者要自愈、跨机器扩容：`target: k8s`（单节点时控制面是约 2 GiB
+的固定开销）。重启机器之后回来是引擎的事，要把引擎设好：Docker 服务开机启动；无根 Podman 要
+`sudo loginctl enable-linger <用户>` 与 `systemctl --user enable podman-restart.service`（`up` 本身还要 `podman.socket`）。
+BrickKit 在 Podman 上生成 `restart: always`，因为 Podman 的开机单元只启动这种策略；开机时引擎不按启动顺序，组件要自己重试连接。
+`mode: local` / `debug` 用于开发、演示与试用——每个组件都 `mode: local` 时不要任何引擎，但会话结束就停、重启机器之后不会回来。
+不要把它们当成交付方案提出来。
+
 ## 机制是怎么运作的
 
 **地址格式在所有 target 下一样**：`http://<版本化服务名>:<端口>`，组件代码零修改，多版本天然共存。
@@ -198,7 +209,7 @@ K8s 下是 Deployment 的副本数（`> 1` 时自动生成 PDB）；迁移都只
 
 ## 去哪查更细的
 
-- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——三层文件 `brickkit docs 01-three-layers`、本地调试 `brickkit docs 02-project-guide/03-local-debug-workflow`、外壳 `brickkit docs 04-shell`、部署文件全部字段 `brickkit docs 11-reference/03-deploy-yaml-schema`
+- 这个版本的 BrickKit 文档，离线可读：`brickkit docs` 列出全部页——选部署目标与拓扑 `brickkit docs 09-patterns/06-deployment-selection`、三层文件 `brickkit docs 01-three-layers`、本地调试 `brickkit docs 02-project-guide/03-local-debug-workflow`、外壳 `brickkit docs 04-shell`、部署文件全部字段 `brickkit docs 11-reference/03-deploy-yaml-schema`
 - 参数：`brickkit up --help`、`brickkit local --help`、`brickkit build --help`、`brickkit lint --help`
   （`lint --strict` 还会查 `${VAR}` 和 `file://` 引用能否取到）
 - 某个组件要配哪些值：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md` 的配置指南

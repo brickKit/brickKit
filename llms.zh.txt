@@ -23,8 +23,8 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
 - [llms/zh/07.md](llms/zh/07.md): docs/zh/06-architecture/09-error-codes.md
 - [llms/zh/08.md](llms/zh/08.md): docs/zh/07-cli-reference/README.md … docs/zh/09-patterns/README.md
-- [llms/zh/09.md](llms/zh/09.md): docs/zh/09-patterns/01-component-design.md … docs/zh/10-troubleshooting/README.md
-- [llms/zh/10.md](llms/zh/10.md): docs/zh/10-troubleshooting/01-up-down-issues.md … docs/zh/11-reference/01-component-yaml-schema.md
+- [llms/zh/09.md](llms/zh/09.md): docs/zh/09-patterns/01-component-design.md … docs/zh/09-patterns/06-deployment-selection.md
+- [llms/zh/10.md](llms/zh/10.md): docs/zh/10-troubleshooting/README.md … docs/zh/11-reference/01-component-yaml-schema.md
 - [llms/zh/11.md](llms/zh/11.md): docs/zh/11-reference/02-brickkit-yaml-schema.md … docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
@@ -139,7 +139,7 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [docs/zh/09-patterns/03-test-types-and-acceptance.md](docs/zh/09-patterns/03-test-types-and-acceptance.md): 测试类型与专项验收——适用条件、最低结果、档位与专项判据
 - [docs/zh/09-patterns/04-seed-data.md](docs/zh/09-patterns/04-seed-data.md): 种子数据设计——两条路径物理隔离
 - [docs/zh/09-patterns/05-service-calling.md](docs/zh/09-patterns/05-service-calling.md): 可靠调用依赖——DNS 缓存、超时、各语言行为
-- [docs/zh/09-patterns/06-deployment-selection.md](docs/zh/09-patterns/06-deployment-selection.md): 部署形态选择——拓扑 × 部署目标 × 本地模式
+- [docs/zh/09-patterns/06-deployment-selection.md](docs/zh/09-patterns/06-deployment-selection.md): 部署形态选择——容器为主线（无根 Podman、Docker、K8s）× 拓扑；本机进程在主线之外
 
 ### 10-troubleshooting/
 - [docs/zh/10-troubleshooting/README.md](docs/zh/10-troubleshooting/README.md): 模块索引——格式：症状 → 原因 → 解决

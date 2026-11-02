@@ -193,6 +193,21 @@ were `mode: local` (a `mode: debug` you wrote is kept) — and what it needs; pi
 `--no-local` skip it; `sync` ignores it; `local refresh` lists it among your local changes. A focus
 that would break the file is refused before anything is written.
 
+**13. What keeps running is containers; processes on this machine don't.**
+
+Choose the target by where the deployment must keep running. One machine (a delivery, a small
+production): `target: podman` with rootless Podman is the recommendation — no root daemon, about half a
+GiB less resident memory than Docker's daemon, the same CPU; `target: docker` is equally supported, for a
+machine that already runs Docker or tools that only speak Docker. A cluster, or self-healing and scaling
+across machines: `target: k8s` (on one node its control plane is a fixed cost of about 2 GiB). Coming
+back after a reboot is the engine's job and needs the engine set up for it: the Docker service enabled;
+for rootless Podman, `sudo loginctl enable-linger <user>` and `systemctl --user enable
+podman-restart.service` (plus `podman.socket` for `up` itself). BrickKit generates `restart: always` on
+Podman, because Podman's boot unit starts only that policy; at boot the engine ignores the start order,
+so components must retry their connections. `mode: local` / `debug` are for development, demos and
+trials — every component `mode: local` runs without any engine, but stops with the `up` session and
+never comes back after a reboot. Never propose them as a delivery.
+
 ## How the mechanism works
 
 **Targets**: `target: docker | podman | k8s` in the deploy file. Podman runs the same generated
@@ -230,7 +245,7 @@ service) → start the engine → supervise `mode: local` processes.
 
 ## Where to dig deeper
 
-- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — the three files `brickkit docs 01-three-layers`, local debugging `brickkit docs 02-project-guide/03-local-debug-workflow`, shells `brickkit docs 04-shell`, every deploy field `brickkit docs 11-reference/03-deploy-yaml-schema`
+- The documentation of this BrickKit version, offline: `brickkit docs` lists the pages — choosing the target and topology `brickkit docs 09-patterns/06-deployment-selection`, the three files `brickkit docs 01-three-layers`, local debugging `brickkit docs 02-project-guide/03-local-debug-workflow`, shells `brickkit docs 04-shell`, every deploy field `brickkit docs 11-reference/03-deploy-yaml-schema`
 - Flags: `brickkit up --help`, `brickkit local --help`, `brickkit build --help`, `brickkit lint --help`
   (`lint --strict` also checks that `${VAR}` and `file://` references resolve)
 - A component's configuration guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`
