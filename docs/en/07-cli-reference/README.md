@@ -687,7 +687,9 @@ Start the project in one go:
    with Quadlet units), and a failure holds back the main service. With Quadlet units `up` installs the migrations'
    units into systemd and runs every migration, then installs the components' units, restarts the components whose unit
    changed and starts the rest; a migration that fails leaves every component, and what systemd starts at boot, on its
-   previous version;
+   previous version. On Docker or Podman, a project whose Quadlet units are in the other systemd (root's while you run
+   as a user, or the deploying user's while you run as root) stops `up` before anything with `DEPLOYED_ELSEWHERE`, and
+   `down` and `status` warn about it;
 9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Before
    starting any, `up` checks their ports are free (`PORT_CONFLICT` otherwise), and runs a component's
    `local.migrationCommand` before starting it — for a shell, also those of the members it compiles in from their local
