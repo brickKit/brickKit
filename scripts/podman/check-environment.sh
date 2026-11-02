@@ -8,7 +8,8 @@
 #   - rootless Podman can create its user namespace where the boot unit runs it
 #     (AppArmor on Ubuntu 23.10+ needs the podman profile the apparmor package ships)
 #   - podman.socket, which `podman compose` talks through: the user unit when
-#     run as a normal user, the system unit when run as root
+#     run as a normal user, the system unit when run as root (with --units
+#     quadlet: the Podman version instead — Quadlet needs no socket)
 #   - containers on one network can reach each other. Rootful Podman on a host
 #     that also runs Docker fails this silently: Docker sets the FORWARD policy
 #     to DROP, and that drop is final for Podman's bridge too
@@ -17,7 +18,13 @@
 #     receiving the SIGTERM that `podman rm` sends it during teardown
 #   - (warnings) what a deployment needs to come back after a reboot: linger,
 #     podman-restart.service enabled and waiting for the network, storage mounts;
-#     for rootful Podman next to Docker, the DOCKER-USER rules put back at boot
+#     for rootful Podman next to Docker, the DOCKER-USER rules put back at boot.
+#     With --units quadlet systemd starts the units and they wait for the
+#     network themselves: only linger and the storage mount are checked
+#
+# Usage: check-environment.sh [--units compose|quadlet]
+#   --units   how the deploy file runs Podman (its podman.units); compose when
+#             left out
 #
 # Run it as the user that will run `brickkit up`: as root to check rootful
 # Podman, as yourself to check rootless Podman. The full story:
@@ -27,6 +34,28 @@
 # 2 = could not run the check at all (podman missing, etc).
 
 set -u
+
+units=compose
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --units)
+      units="${2:-}"
+      shift 2 || { echo "--units needs a value: compose or quadlet"; exit 2; }
+      ;;
+    --units=*)
+      units="${1#--units=}"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1 (usage: $0 [--units compose|quadlet])"
+      exit 2
+      ;;
+  esac
+done
+if [[ "$units" != compose && "$units" != quadlet ]]; then
+  echo "--units must be compose or quadlet (got: $units)"
+  exit 2
+fi
 
 pass() { printf '✅ %s\n' "$1"; }
 warn() { printf '⚠️  %s\n' "$1"; }
@@ -111,13 +140,27 @@ fi
 if [[ $EUID -eq 0 ]]; then
   socket_active() { systemctl is-active --quiet podman.socket 2>/dev/null; }
   socket_fix="systemctl enable --now podman.socket"
-  echo "Running as root: checking rootful Podman."
+  echo "Running as root: checking rootful Podman ($units)."
 else
   socket_active() { systemctl --user is-active --quiet podman.socket 2>/dev/null; }
   socket_fix="systemctl --user enable --now podman.socket"
-  echo "Running as $(id -un): checking rootless Podman (run as root to check rootful Podman)."
+  echo "Running as $(id -un): checking rootless Podman ($units; run as root to check rootful Podman)."
 fi
-if socket_active; then
+if [[ "$units" == quadlet ]]; then
+  # Quadlet units need Notify=healthy and templates (5.0), NetworkAlias= (5.2)
+  # and, rootless, the generated wait for the network (5.3); brickkit up checks
+  # the same.
+  version="$(podman version --format '{{.Client.Version}}' 2>/dev/null)"
+  major="${version%%.*}"
+  minor="${version#*.}"
+  minor="${minor%%.*}"
+  if [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] && (( major > 5 || (major == 5 && minor >= 3) )); then
+    pass "Podman $version is new enough for Quadlet units (5.3 or later)."
+  else
+    status=1
+    fail "Podman $version is too old for podman.units: quadlet, which needs 5.3 or later."
+  fi
+elif socket_active; then
   pass "podman.socket is active (needed for 'podman compose')."
 else
   warn "podman.socket is not active — 'podman compose' will fail to connect."
@@ -290,8 +333,32 @@ storage_mounted_before() {
   fi
 }
 
+# quadlet_storage_mounted: rootful Quadlet units are generated with names known
+# only at up time, all starting with brickkit-; a prefix drop-in
+# (brickkit-.service.d) applies to every one of them. Read it directly.
+quadlet_storage_mounted() {
+  local graphroot mount
+  graphroot="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null)"
+  mount="$(findmnt -n -o TARGET -T "$graphroot" 2>/dev/null)"
+  if [[ -n "$mount" && "$mount" != / ]] && findmnt --fstab -n -o OPTIONS "$mount" 2>/dev/null | grep -qw nofail; then
+    if grep -qsE "^RequiresMountsFor=.*(^|[= ])$mount( |$)" /etc/systemd/system/brickkit-.service.d/*.conf; then
+      pass "Podman's storage ($mount, nofail) is mounted before the brickkit-* units start."
+    else
+      warn "Podman's storage is on $mount, mounted with nofail: nothing makes it mount before the brickkit-* units start."
+      echo "  Fix: mkdir -p /etc/systemd/system/brickkit-.service.d"
+      echo "       printf '[Unit]\\nRequiresMountsFor=$mount\\n' > /etc/systemd/system/brickkit-.service.d/storage.conf"
+      echo "       systemctl daemon-reload"
+    fi
+  fi
+}
+
 if [[ $EUID -eq 0 ]]; then
-  if systemctl is-enabled --quiet podman-restart.service 2>/dev/null; then
+  if [[ "$units" == quadlet ]]; then
+    # Quadlet's units start at boot by themselves (WantedBy=); their names are
+    # brickkit-<project>-..., so one prefix drop-in makes all of them wait for
+    # the storage mount
+    :
+  elif systemctl is-enabled --quiet podman-restart.service 2>/dev/null; then
     pass "podman-restart.service is enabled."
   else
     warn "podman-restart.service is not enabled: nothing starts the containers at boot. Fix: systemctl enable podman-restart.service"
@@ -305,7 +372,11 @@ if [[ $EUID -eq 0 ]]; then
       echo "  docs/en/10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out"
     fi
   fi
-  storage_mounted_before podman-restart.service "systemctl edit podman-restart.service"
+  if [[ "$units" == quadlet ]]; then
+    quadlet_storage_mounted
+  else
+    storage_mounted_before podman-restart.service "systemctl edit podman-restart.service"
+  fi
 else
   user="$(id -un)"
   if [[ "$(loginctl show-user "$user" -p Linger --value 2>/dev/null)" == yes ]]; then
@@ -313,12 +384,17 @@ else
   else
     warn "Linger is off for $user: the user's services start only when someone logs in. Fix: sudo loginctl enable-linger $user"
   fi
-  if systemctl --user is-enabled --quiet podman-restart.service 2>/dev/null; then
+  if [[ "$units" == quadlet ]]; then
+    # the units start at boot by themselves and wait for the network themselves
+    :
+  elif systemctl --user is-enabled --quiet podman-restart.service 2>/dev/null; then
     pass "podman-restart.service (user unit) is enabled."
   else
     warn "podman-restart.service (user unit) is not enabled: nothing starts the containers at boot. Fix: systemctl --user enable podman-restart.service"
   fi
-  if systemctl --user show podman-restart.service -p Wants --value 2>/dev/null | grep -qw podman-user-wait-network-online.service; then
+  if [[ "$units" == quadlet ]]; then
+    :
+  elif systemctl --user show podman-restart.service -p Wants --value 2>/dev/null | grep -qw podman-user-wait-network-online.service; then
     pass "podman-restart.service waits for the network."
   else
     warn "podman-restart.service doesn't wait for the network: if the network comes up late, the containers start without a route to the host."
