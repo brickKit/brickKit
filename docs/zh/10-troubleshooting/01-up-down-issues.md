@@ -359,6 +359,37 @@ scripts/podman/fix-apparmor.sh
 或者弹出交互式选择，把非交互的 `up` 卡住）；设置 `policy.json`（否则 Podman 拒绝拉任何镜像）；启用无根的 `podman.socket`
 （见 [上面](#up-在-podman-上失败failed-to-connect-to-the-docker-api)）。
 
+## 重启机器之后容器没有回来
+
+**现象**
+
+部署原来在跑；机器重启之后，`brickkit status` 显示组件没有运行，`brickkit up` 一次又都回来了。
+
+**原因**
+
+开机时 BrickKit 什么都不启动：启动容器的是引擎，而且要引擎自己设好了才会。按引擎：
+
+| 引擎 | 要具备的 | 查法 |
+| --- | --- | --- |
+| Docker | Docker 服务开机启动 | `systemctl is-enabled docker` |
+| 无根 Podman | 给这个用户开了 linger（否则这个用户的服务要等有人登录才启动），并启用了用户单元 `podman-restart.service` | `loginctl show-user <用户> -p Linger`、`systemctl --user is-enabled podman-restart.service` |
+| 有根 Podman | 启用了系统单元 `podman-restart.service` | `systemctl is-enabled podman-restart.service` |
+
+不分引擎还有两种原因：重启前跑过 `brickkit down`（它删掉容器，开机时没有东西可启动）；或者容器是旧版 BrickKit 建的，给 Podman 写的是 `restart: unless-stopped`——
+Podman 的开机单元只启动策略为 `always` 的容器；用 `podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <容器>` 查。
+
+**解决**
+
+把表里缺的设上，比如无根 Podman：
+
+```bash
+sudo loginctl enable-linger <用户>
+systemctl --user enable podman-restart.service
+```
+
+再跑一次 `brickkit up`：重启策略变了的容器会被重建。之后再重启机器，它们自己回来。开机后某个组件反复重启，通常是它比依赖先起来——开机时引擎不按 `up` 等待的那个启动顺序；
+重启策略会一直重试，组件自己也应当重试连接，而不是退出（见[重启机器之后](../09-patterns/06-deployment-selection.md#重启机器之后)）。
+
 ## `down` 停不掉 `mode: local` 的组件
 
 **症状**

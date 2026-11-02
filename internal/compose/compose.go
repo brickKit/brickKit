@@ -564,10 +564,21 @@ func (p *plan) services() map[string]any {
 // 组件 service
 // ============================================================
 
+// restartPolicy 是组件容器的重启策略：崩溃后拉起、开机时再启动，都交给引擎。
+// Docker 用 unless-stopped：守护进程开机时拉起它们，手动 stop 过的保持停止。
+// Podman 用 always：两者在 Podman 运行时完全相同（podman-run(1)），但它的开机单元
+// podman-restart.service 只启动 restart-policy=always 的容器（5.7.0 实测），unless-stopped 开机不会回来。
+func restartPolicy(target string) string {
+	if target == deployfile.TargetPodman {
+		return "always"
+	}
+	return "unless-stopped"
+}
+
 func (p *plan) componentService(c componentPlan) map[string]any {
 	svc := map[string]any{
 		"image":   manifest.ImageRef(c.Manifest),
-		"restart": "unless-stopped", // 12.10
+		"restart": restartPolicy(p.proj.Deploy.Target),
 	}
 	if aliases := p.shellAliases[c.Service]; len(aliases) > 0 {
 		aliasList := make([]any, len(aliases))

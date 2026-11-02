@@ -898,11 +898,21 @@ func TestNoResourceContainerIsGenerated(t *testing.T) {
 // 其他
 // ============================================================
 
+// 崩溃后拉起、开机时再启动都靠重启策略：Docker 的 unless-stopped 两样都做；
+// Podman 的开机单元 podman-restart.service 只启动 restart-policy=always 的容器，所以 Podman 用 always。
 func TestRestartPolicy(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	for target, want := range map[string]string{
+		deployfile.TargetDocker: "unless-stopped",
+		deployfile.TargetPodman: "always",
+	} {
+		t.Run(target, func(t *testing.T) {
+			b := newBuilder(t)
+			b.spec.Target = target
+			b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
-	assert.Equal(t, "unless-stopped", serviceOf(t, b.parsed(), "people-basic-1-0-0")["restart"], "12.10")
+			assert.Equal(t, want, serviceOf(t, b.parsed(), "people-basic-1-0-0")["restart"])
+		})
+	}
 }
 
 // 多版本各自独立 service。
