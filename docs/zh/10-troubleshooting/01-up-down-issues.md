@@ -358,7 +358,13 @@ sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta
 改的是 `usr.bin.pasta`，不是 `usr.bin.passt`——同一个包里名字几乎一样的两个程序。不要为这个删掉 `podman` 的 AppArmor 配置（`/etc/apparmor.d/podman`）：
 它与这个信号无关，而且在 Ubuntu 23.10 起正是它让 Podman 能建用户命名空间（见[下一节](#podman-报-failed-to-reexec-permission-denied)）。
 
-把 `pasta` 切成 complain 模式（`aa-complain /usr/bin/pasta`）也能让拆卸成功，但 pasta 配置里的其余限制也一起不再执行；`fix-apparmor.sh` 的早先版本就是这样做的，现在的版本会把它切回 enforce。
+把 `pasta` 切成 complain 模式（`aa-complain /usr/bin/pasta`）也能让拆卸成功，但 pasta 配置里的其余限制也一起不再执行；`fix-apparmor.sh` 的早先版本就是这样做的，现在的版本会把它切回 enforce。上面那两条命令不会去掉这个标志。
+想从包里原样的配置重新开始，就删掉文件、让 apt 放回去——`--force-confmiss` 恢复缺了的配置文件，而单纯重装（哪怕加 `--force-confnew`）不会动改过的那份——再加规则：
+
+```bash
+sudo rm /etc/apparmor.d/usr.bin.pasta
+sudo apt-get install --reinstall -o Dpkg::Options::=--force-confmiss passt
+```
 
 **Podman 还有别的问题时**，`scripts/podman/fix-apparmor.sh` 在一次完整的重置里做同样的事。**跑之前先读一遍——它是破坏性的**：删除你已有的 Podman 容器、镜像、卷，
 用 apt 重装 `podman`，重新生成基础配置。需要 `sudo`，只在 Ubuntu / Debian 上验证过，不碰 Docker。除了上面那条规则，它还在 `podman` 配置缺了时把它恢复，
