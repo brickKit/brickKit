@@ -434,3 +434,31 @@ func TestMountFileMountsTheProjectDirectory(t *testing.T) {
 	assert.Contains(t, unit, "Volume="+b.root+"/.brickkit/generated/secrets/erp-api-1-0-0:/run/brickkit/secrets/erp-api-1-0-0:ro\n")
 	assert.Contains(t, unit, `Environment="KEY_FILE=/run/brickkit/secrets/erp-api-1-0-0/KEY_FILE"`+"\n")
 }
+
+// secret 的值进容器是在容器创建的那一刻：值变了而单元不变，组件就一直用着旧值（podman exec 看到的却是新值，
+// 很容易误判——2026-11-02 真跑撞到的）。单元上写这些值的摘要，值一变单元就变，up 就重启它；与 K8s 的
+// brickkit.io/secret-digest 同一个做法。没有 secret 的组件不写。
+func TestSecretDigestChangesWithTheValues(t *testing.T) {
+	digest := func(password string) string {
+		b := newBuilder(t)
+		b.component(withSchema(simple("erp/api", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+			"DB_PASSWORD": {Type: "string", Secret: true},
+		}), projecttest.Entry{Config: map[string]any{"DB_PASSWORD": password}})
+		unit := file(t, b.generate(), "brickkit-shop-erp-api-1-0-0.container")
+		for _, line := range strings.Split(unit, "\n") {
+			if strings.HasPrefix(line, `Label="brickkit.io/secret-digest=`) {
+				return line
+			}
+		}
+		return ""
+	}
+	first := digest("one")
+	require.NotEmpty(t, first)
+	assert.Equal(t, first, digest("one"))
+	assert.NotEqual(t, first, digest("two"))
+	assert.NotContains(t, first, "one")
+
+	plain := file(t, newBuilder(t).component(simple("erp/api", "1.0.0", 8080), projecttest.Entry{}).generate(),
+		"brickkit-shop-erp-api-1-0-0.container")
+	assert.NotContains(t, plain, "secret-digest")
+}

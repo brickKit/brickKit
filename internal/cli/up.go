@@ -652,16 +652,21 @@ func start(
 	project := engine.ProjectName(plan.proj.Decl.Project)
 
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
+	// Podman 上从 Quadlet 改回 compose 时，引擎先卸下那些单元，经 OnPrune 报出来
+	var removed []string
 	if err := eng.Up(ctx, engine.UpRequest{
 		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services, Network: plan.proj.Deploy.Network,
 		RunAfter:      plan.runAfter(),
 		PruneSelector: pruneSelector,
+		OnPrune:       func(item string) { removed = append(removed, item) },
 	}); err != nil {
+		renderRemoved(opts, removed)
 		if failed := failedMigration(ctx, opts, eng, plan, project, err); failed != nil {
 			return failed
 		}
 		return engineFailure(i18n.T(msgid.CliUpStart), err)
 	}
+	renderRemoved(opts, removed)
 
 	statuses, err := eng.Status(ctx, project)
 	if err != nil {

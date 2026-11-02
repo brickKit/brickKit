@@ -14,7 +14,10 @@
 package quadlet
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"sort"
 	"strings"
 
@@ -37,6 +40,8 @@ const (
 	// LabelProject 与 LabelService 让 status 按项目找到容器、按服务名归并（与 K8s 的标签同一个键）。
 	LabelProject = "brickkit.io/project"
 	LabelService = "brickkit.io/service"
+	// LabelSecretDigest 是组件的 secret 值的摘要（见 secretDigest），与 K8s Pod 模板上的注解同一个键。
+	LabelSecretDigest = "brickkit.io/secret-digest"
 	// ForwardUnit 是有根 Podman 与 Docker 同机时放行 Podman 网桥的那个一次性单元（排障页给出它）。
 	// 有根时每个单元都排在它后面：单元不存在时 systemd 忽略这条顺序。
 	ForwardUnit = "podman-docker-forward.service"
@@ -112,6 +117,8 @@ type generator struct {
 	inline  map[string][]string
 	secrets map[string][]string
 	values  map[string][]byte
+	// digests 是每个服务的 secret 值的摘要（见 secretDigest）。
+	digests map[string]hash.Hash
 	// replicas 是多副本组件的服务名 → 副本数（> 1）。
 	replicas map[string]int
 }
@@ -131,7 +138,7 @@ func Generate(
 	g := &generator{
 		Plan: plan, proj: proj, opts: opts, project: proj.Decl.Project,
 		inline: map[string][]string{}, secrets: map[string][]string{}, values: map[string][]byte{},
-		replicas: map[string]int{},
+		digests: map[string]hash.Hash{}, replicas: map[string]int{},
 	}
 	for _, c := range plan.Components() {
 		if n := c.Entry.ReplicaCount(); n > 1 {
@@ -200,6 +207,12 @@ func (g *generator) placeEnvironment() error {
 			}
 			name := secretName(g.project, c.Service, v.Name)
 			g.values[name] = []byte(value)
+			if g.digests[c.Service] == nil {
+				g.digests[c.Service] = sha256.New()
+			}
+			// 带长度前缀：否则 A="b", C="d" 与 A="bC=d" 会算出同一个摘要；c.Env.Env 按变量名排序，摘要因此稳定。
+			// hash.Hash 的 Write 从不返回错误
+			_, _ = fmt.Fprintf(g.digests[c.Service], "%d:%s=%d:%s", len(v.Name), v.Name, len(value), value)
 			g.secrets[c.Service] = append(g.secrets[c.Service], name+",type=env,target="+v.Name)
 		}
 	}
@@ -353,6 +366,9 @@ func (g *generator) componentUnit(c machine.Workload) []byte {
 	}
 	u.add("Container", "Label", quote(LabelProject+"="+g.project))
 	u.add("Container", "Label", quote(LabelService+"="+c.Service))
+	if digest := g.secretDigest(c.Service); digest != "" {
+		u.add("Container", "Label", quote(LabelSecretDigest+"="+digest))
+	}
 	u.add("Container", "LogDriver", "journald")
 	if args := quotaArgs(c); args != "" {
 		u.add("Container", "PodmanArgs", args)
@@ -362,6 +378,21 @@ func (g *generator) componentUnit(c machine.Workload) []byte {
 	u.add("Service", "TimeoutStartSec", fmt.Sprint(timeout))
 	u.add("Install", "WantedBy", g.wantedBy())
 	return u.render(g.project)
+}
+
+// secretDigest 是一个服务的 secret 值的摘要；没有 secret 时是空串。
+//
+// secret 进环境变量是在容器创建的那一刻：之后 secret 再怎么换，在跑的容器手里还是旧值（podman exec 看到的却是
+// 新值，会让人以为已经生效——2026-11-02 真跑撞到的）。而只改一个 secret 的值，单元一个字都不变，up 就不会重启它。
+// 把摘要写进单元：值一变单元就变，up 照常重启。与 K8s 的 brickkit.io/secret-digest 同一个做法、同一个取舍
+// （摘要能离线验证对弱密钥的猜测；几项一起算、只留 64 位，真正的防线仍是密钥本身够强）。
+// 以文件交付的（mount: file）不算：那些有意不重启，组件自己重新读文件。
+func (g *generator) secretDigest(service string) string {
+	h := g.digests[service]
+	if h == nil {
+		return ""
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // waits 把启动等待写成单元之间的依赖。

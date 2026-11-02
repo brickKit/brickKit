@@ -1111,6 +1111,7 @@ const (
 	CliVersionShort                                            ID = "cli.version.short"
 	CliRootFlagVersion                                         ID = "cli.root.flag_version"
 	CliStatusReasonUnknown                                     ID = "cli.status.reason_unknown"
+	CliStatusMigrationFailed                                   ID = "cli.status.migration_failed"
 	CliStatusViaLocalFile                                      ID = "cli.status.via_local_file"
 	CliStatusViaLocalFileSuffix                                ID = "cli.status.via_local_file_suffix"
 	SkillsInstallFailedToWrite                                 ID = "skills.install.failed_to_write"

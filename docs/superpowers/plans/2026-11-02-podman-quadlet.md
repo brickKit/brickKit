@@ -120,7 +120,7 @@
 | 4 | 完成：`internal/quadlet` 渲染单元文件、副本的模板与实例链接、Podman secret、迁移与组件单元名；15 个测试覆盖设计 §4–§5 的组合。AI 定的（待复核）：单元不写生成时间（引擎靠内容比较判断要不要重启）；启动时限 = startPeriod + 30 秒 + 30 秒余量，没有健康检查 90 秒；requests 的 CPU 不生成参数（与 compose 一样只是记录） |
 | 5 | 完成：`engine.Quadlet`（`UpRequest.Quadlet`），安装目录 `<Quadlet 目录>/brickkit-<项目>/` 是部署记录；Podman 5.3 起；secret 经标准输入建；迁移先跑、变了的组件 restart、其余 start；不再生成的单元先停再删；`down` 删网络与 secret；`status` 按 `PODMAN_SYSTEMD_UNIT` 标签找容器、另列失败的单元。10 个替身测试。待 Task 7 真跑核实：`PODMAN_SYSTEMD_UNIT` 标签、`secret create --replace` 与 `secret rm` 在容器用着时的行为、未加载单元的 `stop` |
 | 6 | 完成：`up`（含 `--dry-run`，单元写进 `.brickkit/generated/quadlet/`）、`down`、`status` 经 `resolveEngineFor` 走 Quadlet 引擎；compose ↔ Quadlet 的互相卸下放在引擎里（Quadlet 删 compose 容器、Podman 的 compose 引擎卸单元），不在 CLI；`pruneOtherTarget` 认三种生成物（secrets/ compose 与 Quadlet 共用）；日志提示指向 journald，失败提示给 `systemctl --failed`；R100–R107。`lint` 不用改（装载时就校验） |
-| 7 | 未开始 |
+| 7 | 完成（无根部分；有根要 sudo，见下）：本机 Podman 5.7.0 用户 systemd，`demo/hello` + `demo/caller`（迁移、依赖、expose）真跑：首次 `up`、只改 hello 只重启 hello、`$ % " \\` 逐字节到达、多行值经 secret 到达、迁移失败报 MIGRATION_FAILED 且旧 caller 照跑、修好后恢复、compose ↔ Quadlet 两个方向切换并报出卸下的、副本（模板 + 实例、2/2 ready、开机目标挂上每个实例）、`down` 后不留单元/容器/secret/网络/失败记录。真跑查出并修了四处：`status` 的 label 过滤（多个条件是“同时满足”）、一次 `up` 迁移跑两遍（改用 `--job-mode=ignore-requirements`）、只改 secret 值不重启（加 `brickkit.io/secret-digest`，R108）、`status` 看不出迁移失败（R109）；顺带 compose 那边也汇报卸下的单元。开机真重启交给 be-assembly-standard（FRR-025 的复测） |
 | 8 | 未开始 |
 | 9 | 未开始 |
 | 10 | 未开始 |

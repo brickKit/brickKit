@@ -119,3 +119,5 @@ R104	Quadlet：再 up 一次只重启单元内容变了的组件（模板变了�
 R105	部署文件从 compose 改成 Quadlet：up 先删掉这个项目由 compose 建的容器并报出来；改回 compose 时 Podman 的 compose 引擎先卸下单元	.	./internal/engine	TestQuadletUpRemovesComposeContainers
 R106	Podman 低于 5.3 时 podman.units: quadlet 的 up 报出现有版本与要的版本，什么都不装	.	./internal/engine	TestQuadletRefusesOldPodman
 R107	Quadlet 迁移失败时，up 的报错点名是哪个组件的迁移（引擎只认得单元名）	.	./internal/cli	TestUpQuadletMigrationFailureNamesTheComponent
+R108	Quadlet：只改了一个 secret 的值（单元别处不变），up 也会重启那个组件——单元上的 brickkit.io/secret-digest 跟着值变；没有 secret 的组件不写	.	./internal/quadlet	TestSecretDigestChangesWithTheValues
+R109	status 说出上一次失败的迁移（Quadlet 的 failed 单元、compose 下非 0 退出的迁移容器）与看日志的命令：Quadlet 下迁移失败时组件照跑旧版本，表格全绿	.	./internal/cli	TestStatusNamesAFailedMigration

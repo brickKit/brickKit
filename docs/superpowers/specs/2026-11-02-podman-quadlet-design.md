@@ -102,6 +102,11 @@ Podman secret 以 `type=env` 交付多行、`$`、引号都逐字节到达容器
 
 `down` 删掉本项目的 secret；`up` 删掉不再生成的。
 
+**secret 换了值要重启组件**（Task 7 真跑撞到）：secret 进环境变量是在容器创建的那一刻，`--replace` 之后在跑的
+容器手里还是旧值，而 `podman exec printenv` 看到的却是新值（exec 时重新取），很容易误判已经生效。只改 secret 的值时
+单元一个字不变，`up` 不会重启。所以组件单元写一个 `Label="brickkit.io/secret-digest=<摘要>"`，与 K8s Pod 模板上的
+注解同一个做法、同一个取舍；`mount: file` 的值不算（有意不重启）。
+
 ### 5.2 迁移与启动顺序
 
 - 迁移单元：`Type=oneshot`，**不写 `RemainAfterExit`**——跑完回到 inactive，下一次 `start` 会再跑一遍。用组件自己的镜像、同一份环境变量，
@@ -114,8 +119,11 @@ Podman secret 以 `type=env` 交付多行、`$`、引号都逐字节到达容器
 - 不写 `RemainAfterExit` 的迁移、`Requires=` 的组件：迁移跑完自然转 inactive 不会连带停组件（`Requires=` 只对显式 stop / restart
   传递）；`systemctl restart` 一个组件会先把它 inactive 的迁移拉起来再跑一遍；迁移非 0 退出时组件起不来（`A dependency job for … failed`），
   `Wants=` 它的依赖方照常运行，`restart` 也不连带重启依赖方。**实测**（2026-11-02，Podman 5.7.0，用户 systemd）。
-- `restart` 是先停再启：迁移失败时旧容器已经停了，而 compose 下迁移失败旧容器还在跑。所以 `up` 先单独把迁移跑完（§6），全部成功才动组件；
-  内容变了的组件重启时它的迁移会再跑一次（`Requires=` 拉起），迁移本来要求可重复执行，这一次多跑换来“迁移失败不停旧版本”。
+- `restart` 是先停再启：迁移失败时旧容器已经停了，而 compose 下迁移失败旧容器还在跑。所以 `up` 先单独把迁移跑完（§6），全部成功才动组件。
+- 动组件时带 `--job-mode=ignore-requirements`：普通方式 `start` 一个组件——哪怕它已经在跑——systemd 也会把它 `Requires=` 的、
+  已经回到 inactive 的迁移再拉起来跑一遍（Task 7 真跑：一次 `up` 跑了两遍）。这个模式不拉依赖，但单元之间的 `After=` 照旧遵守
+  （实测：依赖健康之后才启动）。开机时没有这个模式，`Requires=` 让迁移先跑，正是要的。
+- 试过、不用的：迁移留存（`RemainAfterExit=yes`）加组件 `Requisite=`——迁移的重启与失败会连带重启、停掉组件（实测）。
 - 组件单元 `TimeoutStartSec=` 按 startPeriod 加 interval × retries 再加余量算（`Notify=healthy` 下启动作业要等到健康）；oneshot 没有启动超时，
   与 compose 的迁移一样。
 - 开机时每个迁移都会再跑一次。迁移本来就要求可重复执行（FRR-019 写进了组件规范），这里比 compose 更严格地保证了顺序。
@@ -145,13 +153,15 @@ systemd 忽略这条顺序，存在时保证防火墙规则先加上。文档给
 ## 6. 命令
 
 - **`up`**：生成 → 写进 `.brickkit/generated/quadlet/` → 检查镜像（照旧）→ 写 / 换 Podman secret → 把单元同步到安装目录（删掉不再
-  生成的，先 `stop` 再删）→ `daemon-reload` → 一条 `systemctl start` 跑全部迁移单元（与 compose 每次 `up` 都跑迁移一致；任何一个失败
-  就停在这里，组件一个都不动，旧版本照跑）→ 对内容变了的组件单元 `restart`、其余 `start`，交给 systemd 按 `After=` 排序并等待。失败时按单元名认出是哪个迁移或组件，
+  生成的，先 `stop` 再删）→ `daemon-reload` → 一条 `systemctl start` 起网络单元、跑全部迁移单元（与 compose 每次 `up` 都跑迁移一致；任何一个失败
+  就停在这里，组件一个都不动，旧版本照跑）→ 对内容变了的组件单元 `restart`、其余 `start`，都带 `--job-mode=ignore-requirements`
+  （§5.2），交给 systemd 按 `After=` 排序并等待。失败时按单元名认出是哪个迁移或组件，
   报 `MIGRATION_FAILED` 或启动失败，并给出 `journalctl [--user] -u <单元>`。`up --wait` 的语义由 `Notify=healthy` 的启动作业给出。
 - **`down`**：`stop` 本项目全部单元 → 删安装目录 → `daemon-reload` → 删 secret 与网络（停掉网络单元不删网络，实测；`podman network rm`）。与 compose 的 `down` 一样不删数据卷（BrickKit
   本来就不建卷）。
-- **`status`**：`podman ps -a --filter label=brickkit.io/project=<项目名>` 取状态与健康（与 compose 同一张表），另外列出 `failed` 的单元
-  （迁移失败只有这里看得到）。
+- **`status`**：`podman ps -a --filter label=PODMAN_SYSTEMD_UNIT`（Quadlet 给容器打的标签），在代码里按安装目录里的单元筛——
+  Podman 的多个 `label` 过滤条件要同时满足，不是任意一个（实测）；取状态与健康（与 compose 同一张表），另外列出 `failed` 的单元。
+  表格之后说出上一次失败的迁移：Quadlet 下迁移失败时组件照跑旧版本，表格全绿（compose 下非 0 退出的迁移容器同样列出）。
 - **compose ↔ Quadlet 切换**：同一个项目两种都留着会在开机时撞端口。`up` 先清掉另一种的残留：Quadlet `up` 删掉 compose 项目的容器
   （按 compose 的项目标签，用 `podman rm`，不需要 `docker-compose`），compose `up` 发现本项目的 Quadlet 安装目录就先 `stop` 并删掉。
   打印一行说清删了什么。现有的 `pruneOtherTarget`（compose ↔ k8s 的生成文件）一起扩成三种。

@@ -10,6 +10,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/machine"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
@@ -84,10 +85,26 @@ func runStatus(ctx context.Context, opts *Options) error {
 	view := buildView(p, byService)
 	renderDegradedNotice(opts, p)
 	renderComponentStatus(opts, p, view)
+	renderFailedMigrations(opts, p, byService)
 	renderSkipped(opts, view)
 	renderLocalDebug(opts, p, view)
 	renderLocalModeSessionHint(opts, p.proj)
 	return nil
+}
+
+// renderFailedMigrations 说出上一次没跑成的迁移。表格只列组件：compose 下迁移失败时主服务停在 Created，
+// 表格里看得出来；Quadlet 下迁移失败时组件照跑上一个版本，表格全绿——不说的话，这次 up 失败过就没人知道。
+func renderFailedMigrations(opts *Options, p *liveProject, byService map[string]engine.Status) {
+	for _, c := range p.proj.Decl.Components {
+		service := machine.MigrationService(manifest.ServiceName(c.ID, c.Version))
+		s, ok := byService[service]
+		failed := s.State == "failed" || (s.State == "exited" && s.ExitCode != 0)
+		if !ok || !failed {
+			continue
+		}
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusMigrationFailed, c.Ref(),
+			logsCommand(logsTarget(opts, p.proj), p.engineProject(), service)))
+	}
 }
 
 // ============================================================

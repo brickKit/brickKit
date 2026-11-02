@@ -1177,6 +1177,7 @@ cli.version.also_print_the_git_commit: "Also print the Git commit and build time
 cli.version.short: "Show the CLI version, the supported Manifest version and the deploy targets"
 cli.root.flag_version: "Same as brickkit version: the CLI version, the supported Manifest version and the deploy targets"
 cli.status.reason_unknown: "reason unknown (the dependency graph could not be obtained)"
+cli.status.migration_failed: "⚠️ The last migration of %[1]s failed. Logs: %[2]s"
 cli.status.via_local_file: " (deploy.local.yaml)"
 cli.status.via_local_file_suffix: ", via deploy.local.yaml"
 skills.install.failed_to_write: "Failed to write %[1]s: "

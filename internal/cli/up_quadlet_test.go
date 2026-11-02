@@ -133,3 +133,17 @@ func TestLogsCommandForQuadlet(t *testing.T) {
 	assert.Equal(t, "journalctl --user -u 'brickkit-shop-erp-api-1-0-0*'", logsCommand(logsQuadlet, "brickkit-shop", "erp-api-1-0-0"))
 	assert.True(t, strings.HasPrefix(logsCommand(engine.Podman, "brickkit-shop", ""), "podman compose"))
 }
+
+// status 说出上一次没跑成的迁移：Quadlet 下迁移失败时组件照跑上一个版本，表格全绿，不说就没人知道。
+func TestStatusNamesAFailedMigration(t *testing.T) {
+	f := quadletFixture(t)
+	eng := newQuadletEngine()
+	eng.statuses = []engine.Status{
+		{Service: "erp-api-1-0-0", State: "running", Health: "healthy", Replicas: 1, Ready: 1},
+		{Service: "erp-web-1-0-0", State: "running", Health: "healthy", Replicas: 1, Ready: 1},
+		{Service: "erp-api-1-0-0-migration", State: "failed", Replicas: 1},
+	}
+	r := runWithEngine(t, eng, f.Dir, "status")
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliStatusMigrationFailed, "erp/api@1.0.0",
+		"journalctl --user -u 'brickkit-my-erp-erp-api-1-0-0-migration*'"))
+}

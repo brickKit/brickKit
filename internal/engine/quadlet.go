@@ -133,11 +133,24 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 		return err
 	}
 
-	if len(units.Migrations) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"start"}, units.Migrations...)...); err != nil {
+	// 先把网络与全部迁移跑完（普通方式启动：迁移链上的前一版、网络照样被拉起）。任何一个失败就停在这里：
+	// 组件一个都不动，旧版本照跑——restart 是先停再启，等不到迁移结果再停就晚了
+	var first []string
+	for _, f := range units.Files {
+		if strings.HasSuffix(f.Name, ".network") {
+			first = append(first, UnitOf(f.Name))
+		}
+	}
+	first = append(first, units.Migrations...)
+	if len(first) > 0 {
+		if _, err := q.systemctl(ctx, append([]string{"start"}, first...)...); err != nil {
 			return q.unitsFailed(ctx, units.Migrations, true, err)
 		}
 	}
+	// 再动组件，带 --job-mode=ignore-requirements：组件 Requires= 自己的迁移，迁移跑完回到 inactive，
+	// 普通方式 start 一个组件——哪怕它已经在跑——会把迁移再拉起来跑一遍（2026-11-02 实测）。迁移刚刚跑过，
+	// 不要它的依赖；单元之间的先后顺序（After=，依赖健康之后才启动）照旧遵守。开机时没有这个选项，
+	// Requires= 让迁移先跑，正是要的
 	var restart []string
 	for _, unit := range units.Components {
 		if changed[unit] {
@@ -145,12 +158,12 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 		}
 	}
 	if len(restart) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"restart"}, restart...)...); err != nil {
+		if _, err := q.systemctl(ctx, append([]string{"restart", "--job-mode=ignore-requirements"}, restart...)...); err != nil {
 			return q.unitsFailed(ctx, units.Components, false, err)
 		}
 	}
 	if len(units.Components) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"start"}, units.Components...)...); err != nil {
+		if _, err := q.systemctl(ctx, append([]string{"start", "--job-mode=ignore-requirements"}, units.Components...)...); err != nil {
 			return q.unitsFailed(ctx, units.Components, false, err)
 		}
 	}
@@ -399,15 +412,12 @@ func (q *Quadlet) Status(ctx context.Context, project string) ([]Status, error) 
 	if len(units) == 0 {
 		return nil, nil
 	}
-	args := []string{"ps", "-a", "--format", "json"}
-	for _, unit := range units {
-		args = append(args, "--filter", "label=PODMAN_SYSTEMD_UNIT="+unit)
-	}
-	out, err := q.podman(ctx, nil, args...)
+	// 只按“带这个标签”过滤，单元在代码里筛：Podman 的多个 label 过滤条件要同时满足，不是任意一个（实测 5.7.0）
+	out, err := q.podman(ctx, nil, "ps", "-a", "--format", "json", "--filter", "label=PODMAN_SYSTEMD_UNIT")
 	if err != nil {
 		return nil, err
 	}
-	statuses, err := parsePodmanPS(out)
+	statuses, err := parsePodmanPS(out, units)
 	if err != nil {
 		return nil, err
 	}
@@ -465,9 +475,14 @@ type podmanPSEntry struct {
 	} `json:"Ports"`
 }
 
-// parsePodmanPS 按 brickkit.io/service 标签把容器归到服务，副本合并成一条（与 compose 同一种取最差的规则）。
+// parsePodmanPS 取 units 里那些单元的容器（PODMAN_SYSTEMD_UNIT 标签），按 brickkit.io/service 标签归到服务，
+// 副本合并成一条（与 compose 同一种取最差的规则）。
 // podman ps 的 JSON 没有单独的健康字段，健康写在 Status 的括号里（"Up 3 minutes (healthy)"）。
-func parsePodmanPS(out []byte) ([]Status, error) {
+func parsePodmanPS(out []byte, units []string) ([]Status, error) {
+	ours := map[string]bool{}
+	for _, unit := range units {
+		ours[unit] = true
+	}
 	var entries []podmanPSEntry
 	if text := bytes.TrimSpace(out); len(text) > 0 {
 		if err := json.Unmarshal(text, &entries); err != nil {
@@ -478,13 +493,17 @@ func parsePodmanPS(out []byte) ([]Status, error) {
 	index := map[string]int{}
 	for _, e := range entries {
 		service := e.Labels["brickkit.io/service"]
-		if service == "" {
+		if service == "" || !ours[e.Labels["PODMAN_SYSTEMD_UNIT"]] {
 			continue
 		}
 		var ports []string
 		for _, p := range e.Ports {
 			if p.HostPort > 0 {
-				ports = append(ports, fmt.Sprintf("%s:%d->%d/%s", p.HostIP, p.HostPort, p.ContainerPort, p.Protocol))
+				hostIP := p.HostIP
+				if hostIP == "" {
+					hostIP = "0.0.0.0" // 与 compose 的写法一致：没指定就是所有地址
+				}
+				ports = append(ports, fmt.Sprintf("%s:%d->%d/%s", hostIP, p.HostPort, p.ContainerPort, p.Protocol))
 			}
 		}
 		replica := Status{

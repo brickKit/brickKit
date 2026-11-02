@@ -105,9 +105,9 @@ func TestQuadletFirstUp(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		"systemctl --user daemon-reload",
-		"systemctl --user start brickkit-shop-api-1-0-0-migration.service",
-		"systemctl --user restart brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
-		"systemctl --user start brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
+		"systemctl --user start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service",
+		"systemctl --user restart --job-mode=ignore-requirements brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
+		"systemctl --user start --job-mode=ignore-requirements brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
 	}, systemctl)
 	assert.True(t, rec.called("podman secret rm brickkit-shop-api-1-0-0-OLD"))
 	assert.False(t, rec.called("brickkit-other-x"), "别的项目的 secret 不碰")
@@ -122,14 +122,14 @@ func TestQuadletRestartsOnlyWhatChanged(t *testing.T) {
 
 	rec.calls = nil
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
-	assert.True(t, rec.called("systemctl --user start brickkit-shop-api-1-0-0-migration.service"))
+	assert.True(t, rec.called("systemctl --user start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service"))
 	assert.False(t, rec.called("restart"))
 
 	rec.calls = nil
 	changed := units()
 	changed.Files[3].Content = []byte("web v2")
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: changed}))
-	assert.True(t, rec.called("systemctl --user restart brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service"))
+	assert.True(t, rec.called("systemctl --user restart --job-mode=ignore-requirements brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service"))
 	assert.False(t, rec.called("restart brickkit-shop-api"))
 }
 
@@ -156,7 +156,7 @@ func TestQuadletStopsAndRemovesStaleUnits(t *testing.T) {
 // 迁移失败：报 MIGRATION_FAILED，点名失败的单元与看日志的命令；组件一个都不动（旧版本照跑）。
 func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.fail["start brickkit-shop-api-1-0-0-migration.service"] = true
+	rec.fail["start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service"] = true
 	rec.output["is-failed"] = "failed\n"
 	q := quadletWith(t, rec, false)
 
@@ -167,7 +167,7 @@ func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	assert.Contains(t, err.Error(), "brickkit-shop-api-1-0-0-migration.service")
 	assert.Contains(t, err.Error(), "journalctl --user -u brickkit-shop-api-1-0-0-migration.service")
 	assert.False(t, rec.called("restart"))
-	assert.False(t, rec.called("start brickkit-shop-api-1-0-0.service"))
+	assert.False(t, rec.called("ignore-requirements"))
 }
 
 // 组件起不来：点名哪几个单元失败、日志怎么看。
@@ -279,10 +279,15 @@ func TestQuadletStatus(t *testing.T) {
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 
 	rec.output["ps -a --format json"] = `[
- {"State":"running","Status":"Up 2 minutes (healthy)","Labels":{"brickkit.io/service":"api-1-0-0"},
+ {"State":"running","Status":"Up 2 minutes (healthy)",
+  "Labels":{"brickkit.io/service":"api-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-api-1-0-0.service"},
   "Ports":[{"host_ip":"","host_port":18080,"container_port":8080,"protocol":"tcp"}]},
- {"State":"running","Status":"Up 2 minutes (healthy)","Labels":{"brickkit.io/service":"web-1-0-0"}},
- {"State":"running","Status":"Up 1 minute (unhealthy)","Labels":{"brickkit.io/service":"web-1-0-0"}}
+ {"State":"running","Status":"Up 2 minutes (healthy)",
+  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-web-1-0-0@1.service"}},
+ {"State":"running","Status":"Up 1 minute (unhealthy)",
+  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-web-1-0-0@2.service"}},
+ {"State":"running","Status":"Up 1 minute (healthy)",
+  "Labels":{"brickkit.io/service":"api-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-other-api-1-0-0.service"}}
 ]`
 	rec.output["is-failed"] = "failed\nactive\nactive\nactive\n"
 	statuses, err := q.Status(context.Background(), "brickkit-shop")
@@ -293,11 +298,11 @@ func TestQuadletStatus(t *testing.T) {
 		byService[s.Service] = s
 	}
 	assert.True(t, byService["api-1-0-0"].Running())
-	assert.Equal(t, ":18080->8080/tcp", byService["api-1-0-0"].Ports)
+	assert.Equal(t, "0.0.0.0:18080->8080/tcp", byService["api-1-0-0"].Ports)
 	assert.Equal(t, "unhealthy", byService["web-1-0-0"].Health)
 	assert.Equal(t, 2, byService["web-1-0-0"].Replicas)
 	assert.Equal(t, 1, byService["web-1-0-0"].Ready)
 	assert.Equal(t, "failed", byService["api-1-0-0-migration"].State)
-	assert.True(t, rec.called("--filter label=PODMAN_SYSTEMD_UNIT=brickkit-shop-api-1-0-0.service"))
-	assert.False(t, rec.called("PODMAN_SYSTEMD_UNIT=brickkit-shop-network.service"))
+	assert.True(t, rec.called("--filter label=PODMAN_SYSTEMD_UNIT"))
+	assert.Equal(t, 1, byService["api-1-0-0"].Replicas, "别的项目里同名服务的容器不算")
 }

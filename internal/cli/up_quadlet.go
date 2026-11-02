@@ -84,10 +84,10 @@ func upQuadlet(ctx context.Context, opts *Options, flags upOptions, plan *upPlan
 		Quadlet: quadletUnits(plan.quadlet),
 		OnPrune: func(item string) { pruned = append(pruned, item) },
 	}); err != nil {
-		renderQuadletPruned(opts, pruned)
+		renderRemoved(opts, pruned)
 		return engineFailure(i18n.T(msgid.CliUpStart), withMigrationComponent(plan, err))
 	}
-	renderQuadletPruned(opts, pruned)
+	renderRemoved(opts, pruned)
 
 	statuses, err := eng.Status(ctx, project)
 	if err != nil {
@@ -145,8 +145,8 @@ func withMigrationComponent(plan *upPlan, err error) error {
 	return e
 }
 
-// renderQuadletPruned 如实汇报卸下了什么：不再生成的单元，或者部署文件改成 Quadlet 之前 compose 留下的容器。
-func renderQuadletPruned(opts *Options, pruned []string) {
+// renderRemoved 如实汇报卸下了什么：不再生成的单元，或者换了部署形式之后另一种留下的（compose 的容器、Quadlet 的单元）。
+func renderRemoved(opts *Options, pruned []string) {
 	if len(pruned) == 0 {
 		return
 	}
