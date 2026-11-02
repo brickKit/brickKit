@@ -132,14 +132,6 @@ func (c *Compose) Down(ctx context.Context, req DownRequest) error {
 	return err
 }
 
-// ElsewhereWarning 见 Quadlet.ElsewhereWarning：另一边的 Quadlet 单元与这里的容器同样会跑成两份。
-func (c *Compose) ElsewhereWarning(project, projectDir string) *clierr.Error {
-	if c.quadlet == nil {
-		return nil
-	}
-	return c.quadlet.ElsewhereWarning(project, projectDir)
-}
-
 // removeQuadletUnits 卸下这个项目以 Quadlet 单元部署的那一份（部署文件从 podman.units: quadlet 改回了 compose）。
 // 卸下的单元经 onPrune 报出。
 func (c *Compose) removeQuadletUnits(ctx context.Context, project string, onPrune func(string)) error {

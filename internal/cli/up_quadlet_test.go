@@ -157,6 +157,42 @@ func (e elsewhereEngine) ElsewhereWarning(project, _ string) *clierr.Error {
 	return clierr.New(clierr.CodeDeployedElsewhere, "Warning: deployed elsewhere: "+project).AsWarning()
 }
 
+func (e elsewhereEngine) CheckElsewhere(project, _ string) error {
+	return clierr.New(clierr.CodeDeployedElsewhere, "Error: deployed elsewhere: "+project).WithHint("run it there")
+}
+
+// 另一边已经部署着：被拒的 up 在报错之前不生成、不列迁移、不说“正在启动”，读起来不像跑到一半才失败（FRB-013）；
+// --dry-run 照常生成，只警告一句。
+func TestUpRefusedElsewherePrintsNoPlan(t *testing.T) {
+	f := quadletFixture(t)
+	eng := elsewhereEngine{newQuadletEngine()}
+
+	r := runWith(t, func(o *Options) { o.Engine = eng }, f.Dir, "up")
+	require.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr+r.stdout, "deployed elsewhere: brickkit-my-erp")
+	assert.NotContains(t, r.stdout, "(Quadlet):", "没有“生成了单元”那一行")
+	assert.NotContains(t, r.stdout, "erp-api-1-0-0-migration")
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliUpStarting, i18n.T(msgid.CliUpQuadletEngine)))
+	assert.Empty(t, eng.ups)
+	assert.NoDirExists(t, quadletDir(f))
+
+	r = runWith(t, func(o *Options) { o.Engine = eng }, f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "⚠️ Warning: deployed elsewhere: brickkit-my-erp")
+	assert.DirExists(t, quadletDir(f))
+}
+
+// compose 的项目一样：另一边的单元与这里的容器会跑成两份。
+func TestComposeUpRefusedElsewhere(t *testing.T) {
+	f := quadletFixture(t)
+	editFile(t, in(f.Dir, "deploy.yaml"), "target: podman\npodman:\n  units: quadlet", "target: docker")
+	eng := elsewhereEngine{newFakeEngine()}
+	r := runWith(t, func(o *Options) { o.Engine = eng }, f.Dir, "up")
+	require.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Empty(t, eng.ups)
+	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
+}
+
 // down 与 status 只看得到当前身份那一份：另一边还装着时照样做完自己的，再警告一句（FRB-012）。
 // up 把项目目录交给引擎：root 据此找部署过它的用户。
 func TestDownAndStatusWarnWhenDeployedElsewhere(t *testing.T) {

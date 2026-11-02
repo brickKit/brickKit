@@ -132,3 +132,4 @@ R117	Quadlet：组件与它的迁移各用各的 Podman secret；外壳承载的
 R118	Quadlet：组件的单元换了、重启却失败（或被打断），再 up 照样重启它，不会跑着旧配置却报成功	.	./internal/engine	TestQuadletRetriesARestartThatFailed
 R119	同一个项目已经以 Quadlet 单元装在另一边的 systemd 里（root 的，或部署它的用户的）：up（Quadlet 或 compose）报 DEPLOYED_ELSEWHERE、说出装在哪里与该用哪个身份，什么都不装不跑	.	./internal/engine	TestQuadletUpRefusesWhenDeployedElsewhere
 R120	另一边还装着这个项目时，down 与 status 做完自己这一边，再警告另一份在哪里	.	./internal/cli	TestDownAndStatusWarnWhenDeployedElsewhere
+R121	被 DEPLOYED_ELSEWHERE 拒绝的 up（Quadlet 与 compose）在生成部署文件、列迁移、说“正在启动”之前就停下；--dry-run 照常生成，只警告	.	./internal/cli	TestUpRefusedElsewherePrintsNoPlan

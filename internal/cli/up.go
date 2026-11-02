@@ -275,6 +275,13 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 			return nil, err
 		}
 	}
+	// 本机的目标同理：这个项目已经由另一个身份（root 的或某个用户的 systemd）部署着时，在生成、列迁移、
+	// “正在启动”之前就停下——否则被拒的 up 读起来像是迁移跑过、启动到一半才失败
+	if proj.Deploy.Target != deployfile.TargetK8s {
+		if err := checkDeployedElsewhere(opts, proj, flags.dryRun); err != nil {
+			return nil, err
+		}
+	}
 
 	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
 	if err != nil {

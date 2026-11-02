@@ -83,7 +83,7 @@ func runDown(ctx context.Context, opts *Options) error {
 	}
 
 	renderDownResult(opts, proj.Deploy.Target == deployfile.TargetK8s, eng.Name(), running, probed)
-	renderDeployedElsewhere(opts, eng, p.engineProject(), proj)
+	renderDeployedElsewhere(opts, proj)
 	renderLocalModeSessionHint(opts, proj)
 	logging.Info(i18n.T(msgid.LogProjectStopped), "project", proj.Decl.Project, "stopped", running)
 	return nil

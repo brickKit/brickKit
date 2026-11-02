@@ -326,10 +326,10 @@ why already.
 
 | Title | Situation | What to do |
 | --- | --- | --- |
-| `Error: this project is already deployed on this machine, as Quadlet units in <…>` | `up` (any local target: `docker`, `podman`, Quadlet units or compose) found this project's Quadlet units in the other systemd: the system's (`/etc/containers/systemd/…`, deployed as root) while you run as a user, or — running as root — the user's who ran `sudo` or who owns the project directory. Each systemd sees only its own units, so a second copy would run beside the first against the same databases. Nothing was changed | Run `brickkit` the way it was deployed (as root: `sudo brickkit up`; or as that user, without `sudo`). To move the project to the other side, run `brickkit down` the way it was deployed first |
+| `Error: this project is already deployed on this machine, as Quadlet units in <…>` | `up` (any local target: `docker`, `podman`, Quadlet units or compose) found this project's Quadlet units in the other systemd: the system's (`/etc/containers/systemd/…`, deployed as root) while you run as a user, or — running as root — the user's who ran `sudo` or who owns the project directory. Each systemd sees only its own units, so a second copy would run beside the first against the same databases. `up` stops before it generates or prints anything of its plan: nothing was changed | Run `brickkit` the way it was deployed (as root: `sudo brickkit up`; or as that user, without `sudo`). To move the project to the other side, run `brickkit down` the way it was deployed first |
 
-`down` and `status` give the same as a warning (`Warning: this project is also deployed on this machine …`): they do
-their own side and then name the other copy.
+`down`, `status` and `up --dry-run` give the same as a warning (`Warning: this project is also deployed on this machine
+…`): they do their own part and name the other copy.
 
 ### NETWORK_UNREACHABLE
 

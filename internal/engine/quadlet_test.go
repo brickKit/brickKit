@@ -435,7 +435,7 @@ func TestQuadletUpRefusesWhenDeployedElsewhere(t *testing.T) {
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 }
 
-// compose 的 up 同样拒绝：另一边的单元与这里的容器一样会跑成两份。down 与 status 拿到的是警告。
+// compose 的 up 同样拒绝：另一边的单元与这里的容器一样会跑成两份。警告版给 down 与 status。
 func TestComposeUpRefusesWhenDeployedElsewhere(t *testing.T) {
 	c := NewPodman()
 	var called bool
@@ -448,10 +448,10 @@ func TestComposeUpRefusesWhenDeployedElsewhere(t *testing.T) {
 	assert.Equal(t, clierr.CodeDeployedElsewhere, clierr.As(err).Code)
 	assert.False(t, called)
 
-	warning := c.ElsewhereWarning("brickkit-shop", "")
+	warning := c.quadlet.ElsewhereWarning("brickkit-shop", "")
 	require.NotNil(t, warning)
 	assert.True(t, warning.Warning)
-	assert.Nil(t, c.ElsewhereWarning("brickkit-other", ""))
+	assert.Nil(t, c.quadlet.ElsewhereWarning("brickkit-other", ""))
 }
 
 // 以普通用户运行时，另一边是系统的 systemd；项目目录的属主认得出来（root 时据此找部署过它的用户）。

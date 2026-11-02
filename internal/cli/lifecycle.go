@@ -234,20 +234,53 @@ func loadDecl(opts *Options) (project.Layout, *projfile.File, error) {
 	return layout, decl, err
 }
 
-// elsewhereWarner 是能说出“这个项目还以 Quadlet 单元装在另一边的 systemd 里”的引擎：compose 与 Quadlet 的。
-type elsewhereWarner interface {
+// elsewhereChecker 认得出“这个项目已经以 Quadlet 单元装在另一边的 systemd 里”（engine.Quadlet）：root 的
+// systemd 与用户的各管各的，另一边那一份当前身份的引擎看不到。它看的是 Quadlet 目录，与这次用哪个引擎无关——
+// compose 的容器与另一边的单元一样会跑成两份。
+type elsewhereChecker interface {
+	CheckElsewhere(project, projectDir string) error
 	ElsewhereWarning(project, projectDir string) *clierr.Error
 }
 
-// renderDeployedElsewhere 给 down 与 status：它们只看得到当前身份的 systemd 与引擎，另一边（root 的或部署它的
-// 那个用户的）装着的那一份照样跑着，不说的话，“已停止”“没有在跑”就是半句实话。up 在那时直接拒绝
-// （engine.Quadlet.CheckElsewhere）。
-func renderDeployedElsewhere(opts *Options, eng engine.Engine, name string, proj *project.Project) {
-	w, ok := eng.(elsewhereWarner)
-	if !ok {
+// elsewhereCheckerFor 是这次运行用的检查：注入的引擎（测试）实现了它就用它，没实现就不查；否则看本机的
+// Quadlet 目录。K8s 目标不查：它不部署在这台机器上。
+func elsewhereCheckerFor(opts *Options, proj *project.Project) elsewhereChecker {
+	if proj.Deploy.Target == deployfile.TargetK8s {
+		return nil
+	}
+	if opts.Engine != nil {
+		c, _ := opts.Engine.(elsewhereChecker)
+		return c
+	}
+	return engine.NewQuadlet()
+}
+
+// checkDeployedElsewhere 给 up：另一边已经部署着就报 DEPLOYED_ELSEWHERE，在生成任何东西、说出任何计划之前。
+// --dry-run 什么都不装，照常生成，只提醒一句真 up 会被拒。引擎的 Up 自己也查（Quadlet.CheckElsewhere），
+// 这里提前，是为了被拒的 up 不先打印“生成了”“要跑这些迁移”“正在启动”。
+func checkDeployedElsewhere(opts *Options, proj *project.Project, dryRun bool) error {
+	c := elsewhereCheckerFor(opts, proj)
+	if c == nil {
+		return nil
+	}
+	name := engine.ProjectName(proj.Decl.Project)
+	if dryRun {
+		if warning := c.ElsewhereWarning(name, proj.Layout.Root); warning != nil {
+			renderWarnings(opts, []*clierr.Error{warning})
+		}
+		return nil
+	}
+	return c.CheckElsewhere(name, proj.Layout.Root)
+}
+
+// renderDeployedElsewhere 给 down 与 status：它们只看得到当前身份的 systemd 与引擎，另一边装着的那一份照样跑着，
+// 不说的话，“已停止”“没有在跑”就是半句实话。
+func renderDeployedElsewhere(opts *Options, proj *project.Project) {
+	c := elsewhereCheckerFor(opts, proj)
+	if c == nil {
 		return
 	}
-	if warning := w.ElsewhereWarning(name, proj.Layout.Root); warning != nil {
+	if warning := c.ElsewhereWarning(engine.ProjectName(proj.Decl.Project), proj.Layout.Root); warning != nil {
 		opts.Printf("\n")
 		renderWarnings(opts, []*clierr.Error{warning})
 	}
