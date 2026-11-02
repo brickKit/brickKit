@@ -86,6 +86,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	renderDegradedNotice(opts, p)
 	renderComponentStatus(opts, p, view)
 	renderFailedMigrations(opts, p, byService)
+	renderDeployedElsewhere(opts, eng, p.engineProject(), p.proj)
 	renderSkipped(opts, view)
 	renderLocalDebug(opts, p, view)
 	renderLocalModeSessionHint(opts, p.proj)

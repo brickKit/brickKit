@@ -150,7 +150,7 @@ podman:
 | 迁移失败 | `up` 在装任何组件的单元之前就停下：它们照旧跑着上一个版本，重启机器之后也是 | 组件等着迁移，不启动 |
 | 主机上要装的 | Podman 5.3 或更新 | Podman、Docker 的 Compose V2（`docker-compose`）、`podman.socket` |
 | 本机进程、焦点运行 | 装载时就拒绝 | 支持 |
-| 谁跑 `up` | 无根：部署的那个用户。有根：root（`sudo brickkit up`）——要装进 `/etc/containers/systemd` | 部署的那个用户；有根时也可以经套接字组（[第 5 步](#为有根-podman-准备主机)） |
+| 谁跑 `up` | 无根：部署的那个用户。有根：root（`sudo brickkit up`）——要装进 `/etc/containers/systemd`。换一个身份跑，`up` 拒绝，不会再部署一份 | 部署的那个用户；有根时也可以经套接字组（[第 5 步](#为有根-podman-准备主机)） |
 
 单元就是你看到的那些：`up` 先写进 `.brickkit/generated/quadlet/`（`up --dry-run` 到此为止），再复制进它们自己的目录，`~/.config/containers/systemd/brickkit-<项目名>/`（无根）
 或 `/etc/containers/systemd/brickkit-<项目名>/`（有根），`down` 删掉这个目录。不能写在文件里让人看到的值——密钥、`file://` 的内容、`${VAR}` 模板、跨好几行的值——

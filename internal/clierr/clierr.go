@@ -79,6 +79,9 @@ const (
 	CodeMigrationSkipped Code = "MIGRATION_SKIPPED"
 	CodeEngineFailed     Code = "ENGINE_FAILED"
 	CodeEngineMissing    Code = "ENGINE_MISSING"
+	// CodeDeployedElsewhere 是"这个项目已经由另一个身份部署在这台机器上"：Quadlet 单元装在 root 的 systemd 里、
+	// 这次以普通用户运行（或者反过来）。两边的 systemd 各管各的，再装一份就是同一个项目跑两份。
+	CodeDeployedElsewhere Code = "DEPLOYED_ELSEWHERE"
 
 	// 网络、认证与镜像权限。
 	CodeNetworkUnreachable Code = "NETWORK_UNREACHABLE"

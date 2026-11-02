@@ -233,3 +233,22 @@ func loadDecl(opts *Options) (project.Layout, *projfile.File, error) {
 	decl, err := projfile.ParseFile(layout.DeclPath())
 	return layout, decl, err
 }
+
+// elsewhereWarner 是能说出“这个项目还以 Quadlet 单元装在另一边的 systemd 里”的引擎：compose 与 Quadlet 的。
+type elsewhereWarner interface {
+	ElsewhereWarning(project, projectDir string) *clierr.Error
+}
+
+// renderDeployedElsewhere 给 down 与 status：它们只看得到当前身份的 systemd 与引擎，另一边（root 的或部署它的
+// 那个用户的）装着的那一份照样跑着，不说的话，“已停止”“没有在跑”就是半句实话。up 在那时直接拒绝
+// （engine.Quadlet.CheckElsewhere）。
+func renderDeployedElsewhere(opts *Options, eng engine.Engine, name string, proj *project.Project) {
+	w, ok := eng.(elsewhereWarner)
+	if !ok {
+		return
+	}
+	if warning := w.ElsewhereWarning(name, proj.Layout.Root); warning != nil {
+		opts.Printf("\n")
+		renderWarnings(opts, []*clierr.Error{warning})
+	}
+}

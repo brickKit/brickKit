@@ -481,7 +481,8 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 
 - `up` 把单元复制进 `~/.config/containers/systemd/brickkit-<项目名>/`（有根：`/etc/containers/systemd/brickkit-<项目名>/`）。这个目录就是部署出去的东西，`down` 删掉它。
   在那里手改的，下一次 `up` 会覆盖。
-- 用跑 `up` 的那个用户跑 `down` 和 `status`：有根的单元在 `/etc/containers/systemd`，无根的在那个用户的主目录里，换一个用户的 `status` 会说什么都没在跑。
+- 以部署它时的身份跑 `up`、`down` 和 `status`：有根的单元在 `/etc/containers/systemd`，无根的在那个用户的主目录里，每个 systemd 只看得到自己的。
+  换一个身份跑 `up` 会拒绝（`DEPLOYED_ELSEWHERE`），而不是在旁边再部署一份；`down` 与 `status` 会警告另一份还在。
 - 作为 Podman secret 交付的值，在容器创建时进去。`podman exec <容器> printenv` 会重新取 secret，可能看到比在跑的进程更新的值；进程自己的环境在容器里的
   `/proc/1/environ`。组件的 secret 变了，`up` 就重启它。
 

@@ -195,7 +195,7 @@ podman:
 | A migration fails | `up` stops before installing any component's unit: they keep running their previous version, after a reboot too | The component waits for its migration and doesn't start |
 | What the host needs | Podman 5.3 or later | Podman, Docker's Compose V2 (`docker-compose`), `podman.socket` |
 | Processes on this machine, focus runs | Refused while loading | Supported |
-| Runs `up` | Rootless: the deploying user. Rootful: root (`sudo brickkit up`) — it installs into `/etc/containers/systemd` | The deploying user; rootful also through a socket group ([step 5](#setting-up-a-host-for-rootful-podman)) |
+| Runs `up` | Rootless: the deploying user. Rootful: root (`sudo brickkit up`) — it installs into `/etc/containers/systemd`. Run the other way, `up` refuses rather than deploy a second copy | The deploying user; rootful also through a socket group ([step 5](#setting-up-a-host-for-rootful-podman)) |
 
 The units are what you see: `up` writes them into `.brickkit/generated/quadlet/` (`up --dry-run` stops there), then
 copies them into a directory of their own, `~/.config/containers/systemd/brickkit-<project>/` (rootless) or

@@ -295,6 +295,14 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：检测到 Podman，但尚未启用` | 只装了 Podman，部署文件却是 `target: docker` | 把 `target` 改成 `podman` |
 | `错误：Podman <…> 太旧，podman.units: quadlet 要 <…> 或更新的版本` | 装的 Podman 读不懂生成的单元 | 升级 Podman；或者这台机器不写 `podman.units`（用 compose） |
 
+### DEPLOYED_ELSEWHERE
+
+| 标题 | 什么情况 | 怎么办 |
+| --- | --- | --- |
+| `错误：这个项目已经以 Quadlet 单元部署在这台机器上：<…>` | `up`（本机的任何目标：`docker`、`podman`，Quadlet 单元或 compose）在另一边的 systemd 里找到了这个项目的 Quadlet 单元：以普通用户运行时是系统的（`/etc/containers/systemd/…`，以 root 部署的）；以 root 运行时是跑 `sudo` 的那个用户的、或项目目录属主的。每个 systemd 只看得到自己的单元，再部署一份就会与那一份同时跑、连同一批数据库。什么都没改 | 以部署它时的身份运行 `brickkit`（root：`sudo brickkit up`；或者那个用户，不要 `sudo`）。要把项目挪到另一边，先以部署它的身份跑 `brickkit down` |
+
+`down` 与 `status` 碰到同样的情况给的是警告（`警告：这个项目还以 Quadlet 单元部署在这台机器上……`）：它们做完自己这一边，再说出另一份在哪里。
+
 ### NETWORK_UNREACHABLE
 
 网络问题。**这是唯一值得原样重试的错误码。**

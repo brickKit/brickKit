@@ -147,3 +147,36 @@ func TestStatusNamesAFailedMigration(t *testing.T) {
 	assert.Contains(t, r.stdout, i18n.T(msgid.CliStatusMigrationFailed, "erp/api@1.0.0",
 		"journalctl --user -u 'brickkit-my-erp_erp-api-1-0-0-migration*'"))
 }
+
+// elsewhereEngine 是一个“另一边的 systemd 里还装着这个项目”的引擎替身。
+type elsewhereEngine struct {
+	*fakeEngine
+}
+
+func (e elsewhereEngine) ElsewhereWarning(project, _ string) *clierr.Error {
+	return clierr.New(clierr.CodeDeployedElsewhere, "Warning: deployed elsewhere: "+project).AsWarning()
+}
+
+// down 与 status 只看得到当前身份那一份：另一边还装着时照样做完自己的，再警告一句（FRB-012）。
+// up 把项目目录交给引擎：root 据此找部署过它的用户。
+func TestDownAndStatusWarnWhenDeployedElsewhere(t *testing.T) {
+	f := quadletFixture(t)
+	eng := elsewhereEngine{newQuadletEngine()}
+	for _, command := range []string{"status", "down"} {
+		r := runWith(t, func(o *Options) { o.Engine = eng }, f.Dir, command)
+		require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+		assert.Contains(t, r.stdout, "⚠️ Warning: deployed elsewhere: brickkit-my-erp", command)
+	}
+	assert.Len(t, eng.downs, 1, "down 照样做自己这一边")
+
+	plain := newQuadletEngine()
+	r := runWithEngine(t, plain, f.Dir, "up")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, plain.ups, 1)
+	root, err := filepath.EvalSymlinks(f.Dir)
+	require.NoError(t, err)
+	got, err := filepath.EvalSymlinks(plain.ups[0].ProjectDir)
+	require.NoError(t, err)
+	assert.Equal(t, root, got)
+}
+

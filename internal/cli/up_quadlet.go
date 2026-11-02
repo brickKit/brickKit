@@ -78,10 +78,11 @@ func upQuadlet(ctx context.Context, opts *Options, flags upOptions, plan *upPlan
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, i18n.T(msgid.CliUpQuadletEngine)))
 	var pruned []string
 	if err := eng.Up(ctx, engine.UpRequest{
-		Project:  project,
-		Services: plan.services,
-		Network:  plan.proj.Deploy.Network,
-		Quadlet: quadletUnits(plan.quadlet),
+		Project:    project,
+		ProjectDir: plan.proj.Layout.Root,
+		Services:   plan.services,
+		Network:    plan.proj.Deploy.Network,
+		Quadlet:    quadletUnits(plan.quadlet),
 		OnPrune: func(item string) { pruned = append(pruned, item) },
 	}); err != nil {
 		renderRemoved(opts, pruned)

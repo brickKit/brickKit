@@ -566,8 +566,10 @@ The deploy file has `podman.units: quadlet`, and `up` fails with one of:
 - `up` copies the units into `~/.config/containers/systemd/brickkit-<project name>/` (rootful:
   `/etc/containers/systemd/brickkit-<project name>/`). That directory is what is deployed; `down` removes it. An edit made
   there by hand is overwritten by the next `up`.
-- Run `down` and `status` as the user who ran `up`: rootful units are in `/etc/containers/systemd`, rootless ones in that
-  user's home, and the other user's `status` says nothing is running.
+- Run `up`, `down` and `status` the way the project was deployed: rootful units are in `/etc/containers/systemd`,
+  rootless ones in that user's home, and each systemd sees only its own. `up` run the other way refuses
+  (`DEPLOYED_ELSEWHERE`) rather than deploy a second copy beside the first; `down` and `status` warn that the other copy
+  is there.
 - A value delivered as a Podman secret reaches the container when it is created. `podman exec <container> printenv`
   re-reads the secret and may show a newer value than the running process has; the process's own environment is
   `/proc/1/environ` inside the container. `up` restarts a component whenever one of its secrets changed.

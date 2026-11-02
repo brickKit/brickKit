@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -397,4 +398,71 @@ func TestQuadletStatus(t *testing.T) {
 	assert.Equal(t, "failed", byService["api-1-0-0-migration"].State)
 	assert.True(t, rec.called("--filter label=PODMAN_SYSTEMD_UNIT"))
 	assert.Equal(t, 1, byService["api-1-0-0"].Replicas, "别的项目里同名服务的容器不算")
+}
+
+// elsewhereAt 让 q 的“另一边”是 root（user 为空时是系统的 systemd），并在那里装上项目 brickkit-shop 的一个单元。
+func elsewhereAt(t *testing.T, q *Quadlet, user string) string {
+	root := t.TempDir()
+	dir := filepath.Join(root, "brickkit-shop")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "brickkit-shop_api-1-0-0.container"), []byte("api"), 0o644))
+	q.otherRoots = func(string) []installRoot { return []installRoot{{dir: root, user: user}} }
+	return dir
+}
+
+// 同一个项目已经以 Quadlet 单元装在另一边的 systemd 里（root 装的，这次是普通用户；或者反过来）：up 拒绝，
+// 说出装在哪里、该用哪个身份，什么都不装、不跑（FRB-012）。另一边只有空目录或只有点文件时不算。
+func TestQuadletUpRefusesWhenDeployedElsewhere(t *testing.T) {
+	rec := newQuadletRecorder()
+	q := quadletWith(t, rec, false)
+	dir := elsewhereAt(t, q, "")
+
+	err := q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeDeployedElsewhere, clierr.As(err).Code)
+	assert.Contains(t, err.Error(), dir)
+	assert.Empty(t, rec.calls, "什么都不跑")
+	assert.NoDirExists(t, q.Dir("brickkit-shop"))
+
+	rooted := quadletWith(t, newQuadletRecorder(), true)
+	elsewhereAt(t, rooted, "alice")
+	err = rooted.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()})
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Hints[0], "alice")
+
+	require.NoError(t, os.Remove(filepath.Join(dir, "brickkit-shop_api-1-0-0.container")))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, pendingFile), nil, 0o644))
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
+}
+
+// compose 的 up 同样拒绝：另一边的单元与这里的容器一样会跑成两份。down 与 status 拿到的是警告。
+func TestComposeUpRefusesWhenDeployedElsewhere(t *testing.T) {
+	c := NewPodman()
+	var called bool
+	c.runner = func(context.Context, string, ...string) ([]byte, error) { called = true; return nil, nil }
+	c.quadlet = quadletWith(t, newQuadletRecorder(), false)
+	elsewhereAt(t, c.quadlet, "")
+
+	err := c.Up(context.Background(), UpRequest{Project: "brickkit-shop"})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeDeployedElsewhere, clierr.As(err).Code)
+	assert.False(t, called)
+
+	warning := c.ElsewhereWarning("brickkit-shop", "")
+	require.NotNil(t, warning)
+	assert.True(t, warning.Warning)
+	assert.Nil(t, c.ElsewhereWarning("brickkit-other", ""))
+}
+
+// 以普通用户运行时，另一边是系统的 systemd；项目目录的属主认得出来（root 时据此找部署过它的用户）。
+func TestOtherInstallRootsAsUser(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("以 root 运行时另一边是用户的 systemd")
+	}
+	assert.Equal(t, []installRoot{{dir: systemQuadletDir}}, otherInstallRoots(t.TempDir()))
+	uid, ok := fileOwner(t.TempDir())
+	require.True(t, ok)
+	assert.Equal(t, strconv.Itoa(os.Getuid()), uid)
+	_, ok = fileOwner(filepath.Join(t.TempDir(), "missing"))
+	assert.False(t, ok)
 }

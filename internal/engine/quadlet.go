@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -67,20 +68,113 @@ type Quadlet struct {
 	root string
 	// runner 执行命令，stdin 非空时写给它（podman secret create 从标准输入读值，值不落盘）。测试可替换。
 	runner func(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error)
+	// otherRoots 是另一边的 systemd 可能装着同一个项目的 Quadlet 目录（见 Elsewhere）。测试可替换。
+	otherRoots func(projectDir string) []installRoot
 }
+
+// installRoot 是一个 Quadlet 目录与它所属的用户（系统的 systemd 时为空）。
+type installRoot struct {
+	dir  string
+	user string
+}
+
+// systemQuadletDir 是系统的 systemd 找 Quadlet 单元的目录。
+const systemQuadletDir = "/etc/containers/systemd"
+
+// userQuadletDir 是一个用户的 systemd 找 Quadlet 单元的目录之一（podman-systemd.unit(5)）。不跟 $XDG_CONFIG_HOME：
+// snap 里的终端会把它改到别处，而用户的 systemd 读的是它自己的环境。
+func userQuadletDir(home string) string { return filepath.Join(home, ".config", "containers", "systemd") }
 
 // NewQuadlet 按当前用户选系统级或用户级的 systemd。
 func NewQuadlet() *Quadlet {
-	q := &Quadlet{rootful: os.Geteuid() == 0, runner: runWithStdin}
+	q := &Quadlet{rootful: os.Geteuid() == 0, runner: runWithStdin, otherRoots: otherInstallRoots}
 	if q.rootful {
-		q.root = "/etc/containers/systemd"
+		q.root = systemQuadletDir
 	} else {
 		home, _ := os.UserHomeDir()
-		// Quadlet 给用户找单元的目录之一（podman-systemd.unit(5)）。不跟 $XDG_CONFIG_HOME：snap 里的终端会把它
-		// 改到别处，而用户的 systemd 读的是它自己的环境
-		q.root = filepath.Join(home, ".config", "containers", "systemd")
+		q.root = userQuadletDir(home)
 	}
 	return q
+}
+
+// otherInstallRoots 是“另一边”：以普通用户运行时是系统的 systemd；以 root 运行时是可能部署过这个项目的用户的——
+// sudo 之前的那个用户（SUDO_USER），与项目目录的属主（su 或 ssh 成 root 时没有 SUDO_USER）。别的用户不查：
+// 他们的同名项目是另一个项目，root 部署它不会与他们的单元撞名（两个 systemd 各有各的名字空间）。
+func otherInstallRoots(projectDir string) []installRoot {
+	if os.Geteuid() != 0 {
+		return []installRoot{{dir: systemQuadletDir}}
+	}
+	var names []string
+	if name := os.Getenv("SUDO_USER"); name != "" {
+		names = append(names, name)
+	}
+	if uid, ok := fileOwner(projectDir); ok {
+		if u, err := user.LookupId(uid); err == nil {
+			names = append(names, u.Username)
+		}
+	}
+	var roots []installRoot
+	seen := map[string]bool{}
+	for _, name := range names {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		u, err := user.Lookup(name)
+		if err != nil || u.Uid == "0" {
+			continue
+		}
+		roots = append(roots, installRoot{dir: userQuadletDir(u.HomeDir), user: name})
+	}
+	return roots
+}
+
+// elsewhere 找另一边装着这个项目（安装目录里有单元）的那一处。
+func (q *Quadlet) elsewhere(project, projectDir string) (installRoot, bool) {
+	if q.otherRoots == nil {
+		return installRoot{}, false
+	}
+	for _, root := range q.otherRoots(projectDir) {
+		dir := filepath.Join(root.dir, project)
+		if files, err := q.installed(dir); err == nil && len(files) > 0 {
+			return installRoot{dir: dir, user: root.user}, true
+		}
+	}
+	return installRoot{}, false
+}
+
+// CheckElsewhere 在这个项目已经以 Quadlet 单元装在另一边的 systemd 里时报 DEPLOYED_ELSEWHERE：root 的 systemd 与
+// 用户的 systemd 各管各的单元，这次再部署一份，就是同一个项目在一台机器上跑两份——连同一批数据库，消费者成双、
+// 迁移两边都跑；而 status 与 down 只看得到当前身份那一份（FRB-012：root 装好之后，普通用户在同一个目录 up，
+// 静默装出了第二份）。up 在动任何东西之前调用，compose 的 up 也是：另一边的单元同样会与它的容器跑成两份。
+func (q *Quadlet) CheckElsewhere(project, projectDir string) error {
+	root, found := q.elsewhere(project, projectDir)
+	if !found {
+		return nil
+	}
+	return clierr.New(clierr.CodeDeployedElsewhere, i18n.T(msgid.EngineQuadletElsewhere, root.dir)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.EngineQuadletElsewhereReason)).
+		WithHint(elsewhereWho(root), i18n.T(msgid.EngineHintQuadletElsewhereMove))
+}
+
+// ElsewhereWarning 是 CheckElsewhere 的警告版，给 down 与 status：它们照样做自己这一边，再说出另一边还有一份。
+func (q *Quadlet) ElsewhereWarning(project, projectDir string) *clierr.Error {
+	root, found := q.elsewhere(project, projectDir)
+	if !found {
+		return nil
+	}
+	return clierr.New(clierr.CodeDeployedElsewhere, i18n.T(msgid.EngineQuadletElsewhereWarning, root.dir)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.EngineQuadletElsewhereReason)).
+		WithHint(elsewhereWho(root), i18n.T(msgid.EngineHintQuadletElsewhereMove)).
+		AsWarning()
+}
+
+// elsewhereWho 说该用哪个身份运行：部署它的 root，或部署它的那个用户。
+func elsewhereWho(root installRoot) string {
+	if root.user != "" {
+		return i18n.T(msgid.EngineHintQuadletElsewhereAsUser, root.user)
+	}
+	return i18n.T(msgid.EngineHintQuadletElsewhereAsRoot)
 }
 
 // Rootful 报告单元装进的是系统的 systemd。
@@ -122,6 +216,9 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	units := req.Quadlet
 	if units == nil {
 		return errors.New("engine: Quadlet.Up without units")
+	}
+	if err := q.CheckElsewhere(req.Project, req.ProjectDir); err != nil {
+		return err
 	}
 	if err := q.checkVersion(ctx); err != nil {
 		return err

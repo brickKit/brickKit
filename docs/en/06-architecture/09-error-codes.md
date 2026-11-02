@@ -322,6 +322,15 @@ why already.
 | `Error: Podman is installed, but not enabled` | Only Podman is installed, while the deploy file says `target: docker` | Change `target` to `podman` |
 | `Error: Podman <…> is too old for podman.units: quadlet, which needs <…> or later` | The installed Podman can't read the generated units | Upgrade Podman, or leave `podman.units` out on this machine (compose) |
 
+### DEPLOYED_ELSEWHERE
+
+| Title | Situation | What to do |
+| --- | --- | --- |
+| `Error: this project is already deployed on this machine, as Quadlet units in <…>` | `up` (any local target: `docker`, `podman`, Quadlet units or compose) found this project's Quadlet units in the other systemd: the system's (`/etc/containers/systemd/…`, deployed as root) while you run as a user, or — running as root — the user's who ran `sudo` or who owns the project directory. Each systemd sees only its own units, so a second copy would run beside the first against the same databases. Nothing was changed | Run `brickkit` the way it was deployed (as root: `sudo brickkit up`; or as that user, without `sudo`). To move the project to the other side, run `brickkit down` the way it was deployed first |
+
+`down` and `status` give the same as a warning (`Warning: this project is also deployed on this machine …`): they do
+their own side and then name the other copy.
+
 ### NETWORK_UNREACHABLE
 
 A network problem. **This is the only error code worth retrying as it is.**

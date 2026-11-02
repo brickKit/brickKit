@@ -59,6 +59,11 @@ func (c *Compose) Name() string { return c.name }
 //
 // RunAfter 里的一次性 service 在 up 之后逐个跑，见 UpRequest.RunAfter。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
+	if c.quadlet != nil {
+		if err := c.quadlet.CheckElsewhere(req.Project, req.ProjectDir); err != nil {
+			return err
+		}
+	}
 	if err := c.removeQuadletUnits(ctx, req.Project, req.OnPrune); err != nil {
 		return err
 	}
@@ -125,6 +130,14 @@ func (c *Compose) Down(ctx context.Context, req DownRequest) error {
 	args := append(append([]string{}, c.base...), "-p", req.Project, "down", "--remove-orphans")
 	_, err := c.exec(ctx, args...)
 	return err
+}
+
+// ElsewhereWarning 见 Quadlet.ElsewhereWarning：另一边的 Quadlet 单元与这里的容器同样会跑成两份。
+func (c *Compose) ElsewhereWarning(project, projectDir string) *clierr.Error {
+	if c.quadlet == nil {
+		return nil
+	}
+	return c.quadlet.ElsewhereWarning(project, projectDir)
 }
 
 // removeQuadletUnits 卸下这个项目以 Quadlet 单元部署的那一份（部署文件从 podman.units: quadlet 改回了 compose）。

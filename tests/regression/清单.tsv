@@ -130,3 +130,5 @@ R115	Quadlet：迁移命令参数里的换行、制表符按 C 的写法转义�
 R116	Quadlet：迁移只由 up 跑——迁移单元没有 [Install]、组件与外壳都不依赖它，开机与崩溃重启不跑迁移（开机时库常常还没起来，失败的单元让 systemd degraded）	.	./internal/quadlet	TestMigrationUnit
 R117	Quadlet：组件与它的迁移各用各的 Podman secret；外壳承载的成员只建迁移那一份	.	./internal/quadlet	TestHostedMemberSecretsBelongToItsMigration
 R118	Quadlet：组件的单元换了、重启却失败（或被打断），再 up 照样重启它，不会跑着旧配置却报成功	.	./internal/engine	TestQuadletRetriesARestartThatFailed
+R119	同一个项目已经以 Quadlet 单元装在另一边的 systemd 里（root 的，或部署它的用户的）：up（Quadlet 或 compose）报 DEPLOYED_ELSEWHERE、说出装在哪里与该用哪个身份，什么都不装不跑	.	./internal/engine	TestQuadletUpRefusesWhenDeployedElsewhere
+R120	另一边还装着这个项目时，down 与 status 做完自己这一边，再警告另一份在哪里	.	./internal/cli	TestDownAndStatusWarnWhenDeployedElsewhere
