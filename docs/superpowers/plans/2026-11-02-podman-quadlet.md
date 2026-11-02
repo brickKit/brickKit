@@ -114,8 +114,8 @@
 
 | 任务 | 状态 |
 | --- | --- |
-| 1 | 未开始 |
-| 2 | 未开始 |
+| 1 | 完成（`8e51608a`）：九项都有结论，设计 §5.1、§5.2、§6、§8 已改。AI 定的（待复核）：`up` 先单独跑全部迁移、成功才动组件（代价：变了的组件迁移多跑一次）；最低 Podman 5.3；配额全走 `PodmanArgs=` |
+| 2 | 完成：`podman.units`（compose / quadlet）、`Quadlet()`、`LongRunning()`；本机进程与焦点在 Quadlet 下装载即拒绝；`podman:` 写在别的 target 下警告（与 `k8s:` 一致，设计 §3 已改）；schema、字段参考、deploy.yaml schema 页；R98、R99 |
 | 3 | 未开始 |
 | 4 | 未开始 |
 | 5 | 未开始 |

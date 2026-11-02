@@ -612,6 +612,8 @@ config.replicas_too_small: "must be >= 1 (currently %[1]d). To turn this compone
 config.replicas_with_local: "cannot be declared together with mode: debug or mode: local: both mean this component runs as a single bare process, not a set of container replicas"
 config.mode_k8s_unsupported: "%[1]q is only supported with target docker or podman (got k8s) — a cluster Pod cannot reach a process on the developer's own machine"
 config.focus_k8s_unsupported: "a focus run starts a process on your machine, which a cluster cannot reach; use target docker or podman"
+config.mode_quadlet_unsupported: "%[1]q doesn't go with podman.units: quadlet — systemd keeps the units running past `up` and starts them at boot, while a process on this machine lives only as long as the `up` that started it; use podman.units: compose (the default) on a development machine"
+config.focus_quadlet_unsupported: "a focus run starts a process on your machine for the length of one `up`, which doesn't go with podman.units: quadlet; use podman.units: compose (the default) on a development machine"
 k8s.action.clean_dir: "clean the directory"
 k8s.skip_wait_for_no_effect: "%[1]s has skipWaitFor, but Pods on Kubernetes don't wait for each other at start: it has no effect here"
 k8s.privileged_port: "The component listens on privileged port %[1]d, which can't be bound under podSecurity: restricted"
@@ -1523,6 +1525,7 @@ deployfile.local_port_needs_mode: "only takes effect with mode: local or mode: d
 deployfile.member_self: "a shell cannot list itself as a member"
 deployfile.member_duplicate: "this shell already hosts a version of %[1]s; a shell hosts only one version of a component (other versions go at the top level)"
 deployfile.field_ignored_for_target: "%[1]s has no effect with target: %[2]s and is ignored"
+deployfile.podman_units_invalid: "must be %[1]s or %[2]s (currently %[3]s)"
 
 configdir.value_unencodable: "the value cannot be encoded: %[1]s"
 configdir.env_ref_malformed: "%[1]q is not a valid ${} reference; write ${NAME} or ${NAME:-default}, where NAME uses letters, digits and underscores and the default holds no $, { or }"

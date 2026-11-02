@@ -9,7 +9,7 @@
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `target` | 字符串 | ✅ | `docker` / `podman` / `k8s` |
-| `focus` | 字符串 | | 只能写在 `deploy.local.yaml` 里：一个组件 ID。只有这个组件和它需要的组件启动，它从源码跑（按 `mode: local`，写了 `mode: debug` 就按 debug）；`target: k8s` 下不能用。见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
+| `focus` | 字符串 | | 只能写在 `deploy.local.yaml` 里：一个组件 ID。只有这个组件和它需要的组件启动，它从源码跑（按 `mode: local`，写了 `mode: debug` 就按 debug）；`target: k8s` 与 `podman.units: quadlet` 下不能用。见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
 | `network` | 字符串 | | 只对 Docker / Podman：项目自己提供的网络名。写了就加入这个已存在的网络（生成的 compose 标成 `external`），不再建 `brickkit-<项目名>-net`，`down` 也不删它；`up` 之前核对它存在。K8s 下写了只警告 |
 | `vars` | 映射 | | 覆盖 `config/vars.yaml` 里的同名公共变量，只影响 `$var:` 的查找；键必须是合法的环境变量名 |
 
@@ -44,6 +44,14 @@
 
 开出站策略时，数据库这类外部服务要自己写进 `allowTo`：平台只知道依赖图里的组件，不认识 `config/` 里的一串地址。
 
+
+## podman
+
+项目级的 Podman 设置。`target` 不是 `podman` 时写了会被警告、忽略。
+
+| 字段 | 类型 | 必填 | 规则 |
+| --- | --- | --- | --- |
+| `podman.units` | 字符串 | | `compose`（不写时）/ `quadlet`。`compose`：`up` 生成 `compose.yaml`，用 `podman compose` 启动。`quadlet`：`up` 生成 systemd 的 Quadlet 单元，由 systemd 让容器一直跑着、开机拉起；与 `mode: local` / `debug`、`focus` 不能同用 |
 ## components
 
 每个组件版本恰好一个条目，与 `brickkit.yaml` 一一对应（外壳成员的条目嵌在外壳下面，同样算）。
@@ -51,7 +59,7 @@
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `components[].id` | 字符串 | ✅ | 裸 ID 指默认版本；`<组件ID>@<版本>` 指那个版本（兼容版本必须这样写） |
-| `components[].mode` | 字符串 | | `enabled` / `disable` / `local` / `debug`。不写就跟着上层走：依赖它的组件里只要有一个在跑，它就跑（顶层组件缺省就跑）。`debug` 只能写在 `deploy.local.yaml`；`local`、`debug` 在 `target: k8s` 下不允许 |
+| `components[].mode` | 字符串 | | `enabled` / `disable` / `local` / `debug`。不写就跟着上层走：依赖它的组件里只要有一个在跑，它就跑（顶层组件缺省就跑）。`debug` 只能写在 `deploy.local.yaml`；`local`、`debug` 在 `target: k8s` 与 `podman.units: quadlet` 下不允许 |
 | `components[].localPort` | 整数 | | 本机进程监听的端口，1–65535；只在 `mode: local` / `mode: debug` 下，或在 `focus` 组件的条目上（它按 `mode: local` 跑）能写；不能与别的条目冲突。`mode: local` 不写时自动选一个 |
 | `components[].expose` | 布尔 | | 对外开放：Docker 映射宿主机端口，K8s 生成 Ingress |
 | `components[].exposePort` | 整数 | | Docker 下映射到的宿主机端口，缺省等于组件端口；只在 `expose: true` 时能写；不能冲突；K8s 下忽略 |

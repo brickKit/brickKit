@@ -42,7 +42,7 @@ podman:
 （`docker | podman | k8s`）回答“交给哪个引擎”，这个字段回答“交给引擎的是什么文件”。代码里加一个
 `Deploy.LongRunning()`（k8s 或 Quadlet）统一“拒绝本机进程与焦点”的判断。
 
-`podman:` 块只在 `target: podman` 时可写，写在别的 target 下装载即报错（与 `k8s:` 块同样处理）。
+`podman:` 块只在 `target: podman` 时起作用，写在别的 target 下警告并忽略（与 `k8s:` 块写在非 k8s 下同样处理；实现时核对过：那是警告，不是报错）。
 
 ## 4. 生成什么、放在哪
 

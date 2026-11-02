@@ -109,3 +109,5 @@ R94	release / publish 的 --notes 收到一个文件（一行、存在的文件�
 R95	本机把 host.docker.internal 解析到回环地址时，本机进程拿到的值原样保留这个名字（与容器同名）；解析不了时照旧换成 localhost；up 说一声是哪一种	.	./internal/cli	TestUpHostMachineAliasForLocalProcesses
 R96	容器崩溃后由引擎拉起、开机时再启动：docker 生成 restart: unless-stopped；podman 生成 restart: always（podman-restart.service 只启动 always 的容器，unless-stopped 开机不会回来）	.	./internal/compose	TestRestartPolicy
 R97	所有 Podman 调用以 "failed to reexec: Permission denied" 失败时（AppArmor 不让 Podman 建用户命名空间），报错带一条指向排障页的提示；别的 Permission denied 不带	.	./internal/engine	TestPodmanUserNamespaceBlockedByAppArmorGetsAHint
+R98	podman.units: quadlet 与 k8s 一样是活得比 up 长的部署：写了 mode: local / debug 的条目（含外壳）与 focus 在装载时就被拒绝、指出字段；podman.units 只认 compose 与 quadlet	.	./internal/deployfile	TestValidateRejects
+R99	podman: 块写在 target: podman 以外时不起作用：警告并点名写了的键，不按 Quadlet 部署	.	./internal/deployfile	TestPodmanBlockIgnoredOnOtherTargets

@@ -1172,6 +1172,7 @@ graph TD
 | `k8s.appProtocols` | | 把组件声明的端口协议换成这个集群认的 `appProtocol` 写法 |
 | `k8s.networkPolicy.*` | | 按依赖图生成 NetworkPolicy：`enabled`、`ingressController`、`allowFrom[]`、`egress` |
 | `k8s.serviceAccount.enabled` | | 每个组件一个不挂令牌的 ServiceAccount |
+| `podman.units` | | `compose`（不写时）或 `quadlet`：一直跑着、开机拉起的 systemd 单元；不能与本机进程同用 |
 | `components[].id` | ✅ | 裸 ID（默认版本）或 `id@版本` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug`（`debug` 只能在 `deploy.local.yaml`） |
 | `components[].localPort` | | `local` / `debug` 时（或写在 `focus` 组件的条目上）本机进程的端口 |

@@ -684,6 +684,14 @@ func constraintCases() []constraintCase {
 			invalid:       []any{"baseline", "Restricted", "privileged"},
 		},
 		{
+			name: "podman.units", doc: "deploy", schemaPath: "podman/units",
+			baseline: strings.Replace(dockerDeploy, "target: docker", "target: podman\npodman:\n  units: compose", 1),
+			dataPath: []any{"podman", "units"}, errField: "podman.units",
+			valid:         []any{deployfile.UnitsCompose, deployfile.UnitsQuadlet, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"systemd", "Quadlet", "kube"},
+		},
+		{
 			// local / debug 只在 docker / podman 下合法（集群里的 Pod 连不到本机进程），基准换成 docker。
 			// debug 只在本地角色的文件里合法，这里用本地角色解析（documents["deploy"]）。
 			// "" 在 yaml 里与没写无法区分，校验器放行它，而 schema 不该把 "" 当成一个可选的取值

@@ -56,6 +56,8 @@ type File struct {
 	Network string `yaml:"network,omitempty"`
 	// K8s 收拢所有只在 target: k8s 下有意义的项目级设置；其它 target 下写了会警告。
 	K8s *K8s `yaml:"k8s,omitempty"`
+	// Podman 收拢只在 target: podman 下有意义的项目级设置；其它 target 下写了会警告。
+	Podman *Podman `yaml:"podman,omitempty"`
 	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A）。
 	// 值里的 ${VAR} 解析时不展开——它们多半是密钥，何时求值由渲染器决定。
 	// 保留成 YAML 节点：数字要按原文取值（VER: 1.10 是 "1.10"），由 configdir.ParseVarsMap 解释。
@@ -82,6 +84,19 @@ type K8s struct {
 	NetworkPolicy      *NetworkPolicy    `yaml:"networkPolicy,omitempty"`
 	ServiceAccount     *ServiceAccount   `yaml:"serviceAccount,omitempty"`
 }
+
+// Podman 是 Podman 专属的项目级设置。
+type Podman struct {
+	// Units 是交给 Podman 的文件：compose（不写时）是 compose.yaml，经 podman compose 启动；
+	// quadlet 是 systemd 的 Quadlet 单元，由 systemd 启动、开机拉起——活得比 up 长的部署（LongRunning）。
+	Units string `yaml:"units,omitempty" jsonschema:"enum=compose|quadlet"`
+}
+
+// podman.units 的取值。
+const (
+	UnitsCompose = "compose"
+	UnitsQuadlet = "quadlet"
+)
 
 // NetworkPolicy 按依赖图生成网络策略的开关与补充规则。
 type NetworkPolicy struct {
@@ -278,6 +293,18 @@ func NormalizeRoutePath(path string) string {
 		return trimmed
 	}
 	return RootPath
+}
+
+// Quadlet 报告这份部署交给 Podman 的是 Quadlet 单元（target: podman 且 podman.units: quadlet）。
+func (f *File) Quadlet() bool {
+	return f.Target == TargetPodman && f.Podman != nil && f.Podman.Units == UnitsQuadlet
+}
+
+// LongRunning 报告部署交给了活得比 up 长的管理者——集群（k8s）或 systemd（Quadlet）。
+// 本机进程（mode: local / debug）只活在启动它的那个 up 会话里，焦点也是本机进程，
+// 所以两者都不能加入这样的部署：k8s 的 Pod 够不着这台机器，Quadlet 的单元开机就起、不等任何会话。
+func (f *File) LongRunning() bool {
+	return f.Target == TargetK8s || f.Quadlet()
 }
 
 // AppProtocol 是组件声明的端口协议在这个集群里写成的 appProtocol：k8s.appProtocols 里有就用它，没有就原样。

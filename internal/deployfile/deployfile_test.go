@@ -108,6 +108,11 @@ func TestValidateRejects(t *testing.T) {
 		"exposePort w/o expose":  {"target: docker\ncomponents:\n  - {id: a/b, exposePort: 8080}\n", "components[0].exposePort"},
 		"egress both":            {"target: k8s\nk8s:\n  networkPolicy:\n    enabled: true\n    egress:\n      enabled: true\n      allowTo:\n        - {name: db, namespace: x, cidr: 10.0.0.0/8}\n", "k8s.networkPolicy.egress.allowTo[0]"},
 		"entry not mapping":      {"target: docker\ncomponents:\n  - a/b\n", "components[0]"},
+		"bad podman units":       {"target: podman\npodman:\n  units: systemd\n", "podman.units"},
+		"local with quadlet":     {"target: podman\npodman:\n  units: quadlet\ncomponents:\n  - {id: a/b, mode: local}\n", "components[0].mode"},
+		"debug with quadlet":     {"target: podman\npodman:\n  units: quadlet\ncomponents:\n  - {id: a/b, mode: debug, localPort: 9000}\n", "components[0].mode"},
+		"local shell w/ quadlet": {"target: podman\npodman:\n  units: quadlet\ncomponents:\n  - {id: a/s, mode: local, members: [{id: a/b}]}\n", "components[0].mode"},
+		"focus with quadlet":     {"target: podman\npodman:\n  units: quadlet\nfocus: a/b\n", "focus"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -322,4 +327,39 @@ func TestParseReportsDuplicateKeys(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, fields(err), "target")
 	assert.Contains(t, err.Error(), i18n.T(msgid.YamlcheckDuplicateKey, 2, 1))
+}
+
+// podman.units 只认 compose 与 quadlet；不写就是 compose。Quadlet 与 k8s 一样是活得比 up 长的部署，
+// 本机进程与焦点都不能加入（LongRunning）。
+func TestPodmanUnits(t *testing.T) {
+	f, warnings, err := parse(t, "target: podman\ncomponents: []\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	assert.False(t, f.Quadlet())
+	assert.False(t, f.LongRunning())
+
+	f, warnings, err = parse(t, "target: podman\npodman:\n  units: quadlet\ncomponents:\n  - {id: a/b, expose: true, exposePort: 8443, replicas: 2}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	assert.True(t, f.Quadlet())
+	assert.True(t, f.LongRunning())
+
+	f, _, err = parse(t, "target: podman\npodman:\n  units: compose\ncomponents:\n  - {id: a/b, mode: local}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.False(t, f.Quadlet())
+
+	f, _, err = parse(t, "target: k8s\ncomponents: []\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	assert.True(t, f.LongRunning())
+}
+
+// podman: 块写在别的 target 下与 k8s: 块写在非 k8s 下一样：不起作用，警告并点名写了的键。
+func TestPodmanBlockIgnoredOnOtherTargets(t *testing.T) {
+	for _, target := range []string{"docker", "k8s"} {
+		f, warnings, err := parse(t, "target: "+target+"\npodman:\n  units: quadlet\ncomponents: []\n", deployfile.RoleTeam)
+		require.NoError(t, err, target)
+		require.Len(t, warnings, 1, target)
+		assert.Contains(t, warnings[0].Message, "podman.units", target)
+		assert.False(t, f.Quadlet(), target)
+	}
 }

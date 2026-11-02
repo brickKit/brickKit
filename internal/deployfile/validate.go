@@ -23,6 +23,7 @@ func (f *File) Validate(role Role) ([]*clierr.Error, error) {
 	f.validateTarget(p)
 	f.validateFocus(p, role)
 	f.validateK8s(p)
+	f.validatePodman(p)
 	f.validateVarNames(p)
 	f.validateComponents(p, role)
 	if err := p.Err(); err != nil {
@@ -52,6 +53,20 @@ func (f *File) validateFocus(p *clierr.ProblemSet, role Role) {
 		p.Add("focus", i18n.T(msgid.DeployfileFocusInvalid, f.Focus))
 	case f.Target == TargetK8s:
 		p.Add("focus", i18n.T(msgid.ConfigFocusK8sUnsupported))
+	case f.Quadlet():
+		p.Add("focus", i18n.T(msgid.ConfigFocusQuadletUnsupported))
+	}
+}
+
+// validatePodman：podman.units 只认 compose 与 quadlet。写在别的 target 下不报错，由 targetWarnings 警告。
+func (f *File) validatePodman(p *clierr.ProblemSet) {
+	if f.Podman == nil {
+		return
+	}
+	switch f.Podman.Units {
+	case "", UnitsCompose, UnitsQuadlet:
+	default:
+		p.Add("podman.units", i18n.T(msgid.DeployfilePodmanUnitsInvalid, UnitsCompose, UnitsQuadlet, f.Podman.Units))
 	}
 }
 
@@ -240,8 +255,12 @@ func (f *File) validateMode(p *clierr.ProblemSet, field string, c Entry, role Ro
 		p.Add(field+".mode", i18n.T(msgid.DeployfileModeInvalid, c.Mode))
 		return
 	}
-	if c.IsBareProcess() && f.Target == TargetK8s {
+	switch {
+	case !c.IsBareProcess():
+	case f.Target == TargetK8s:
 		p.Add(field+".mode", i18n.T(msgid.ConfigModeK8sUnsupported, c.Mode))
+	case f.Quadlet():
+		p.Add(field+".mode", i18n.T(msgid.ConfigModeQuadletUnsupported, c.Mode))
 	}
 }
 
@@ -354,6 +373,11 @@ func (f *File) targetWarnings() []*clierr.Error {
 		set  func(Entry) bool
 	}
 	var checks []fieldCheck
+	if f.Target != TargetPodman {
+		if keys := setKeys("podman", f.Podman); len(keys) > 0 {
+			warn(strings.Join(keys, ", "), nil)
+		}
+	}
 	if f.Target == TargetK8s {
 		if f.Network != "" {
 			warn("network", nil)
@@ -363,7 +387,7 @@ func (f *File) targetWarnings() []*clierr.Error {
 			{"skipWaitFor", func(c Entry) bool { return len(c.SkipWaitFor) > 0 }},
 		}
 	} else {
-		if keys := setKeys(f.K8s); len(keys) > 0 {
+		if keys := setKeys("k8s", f.K8s); len(keys) > 0 {
 			warn(strings.Join(keys, ", "), nil)
 		}
 		checks = []fieldCheck{
@@ -387,21 +411,21 @@ func (f *File) targetWarnings() []*clierr.Error {
 	return out
 }
 
-// setKeys 列出 k8s: 块里写了的键，形如 k8s.context。
-func setKeys(settings *K8s) []string {
+// setKeys 列出一个 target 专属块（k8s:、podman:）里写了的键，形如 k8s.context；块没写时返回空。
+func setKeys[T any](block string, settings *T) []string {
 	if settings == nil {
 		return nil
 	}
 	var doc yaml.Node
 	if err := doc.Encode(settings); err != nil || doc.Kind != yaml.MappingNode {
-		return []string{"k8s"}
+		return []string{block}
 	}
 	var keys []string
 	for i := 0; i < len(doc.Content); i += 2 {
-		keys = append(keys, "k8s."+doc.Content[i].Value)
+		keys = append(keys, block+"."+doc.Content[i].Value)
 	}
 	if len(keys) == 0 {
-		return []string{"k8s"}
+		return []string{block}
 	}
 	return keys
 }

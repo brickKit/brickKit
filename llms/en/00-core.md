@@ -1231,6 +1231,7 @@ in `schemas/` — see [JSON Schemas](../../docs/en/11-reference/05-json-schemas.
 | `k8s.appProtocols` | | Replaces the port protocol a component declares with the `appProtocol` this cluster reads |
 | `k8s.networkPolicy.*` | | NetworkPolicies generated from the dependency graph: `enabled`, `ingressController`, `allowFrom[]`, `egress` |
 | `k8s.serviceAccount.enabled` | | One ServiceAccount per component, with no token mounted |
+| `podman.units` | | `compose` (by default) or `quadlet`: systemd units that keep running and start at boot; no processes on this machine with it |
 | `components[].id` | ✅ | The bare ID (default version) or `id@version` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug` (`debug` only in `deploy.local.yaml`) |
 | `components[].localPort` | | With `local` / `debug` (or on the `focus` component's entry), the port of the process on your machine |

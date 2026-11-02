@@ -611,6 +611,8 @@ config.replicas_too_small: "必须 >= 1（当前是 %[1]d）。要关掉这个�
 config.replicas_with_local: "不能与 mode: debug 或 mode: local 同时声明：两者都是这个组件跑成单个裸进程，不是一组容器副本"
 config.mode_k8s_unsupported: "%[1]q 只支持 target: docker 或 podman（现在是 k8s）——集群里的 Pod 连不到开发者自己机器上的进程"
 config.focus_k8s_unsupported: "焦点运行要在你的机器上起进程，集群够不着；改用 target docker 或 podman"
+config.mode_quadlet_unsupported: "%[1]q 不能与 podman.units: quadlet 同用——systemd 让单元活得比 `up` 长、开机就拉起，而本机进程只活在启动它的那个 `up` 里；开发机上用 podman.units: compose（不写就是它）"
+config.focus_quadlet_unsupported: "焦点运行在你的机器上起一个只活一次 `up` 的进程，不能与 podman.units: quadlet 同用；开发机上用 podman.units: compose（不写就是它）"
 k8s.action.clean_dir: "清理目录"
 k8s.skip_wait_for_no_effect: "%[1]s 写了 skipWaitFor，但 Kubernetes 上的 Pod 启动时本来就不互相等：在这里不起作用"
 k8s.privileged_port: "组件监听特权端口 %[1]d，但 podSecurity: restricted 下绑不了"
@@ -1512,6 +1514,7 @@ deployfile.local_port_needs_mode: "只在 mode: local、mode: debug 或焦点组
 deployfile.member_self: "外壳不能把自己列为成员"
 deployfile.member_duplicate: "这个外壳里已经有 %[1]s 的一个版本；一个外壳只承载一个组件的一个版本（其他版本写在顶层）"
 deployfile.field_ignored_for_target: "%[1]s 在 target: %[2]s 下不起作用，已忽略"
+deployfile.podman_units_invalid: "只能是 %[1]s 或 %[2]s（现在是 %[3]s）"
 
 configdir.value_unencodable: "这个值无法编码：%[1]s"
 configdir.env_ref_malformed: "%[1]q 不是合法的 ${} 引用；写成 ${NAME} 或 ${NAME:-默认值}，NAME 由字母、数字、下划线组成，默认值里不能有 $、{、}"
