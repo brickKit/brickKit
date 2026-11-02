@@ -191,7 +191,7 @@ podman:
 | Order at boot | Migrations first, then each component after the ones it needs are healthy | None: containers start all at once and retry |
 | Migrations | At every `up`, and at boot | At every `up` only |
 | A component turns unhealthy | Killed and restarted (only when it declares no separate `readinessCheck`) | Left running |
-| Logs | journald: `journalctl [--user] -u 'brickkit-<project>-*'` | `podman compose logs` |
+| Logs | journald: `journalctl [--user] -u 'brickkit-<project>_*'` | `podman compose logs` |
 | A migration fails | `up` stops before touching any component: they keep running their previous version | The component waits for its migration and doesn't start |
 | What the host needs | Podman 5.3 or later | Podman, Docker's Compose V2 (`docker-compose`), `podman.socket` |
 | Processes on this machine, focus runs | Refused while loading | Supported |
@@ -202,7 +202,8 @@ copies them into a directory of their own, `~/.config/containers/systemd/brickki
 `/etc/containers/systemd/brickkit-<project>/` (rootful), and `down` removes that directory. Values that must not be
 read in a file — secrets, `file://` contents, `${VAR}` templates, values spanning several lines — are evaluated at `up`
 and handed over as Podman secrets; a unit only names them. A project runs one way at a time: switching `podman.units`
-and running `up` removes what the other way left (compose's containers, or the units) and says so.
+(or to `target: docker`) and running `up` removes what the other way left (compose's containers, or the units) and says
+so.
 
 Verified with BrickKit: Quadlet units, rootless, on Podman 5.7.0 — `up`, a change restarting only that component, a failed
 migration leaving the previous version running, replicas, switching to compose and back, `down`. A real reboot with

@@ -13,6 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
@@ -142,17 +143,17 @@ func withSchema(m *manifest.Manifest, props map[string]manifest.ConfigProperty) 
 func TestComponentUnit(t *testing.T) {
 	r := newBuilder(t).component(simple("erp/api", "1.0.0", 8080), projecttest.Entry{}).generate()
 
-	assert.Equal(t, []string{"brickkit-shop-erp-api-1-0-0.container", "brickkit-shop.network"}, names(r))
+	assert.Equal(t, []string{"brickkit-shop.network", "brickkit-shop_erp-api-1-0-0.container"}, names(r))
 	assert.Equal(t, "brickkit-shop-net", r.Network)
 	assert.Contains(t, file(t, r, "brickkit-shop.network"), "[Network]\nNetworkName=brickkit-shop-net\n")
-	assert.Equal(t, []string{"brickkit-shop-erp-api-1-0-0.service"}, r.Components)
+	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0.service"}, r.Components)
 	assert.Empty(t, r.Migrations)
 
-	unit := file(t, r, "brickkit-shop-erp-api-1-0-0.container")
+	unit := file(t, r, "brickkit-shop_erp-api-1-0-0.container")
 	for _, line := range []string{
 		"Image=registry.example.com/erp-api:1.0.0",
 		"Network=brickkit-shop.network",
-		"ContainerName=brickkit-shop-erp-api-1-0-0",
+		"ContainerName=brickkit-shop_erp-api-1-0-0",
 		"NetworkAlias=erp-api-1-0-0",
 		`Label="brickkit.io/project=shop"`,
 		`Label="brickkit.io/service=erp-api-1-0-0"`,
@@ -184,21 +185,21 @@ func TestRootfulUnits(t *testing.T) {
 	b.rootful = true
 	r := b.generate()
 
-	unit := file(t, r, "brickkit-shop-erp-api-1-0-0.container")
+	unit := file(t, r, "brickkit-shop_erp-api-1-0-0.container")
 	assert.Contains(t, unit, "WantedBy=multi-user.target\n")
 	assert.Contains(t, unit, "After=podman-docker-forward.service\n")
-	assert.Contains(t, file(t, r, "brickkit-shop-erp-api-1-0-0-migration.container"), "After=podman-docker-forward.service\n")
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container"), "After=podman-docker-forward.service\n")
 }
 
-// 迁移是一次性单元：不留存（跑完回到 inactive，下次 start 再跑），组件 Requires= + After= 它；
+// 迁移是一次性单元，留存（组件重启时不再跑一遍；up 用 restart 重跑它），组件 Wants= + After= 它——
+// 不是 Requires=：开机时库暂时没起来、迁移失败，组件也要起来自己重试，不能以“依赖失败”永远停着；
 // entrypoint 与参数都覆盖，参数按 systemd 的规则加引号（带空格的参数保持一个）。
 func TestMigrationUnit(t *testing.T) {
 	r := newBuilder(t).component(withMigration(simple("erp/api", "1.0.0", 8080)), projecttest.Entry{}).generate()
 
-	assert.Equal(t, []string{"brickkit-shop-erp-api-1-0-0-migration.service"}, r.Migrations)
-	migration := file(t, r, "brickkit-shop-erp-api-1-0-0-migration.container")
-	assert.Contains(t, migration, "[Service]\nType=oneshot\n")
-	assert.NotContains(t, migration, "RemainAfterExit")
+	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0-migration.service"}, r.Migrations)
+	migration := file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container")
+	assert.Contains(t, migration, "[Service]\nType=oneshot\nRemainAfterExit=yes\n")
 	assert.NotContains(t, migration, "Restart=")
 	assert.NotContains(t, migration, "[Install]")
 	assert.Contains(t, migration, "Entrypoint=/app/server\n")
@@ -206,9 +207,10 @@ func TestMigrationUnit(t *testing.T) {
 	assert.Contains(t, migration, `Environment="PORT=8080"`+"\n", "环境变量与主容器一致")
 	assert.NotContains(t, migration, "NetworkAlias", "迁移不是服务，别的组件不找它")
 
-	unit := file(t, r, "brickkit-shop-erp-api-1-0-0.container")
-	assert.Contains(t, unit, "Requires=brickkit-shop-erp-api-1-0-0-migration.service\n")
-	assert.Contains(t, unit, "After=brickkit-shop-erp-api-1-0-0-migration.service\n")
+	unit := file(t, r, "brickkit-shop_erp-api-1-0-0.container")
+	assert.Contains(t, unit, "Wants=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.Contains(t, unit, "After=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.NotContains(t, unit, "Requires=")
 }
 
 // 同一组件的多个版本：迁移按版本号串起来，后一个 Requires= + After= 前一个。
@@ -219,10 +221,10 @@ func TestMigrationsOfOneComponentAreChained(t *testing.T) {
 	b.component(dependsOn(simple("erp/web", "1.0.0", 8080), "erp/api", "2.0.0"), projecttest.Entry{})
 	r := b.generate()
 
-	later := file(t, r, "brickkit-shop-erp-api-2-0-0-migration.container")
-	assert.Contains(t, later, "Requires=brickkit-shop-erp-api-1-0-0-migration.service\n")
-	assert.Contains(t, later, "After=brickkit-shop-erp-api-1-0-0-migration.service\n")
-	assert.NotContains(t, file(t, r, "brickkit-shop-erp-api-1-0-0-migration.container"), "Requires=")
+	later := file(t, r, "brickkit-shop_erp-api-2-0-0-migration.container")
+	assert.Contains(t, later, "Requires=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.Contains(t, later, "After=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.NotContains(t, file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container"), "Requires=")
 }
 
 // 强依赖只排顺序（Wants= + After=），不连带停止；有健康检查的单元写 Notify=healthy，
@@ -233,11 +235,11 @@ func TestDependencyOrdersAndWaitsForHealth(t *testing.T) {
 	b.component(dependsOn(simple("erp/web", "1.0.0", 8081), "erp/api", "1.0.0"), projecttest.Entry{})
 	r := b.generate()
 
-	web := file(t, r, "brickkit-shop-erp-web-1-0-0.container")
-	assert.Contains(t, web, "Wants=brickkit-shop-erp-api-1-0-0.service\n")
-	assert.Contains(t, web, "After=brickkit-shop-erp-api-1-0-0.service\n")
-	assert.NotContains(t, web, "Requires=brickkit-shop-erp-api")
-	assert.Contains(t, file(t, r, "brickkit-shop-erp-api-1-0-0.container"), "Notify=healthy\n")
+	web := file(t, r, "brickkit-shop_erp-web-1-0-0.container")
+	assert.Contains(t, web, "Wants=brickkit-shop_erp-api-1-0-0.service\n")
+	assert.Contains(t, web, "After=brickkit-shop_erp-api-1-0-0.service\n")
+	assert.NotContains(t, web, "Requires=brickkit-shop_erp-api")
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0.container"), "Notify=healthy\n")
 }
 
 // 健康检查：节奏与 compose 相同。探的是存活（没写 readinessCheck）时不健康就杀掉、由 Restart= 拉起；
@@ -253,7 +255,7 @@ func TestHealthCheck(t *testing.T) {
 	b.component(live, projecttest.Entry{}).component(ready, projecttest.Entry{}).component(none, projecttest.Entry{})
 	r := b.generate()
 
-	unit := file(t, r, "brickkit-shop-erp-live-1-0-0.container")
+	unit := file(t, r, "brickkit-shop_erp-live-1-0-0.container")
 	for _, line := range []string{
 		"HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1",
 		"HealthInterval=10s", "HealthTimeout=3s", "HealthRetries=3", "HealthStartPeriod=120s",
@@ -263,12 +265,12 @@ func TestHealthCheck(t *testing.T) {
 		assert.Contains(t, unit, line+"\n")
 	}
 
-	readyUnit := file(t, r, "brickkit-shop-erp-ready-1-0-0.container")
+	readyUnit := file(t, r, "brickkit-shop_erp-ready-1-0-0.container")
 	assert.Contains(t, readyUnit, "http://127.0.0.1:8081/ready")
 	assert.Contains(t, readyUnit, "Notify=healthy\n")
 	assert.NotContains(t, readyUnit, "HealthOnFailure")
 
-	noneUnit := file(t, r, "brickkit-shop-erp-none-1-0-0.container")
+	noneUnit := file(t, r, "brickkit-shop_erp-none-1-0-0.container")
 	assert.NotContains(t, noneUnit, "HealthCmd")
 	assert.NotContains(t, noneUnit, "Notify=")
 	assert.Contains(t, noneUnit, "TimeoutStartSec=90\n")
@@ -283,7 +285,7 @@ func TestReplicasAreTemplateInstances(t *testing.T) {
 	b.component(dependsOn(simple("erp/web", "1.0.0", 8081), "erp/api", "1.0.0"), projecttest.Entry{})
 	r := b.generate()
 
-	assert.Contains(t, names(r), "brickkit-shop-erp-api-1-0-0@.container")
+	assert.Contains(t, names(r), "brickkit-shop_erp-api-1-0-0@.container")
 	links := map[string]string{}
 	for _, f := range r.Files {
 		if f.LinkTo != "" {
@@ -291,20 +293,20 @@ func TestReplicasAreTemplateInstances(t *testing.T) {
 		}
 	}
 	assert.Equal(t, map[string]string{
-		"brickkit-shop-erp-api-1-0-0@1.container": "brickkit-shop-erp-api-1-0-0@.container",
-		"brickkit-shop-erp-api-1-0-0@2.container": "brickkit-shop-erp-api-1-0-0@.container",
+		"brickkit-shop_erp-api-1-0-0@1.container": "brickkit-shop_erp-api-1-0-0@.container",
+		"brickkit-shop_erp-api-1-0-0@2.container": "brickkit-shop_erp-api-1-0-0@.container",
 	}, links)
 	assert.Equal(t, []string{
-		"brickkit-shop-erp-api-1-0-0@1.service", "brickkit-shop-erp-api-1-0-0@2.service", "brickkit-shop-erp-web-1-0-0.service",
+		"brickkit-shop_erp-api-1-0-0@1.service", "brickkit-shop_erp-api-1-0-0@2.service", "brickkit-shop_erp-web-1-0-0.service",
 	}, r.Components)
 
-	template := file(t, r, "brickkit-shop-erp-api-1-0-0@.container")
-	assert.Contains(t, template, "ContainerName=brickkit-shop-erp-api-1-0-0-%i\n")
+	template := file(t, r, "brickkit-shop_erp-api-1-0-0@.container")
+	assert.Contains(t, template, "ContainerName=brickkit-shop_erp-api-1-0-0-%i\n")
 	assert.Contains(t, template, "NetworkAlias=erp-api-1-0-0\n")
 
-	web := file(t, r, "brickkit-shop-erp-web-1-0-0.container")
-	assert.Contains(t, web, "Wants=brickkit-shop-erp-api-1-0-0@1.service\n")
-	assert.Contains(t, web, "After=brickkit-shop-erp-api-1-0-0@2.service\n")
+	web := file(t, r, "brickkit-shop_erp-web-1-0-0.container")
+	assert.Contains(t, web, "Wants=brickkit-shop_erp-api-1-0-0@1.service\n")
+	assert.Contains(t, web, "After=brickkit-shop_erp-api-1-0-0@2.service\n")
 }
 
 // 外壳：挂上成员的服务名作别名；成员的迁移用成员自己的镜像单独跑，外壳 Requires= 它。
@@ -314,12 +316,12 @@ func TestShellHostsItsMembers(t *testing.T) {
 	b.component(withMigration(simple("erp/api", "1.0.0", 8080)), projecttest.Entry{ServedBy: "infra/shell@1.0.0"})
 	r := b.generate()
 
-	assert.NotContains(t, names(r), "brickkit-shop-erp-api-1-0-0.container", "成员没有自己的容器")
-	assert.Equal(t, []string{"brickkit-shop-erp-api-1-0-0-migration.service"}, r.Migrations)
-	shell := file(t, r, "brickkit-shop-infra-shell-1-0-0.container")
+	assert.NotContains(t, names(r), "brickkit-shop_erp-api-1-0-0.container", "成员没有自己的容器")
+	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0-migration.service"}, r.Migrations)
+	shell := file(t, r, "brickkit-shop_infra-shell-1-0-0.container")
 	assert.Contains(t, shell, "NetworkAlias=infra-shell-1-0-0\nNetworkAlias=erp-api-1-0-0\n")
-	assert.Contains(t, shell, "Requires=brickkit-shop-erp-api-1-0-0-migration.service\n")
-	assert.Contains(t, file(t, r, "brickkit-shop-erp-api-1-0-0-migration.container"), "Image=registry.example.com/erp-api:1.0.0\n")
+	assert.Contains(t, shell, "Wants=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container"), "Image=registry.example.com/erp-api:1.0.0\n")
 }
 
 // 普通字面量写进单元：$ 与 % 双写（Quadlet 把值放进 ExecStart，systemd 在那里展开它们——实测），
@@ -331,7 +333,7 @@ func TestInlineValuesAreEscapedForSystemd(t *testing.T) {
 	}), projecttest.Entry{Config: map[string]any{"GREETING": `say "hi" to 50% of $HOME at c:\dir`}})
 	r := b.generate()
 
-	assert.Contains(t, file(t, r, "brickkit-shop-erp-api-1-0-0.container"),
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0.container"),
 		`Environment="GREETING=say \"hi\" to 50%% of $$HOME at c:\\dir"`+"\n")
 	assert.Empty(t, r.Secrets)
 }
@@ -356,15 +358,15 @@ func TestSecretsGoToPodmanSecrets(t *testing.T) {
 	r := b.generate()
 
 	assert.Equal(t, map[string]string{
-		"brickkit-shop-erp-api-1-0-0-DB_PASSWORD": "pa$$word",
-		"brickkit-shop-erp-api-1-0-0-CA":          "-----BEGIN-----\nabc\n-----END-----\n",
-		"brickkit-shop-erp-api-1-0-0-DSN":         "pg://u:p@h/$x",
-		"brickkit-shop-erp-api-1-0-0-BANNER":      "line one\nline two",
+		"brickkit-shop_erp-api-1-0-0_DB_PASSWORD": "pa$$word",
+		"brickkit-shop_erp-api-1-0-0_CA":          "-----BEGIN-----\nabc\n-----END-----\n",
+		"brickkit-shop_erp-api-1-0-0_DSN":         "pg://u:p@h/$x",
+		"brickkit-shop_erp-api-1-0-0_BANNER":      "line one\nline two",
 	}, secrets(r))
-	for _, name := range []string{"brickkit-shop-erp-api-1-0-0.container", "brickkit-shop-erp-api-1-0-0-migration.container"} {
+	for _, name := range []string{"brickkit-shop_erp-api-1-0-0.container", "brickkit-shop_erp-api-1-0-0-migration.container"} {
 		unit := file(t, r, name)
-		assert.Contains(t, unit, "Secret=brickkit-shop-erp-api-1-0-0-DB_PASSWORD,type=env,target=DB_PASSWORD\n", name)
-		assert.Contains(t, unit, "Secret=brickkit-shop-erp-api-1-0-0-BANNER,type=env,target=BANNER\n", name)
+		assert.Contains(t, unit, "Secret=brickkit-shop_erp-api-1-0-0_DB_PASSWORD,type=env,target=DB_PASSWORD\n", name)
+		assert.Contains(t, unit, "Secret=brickkit-shop_erp-api-1-0-0_BANNER,type=env,target=BANNER\n", name)
 		assert.NotContains(t, unit, "pa$", name)
 		assert.NotContains(t, unit, "line one", name)
 	}
@@ -388,9 +390,9 @@ func TestProjectProvidedNetwork(t *testing.T) {
 	b.spec.Network = "corp-net"
 	r := b.component(simple("erp/api", "1.0.0", 8080), projecttest.Entry{}).generate()
 
-	assert.Equal(t, []string{"brickkit-shop-erp-api-1-0-0.container"}, names(r))
+	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0.container"}, names(r))
 	assert.Empty(t, r.Network)
-	assert.Contains(t, file(t, r, "brickkit-shop-erp-api-1-0-0.container"), "Network=corp-net\n")
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0.container"), "Network=corp-net\n")
 }
 
 // expose 发布到宿主机；配额写成 podman 参数；labels 透传；停机宽限期；host.docker.internal 解析到宿主机。
@@ -408,7 +410,7 @@ func TestPortsQuotaLabelsAndHosts(t *testing.T) {
 		StopGracePeriodSeconds: 25,
 		Config:                 map[string]any{"DB_HOST": "host.docker.internal"},
 	})
-	unit := file(t, b.generate(), "brickkit-shop-erp-api-1-0-0.container")
+	unit := file(t, b.generate(), "brickkit-shop_erp-api-1-0-0.container")
 
 	for _, line := range []string{
 		"PublishPort=18443:8080",
@@ -430,7 +432,7 @@ func TestMountFileMountsTheProjectDirectory(t *testing.T) {
 	r := b.generate()
 
 	require.Len(t, r.SecretFiles, 1)
-	unit := file(t, r, "brickkit-shop-erp-api-1-0-0.container")
+	unit := file(t, r, "brickkit-shop_erp-api-1-0-0.container")
 	assert.Contains(t, unit, "Volume="+b.root+"/.brickkit/generated/secrets/erp-api-1-0-0:/run/brickkit/secrets/erp-api-1-0-0:ro\n")
 	assert.Contains(t, unit, `Environment="KEY_FILE=/run/brickkit/secrets/erp-api-1-0-0/KEY_FILE"`+"\n")
 }
@@ -444,7 +446,7 @@ func TestSecretDigestChangesWithTheValues(t *testing.T) {
 		b.component(withSchema(simple("erp/api", "1.0.0", 8080), map[string]manifest.ConfigProperty{
 			"DB_PASSWORD": {Type: "string", Secret: true},
 		}), projecttest.Entry{Config: map[string]any{"DB_PASSWORD": password}})
-		unit := file(t, b.generate(), "brickkit-shop-erp-api-1-0-0.container")
+		unit := file(t, b.generate(), "brickkit-shop_erp-api-1-0-0.container")
 		for _, line := range strings.Split(unit, "\n") {
 			if strings.HasPrefix(line, `Label="brickkit.io/secret-digest=`) {
 				return line
@@ -459,6 +461,63 @@ func TestSecretDigestChangesWithTheValues(t *testing.T) {
 	assert.NotContains(t, first, "one")
 
 	plain := file(t, newBuilder(t).component(simple("erp/api", "1.0.0", 8080), projecttest.Entry{}).generate(),
-		"brickkit-shop-erp-api-1-0-0.container")
+		"brickkit-shop_erp-api-1-0-0.container")
 	assert.NotContains(t, plain, "secret-digest")
+}
+
+// Podman 不收空的 secret：空值（密钥没填、${X} 展开成空）写进单元，空值也没什么可藏的。
+func TestEmptySecretGoesIntoTheUnit(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withSchema(simple("erp/api", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+		"TOKEN": {Type: "string", Secret: true},
+	}), projecttest.Entry{Config: map[string]any{"TOKEN": "${EMPTY}"}})
+	b.env = map[string]string{"EMPTY": ""}
+	r := b.generate()
+
+	assert.Empty(t, r.Secrets)
+	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0.container"), `Environment="TOKEN="`+"\n")
+}
+
+// 迁移命令里的换行、制表符按 C 的写法转义（Quadlet 还原它们，实测）：一个裸换行会把单元截断。
+func TestMigrationArgumentsKeepNewlines(t *testing.T) {
+	m := simple("erp/api", "1.0.0", 8080)
+	m.Migration = &manifest.Migration{Command: []string{"sh", "-c", "set -e\n\tmigrate up"}}
+	r := newBuilder(t).component(m, projecttest.Entry{}).generate()
+	migration := file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container")
+	assert.Contains(t, migration, `Exec="-c" "set -e\n\tmigrate up"`+"\n")
+	assert.Equal(t, 1, strings.Count(migration, "Exec="))
+}
+
+// 项目名与服务名之间是 _：项目 shop 的 x-api 与项目 shop-x 的 api 名字不同（用 - 接就会撞），
+// 引擎按 brickkit-<项目>_ 删 secret 时也删不到别的项目的。
+func TestUnitNamesSeparateTheProject(t *testing.T) {
+	assert.NotEqual(t, quadlet.UnitBase("shop", "x-api-1-0-0"), quadlet.UnitBase("shop-x", "api-1-0-0"))
+	assert.False(t, strings.HasPrefix(quadlet.UnitBase("shop-x", "api-1-0-0"), quadlet.Prefix("shop")))
+}
+
+// 单元的内容与 CLI 的语言无关：换了语言，up 不该因此重启全部组件。
+func TestUnitsDoNotFollowTheLanguage(t *testing.T) {
+	b := newBuilder(t).component(withMigration(simple("erp/api", "1.0.0", 8080)), projecttest.Entry{})
+	prev := i18n.Current()
+	t.Cleanup(func() { i18n.SetCurrent(prev) })
+	var first *quadlet.Result
+	for _, lang := range i18n.SupportedLangs() {
+		i18n.SetCurrent(lang)
+		r := b.generate()
+		if first == nil {
+			first = r
+			continue
+		}
+		for i := range first.Files {
+			assert.Equal(t, string(first.Files[i].Content), string(r.Files[i].Content), "%s %s", lang, first.Files[i].Name)
+		}
+	}
+}
+
+// 用到的镜像列给引擎，缺的先拉：拉镜像不算进单元的启动时限。
+func TestImagesAreListed(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell", "1.0.0", 9000), projecttest.Entry{})
+	b.component(withMigration(simple("erp/api", "1.0.0", 8080)), projecttest.Entry{ServedBy: "infra/shell@1.0.0"})
+	assert.Equal(t, []string{"registry.example.com/erp-api:1.0.0", "registry.example.com/infra-shell:1.0.0"}, b.generate().Images)
 }

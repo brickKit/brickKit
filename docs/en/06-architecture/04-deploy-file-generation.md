@@ -173,11 +173,11 @@ components; systemd keeps them running and starts them at boot. `demo/caller` fr
 
 ```ini
 [Unit]
-Description=demo/caller@1.0.0 — BrickKit project qtest
-Requires=brickkit-qtest-demo-caller-1-0-0-migration.service
-After=brickkit-qtest-demo-caller-1-0-0-migration.service
-Wants=brickkit-qtest-demo-hello-1-0-0.service
-After=brickkit-qtest-demo-hello-1-0-0.service
+Description=demo/caller@1.0.0 (BrickKit project qtest)
+Wants=brickkit-qtest_demo-caller-1-0-0-migration.service
+After=brickkit-qtest_demo-caller-1-0-0-migration.service
+Wants=brickkit-qtest_demo-hello-1-0-0.service
+After=brickkit-qtest_demo-hello-1-0-0.service
 
 [Service]
 Restart=always
@@ -189,7 +189,7 @@ Network=brickkit-qtest.network
 Environment="COMPONENT_ID=demo/caller"
 Environment="DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080"
 Environment="PORT=8080"
-ContainerName=brickkit-qtest-demo-caller-1-0-0
+ContainerName=brickkit-qtest_demo-caller-1-0-0
 NetworkAlias=demo-caller-1-0-0
 PublishPort=18555:8080
 HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
@@ -209,9 +209,14 @@ WantedBy=default.target
 
 What differs from Compose, and why:
 
-- **Its own migration is required** (`Requires=` + `After=`): it runs first, at `up` and at boot, and a failure keeps the
-  component from starting. The migration unit is a one-shot that returns to inactive when done, so the next start runs it
-  again.
+- **Names**: `brickkit-<project>_<service>` — the `_` marks where the project name ends (neither it nor a service name
+  contains one), so two projects never share a unit, container or secret name.
+- **Its own migration comes first** (`Wants=` + `After=`): at boot each migration runs before its component. The gate is
+  `up`, which runs every migration on its own (`systemctl restart`) and stops before touching any component when one
+  fails. At boot a failing migration doesn't hold the component back — the schema was migrated at the last `up`, and
+  with `Requires=` a database that comes up late would leave the component stopped for good, as `Restart=` doesn't retry
+  a failed dependency. The migration unit stays active once done (`RemainAfterExit=yes`), so a component that crashes
+  and restarts doesn't run it again.
 - **A dependency only orders it** (`Wants=` + `After=`): `Requires=` would stop or restart the component whenever the
   dependency is stopped or restarted, while a component retries its connections by itself — as with Compose's
   `depends_on`. The dependency's own `Notify=healthy` makes its start complete only once it's healthy, so `After=` waits
@@ -226,7 +231,11 @@ What differs from Compose, and why:
   `ExecStart`, where systemd would expand them.
 - **Replicas** are one template unit (`…@.container`) and one link per instance; every instance carries the same
   `NetworkAlias`.
-- **No timestamp** in the files: `up` restarts exactly the components whose unit changed.
+- **No timestamp, nothing localized** in the files: `up` restarts exactly the components whose unit changed. A unit
+  written but not yet restarted (a migration failed, `up` was interrupted) is remembered in the units' directory and
+  restarted by the next `up`.
+- **Images are pulled by `up`** before anything starts, so a large first pull doesn't count against a unit's start limit.
+  A value that would be an empty Podman secret is written into the unit instead (Podman refuses empty secrets).
 
 ## Kubernetes
 

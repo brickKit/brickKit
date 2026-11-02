@@ -48,14 +48,14 @@ func TestUpQuadletDryRunWritesTheUnitsOnly(t *testing.T) {
 	assert.Empty(t, eng.ups)
 	for _, name := range []string{
 		"brickkit-my-erp.network",
-		"brickkit-my-erp-erp-api-1-0-0.container",
-		"brickkit-my-erp-erp-api-1-0-0-migration.container",
-		"brickkit-my-erp-erp-web-1-0-0.container",
+		"brickkit-my-erp_erp-api-1-0-0.container",
+		"brickkit-my-erp_erp-api-1-0-0-migration.container",
+		"brickkit-my-erp_erp-web-1-0-0.container",
 	} {
 		assert.FileExists(t, filepath.Join(quadletDir(f), name))
 	}
-	assert.Contains(t, readFile(t, filepath.Join(quadletDir(f), "brickkit-my-erp-erp-web-1-0-0.container")),
-		"Wants=brickkit-my-erp-erp-api-1-0-0.service\n")
+	assert.Contains(t, readFile(t, filepath.Join(quadletDir(f), "brickkit-my-erp_erp-web-1-0-0.container")),
+		"Wants=brickkit-my-erp_erp-api-1-0-0.service\n")
 	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
 	assert.Contains(t, r.stdout, i18n.T(msgid.CliUpQuadletDryRun))
 }
@@ -65,17 +65,17 @@ func TestUpQuadletDryRunWritesTheUnitsOnly(t *testing.T) {
 func TestUpQuadletHandsTheUnitsToTheEngine(t *testing.T) {
 	f := quadletFixture(t)
 	eng := newQuadletEngine()
-	eng.pruned = []string{"brickkit-my-erp-erp-old-1-0-0.service"}
+	eng.pruned = []string{"brickkit-my-erp_erp-old-1-0-0.service"}
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	up := eng.lastUp(t)
 	assert.Equal(t, "brickkit-my-erp", up.Project)
 	require.NotNil(t, up.Quadlet)
-	assert.Equal(t, []string{"brickkit-my-erp-erp-api-1-0-0-migration.service"}, up.Quadlet.Migrations)
-	assert.Equal(t, []string{"brickkit-my-erp-erp-api-1-0-0.service", "brickkit-my-erp-erp-web-1-0-0.service"}, up.Quadlet.Components)
+	assert.Equal(t, []string{"brickkit-my-erp_erp-api-1-0-0-migration.service"}, up.Quadlet.Migrations)
+	assert.Equal(t, []string{"brickkit-my-erp_erp-api-1-0-0.service", "brickkit-my-erp_erp-web-1-0-0.service"}, up.Quadlet.Components)
 	assert.Len(t, up.Quadlet.Files, 4)
-	assert.Contains(t, r.stdout, "brickkit-my-erp-erp-old-1-0-0.service")
+	assert.Contains(t, r.stdout, "brickkit-my-erp_erp-old-1-0-0.service")
 	assert.Contains(t, r.stdout, i18n.T(msgid.CliUpAllComponentsStarted, 2))
 }
 
@@ -84,7 +84,7 @@ func TestUpQuadletMigrationFailureNamesTheComponent(t *testing.T) {
 	f := quadletFixture(t)
 	eng := newQuadletEngine()
 	eng.upErr = clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
-		WithDetail(i18n.T(msgid.EngineLabelUnit), "brickkit-my-erp-erp-api-1-0-0-migration.service")
+		WithDetail(i18n.T(msgid.EngineLabelUnit), "brickkit-my-erp_erp-api-1-0-0-migration.service")
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
@@ -125,12 +125,12 @@ func TestQuadletDownAndStatus(t *testing.T) {
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 
 	r = runWithEngine(t, eng, f.Dir, "status")
-	assert.Contains(t, r.stdout+r.stderr, "journalctl --user -u 'brickkit-my-erp-")
+	assert.Contains(t, r.stdout+r.stderr, "journalctl --user -u 'brickkit-my-erp_")
 }
 
 func TestLogsCommandForQuadlet(t *testing.T) {
-	assert.Equal(t, "journalctl --user -u 'brickkit-shop-*'", logsCommand(logsQuadlet, "brickkit-shop", ""))
-	assert.Equal(t, "journalctl --user -u 'brickkit-shop-erp-api-1-0-0*'", logsCommand(logsQuadlet, "brickkit-shop", "erp-api-1-0-0"))
+	assert.Equal(t, "journalctl --user -u 'brickkit-shop_*'", logsCommand(logsQuadlet, "brickkit-shop", ""))
+	assert.Equal(t, "journalctl --user -u 'brickkit-shop_erp-api-1-0-0*'", logsCommand(logsQuadlet, "brickkit-shop", "erp-api-1-0-0"))
 	assert.True(t, strings.HasPrefix(logsCommand(engine.Podman, "brickkit-shop", ""), "podman compose"))
 }
 
@@ -145,5 +145,5 @@ func TestStatusNamesAFailedMigration(t *testing.T) {
 	}
 	r := runWithEngine(t, eng, f.Dir, "status")
 	assert.Contains(t, r.stdout, i18n.T(msgid.CliStatusMigrationFailed, "erp/api@1.0.0",
-		"journalctl --user -u 'brickkit-my-erp-erp-api-1-0-0-migration*'"))
+		"journalctl --user -u 'brickkit-my-erp_erp-api-1-0-0-migration*'"))
 }

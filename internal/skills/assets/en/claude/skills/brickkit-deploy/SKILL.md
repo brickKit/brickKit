@@ -212,7 +212,7 @@ images must run as a non-root `USER`.
 starts at boot by itself, waits for the network, runs its migration first and starts after the
 components it needs are healthy; unhealthy is killed and restarted (unless the component declares a
 separate `readinessCheck`); a failed migration leaves every component on its previous version; logs
-are in journald (`journalctl [--user] -u 'brickkit-<project>-*'`); secrets, `file://` contents,
+are in journald (`journalctl [--user] -u 'brickkit-<project>_*'`); secrets, `file://` contents,
 `${VAR}` templates and multi-line values are evaluated at `up` into Podman secrets. Rootful needs
 `sudo brickkit up`. It refuses `mode: local` / `debug` and `focus` — a development machine leaves
 `podman.units` out and gets compose (`podman compose`, Docker's `docker-compose`, `podman.socket`).

@@ -52,16 +52,21 @@ func (r *recorder) lastCall(t *testing.T) string {
 func dockerWith(rec *recorder) *Compose {
 	c := NewDocker()
 	c.runner = rec.run
+	c.quadlet = noQuadlet()
 	return c
+}
+
+// noQuadlet 是一个什么都没装过的 Quadlet 目录：不看这台机器上真的那个。
+func noQuadlet() *Quadlet {
+	return &Quadlet{root: "/nonexistent/brickkit-test", runner: func(context.Context, []byte, string, ...string) ([]byte, error) {
+		return nil, nil
+	}}
 }
 
 func podmanWith(rec *recorder) *Compose {
 	c := NewPodman()
 	c.runner = rec.run
-	// 不看这台机器上真的 Quadlet 目录：一个不存在的目录 = 没装过单元
-	c.quadlet = &Quadlet{root: "/nonexistent/brickkit-test", runner: func(context.Context, []byte, string, ...string) ([]byte, error) {
-		return nil, nil
-	}}
+	c.quadlet = noQuadlet()
 	return c
 }
 

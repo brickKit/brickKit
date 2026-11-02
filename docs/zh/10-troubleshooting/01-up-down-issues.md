@@ -205,7 +205,7 @@ docker compose -p brickkit-my-shop logs -f demo-caller-1-0-0
 ```
 
 `up` 结束时打印的"查看日志"那一行就是正确的命令。`podman.units: quadlet` 时没有 Compose 项目：日志在 journald 里，
-`journalctl --user -u 'brickkit-<项目名>-<服务名>*'`（有根 Podman 去掉 `--user`），`podman logs <容器>` 看到的也一样。
+`journalctl --user -u 'brickkit-<项目名>_<服务名>*'`（有根 Podman 去掉 `--user`），`podman logs <容器>` 看到的也一样。
 
 ## 部署到了错的集群（或者差点）
 
@@ -446,7 +446,7 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 
 开机时 BrickKit 什么都不启动：启动容器的是引擎，而且要设好了才会。先看开机单元的日志——无根 Podman 用 `journalctl --user -b -u podman-restart.service`
 （有根 Podman 去掉 `--user`；Docker 用 `journalctl -b -u docker`）——再对照下面你看到的。`podman.units: quadlet` 时没有开机单元：
-每个单元自己起来、自己等网络，所以看单元自己的日志，`journalctl --user -b -u 'brickkit-<项目名>-*'`（有根 Podman 去掉 `--user`）。下表关于 linger、
+每个单元自己起来、自己等网络，所以看单元自己的日志，`journalctl --user -b -u 'brickkit-<项目名>_*'`（有根 Podman 去掉 `--user`）。下表关于 linger、
 `failed to reexec` 与存储挂载的几行同样适用；关于开机单元与重启策略的不适用。
 
 | 你看到的 | 原因 | 解决 |
@@ -472,7 +472,7 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 
 | 你看到的 | 原因 | 解决 |
 | --- | --- | --- |
-| `这些单元没有起来`，每个带一条 `journalctl` 命令 | 容器起来又退出了，或者在单元的启动时限内一直没有 healthy | 用那条命令看单元的日志；`systemctl --user --failed 'brickkit-<项目名>-*'` 列出所有失败的单元 |
+| `这些单元没有起来`，每个带一条 `journalctl` 命令 | 容器起来又退出了，或者在单元的启动时限内一直没有 healthy | 用那条命令看单元的日志；`systemctl --user --failed 'brickkit-<项目名>_*'` 列出所有失败的单元 |
 | `Podman <版本> 太旧，podman.units: quadlet 要 5.3 或更新的版本` | 单元用到 Podman 5.3 才齐的键（`Notify=healthy`、模板、`NetworkAlias=`、无根时等网络） | 升级 Podman；或者这台机器不写 `podman.units`，用 compose |
 | `单元写不进 /etc/containers/systemd/…` | 有根 Podman：单元装进系统的 systemd，只有 root 能写 | `sudo brickkit up` |
 | 重新加载之后紧接着 `Unit brickkit-….service not found` | Podman 的 Quadlet 生成器拒绝了一个单元文件，没有为它生成服务 | `/usr/libexec/podman/quadlet -dryrun -user`（有根 Podman 去掉 `-user`）会说出原因；单元在 `.brickkit/generated/quadlet/` |
@@ -481,6 +481,7 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 
 - `up` 把单元复制进 `~/.config/containers/systemd/brickkit-<项目名>/`（有根：`/etc/containers/systemd/brickkit-<项目名>/`）。这个目录就是部署出去的东西，`down` 删掉它。
   在那里手改的，下一次 `up` 会覆盖。
+- 用跑 `up` 的那个用户跑 `down` 和 `status`：有根的单元在 `/etc/containers/systemd`，无根的在那个用户的主目录里，换一个用户的 `status` 会说什么都没在跑。
 - 作为 Podman secret 交付的值，在容器创建时进去。`podman exec <容器> printenv` 会重新取 secret，可能看到比在跑的进程更新的值；进程自己的环境在容器里的
   `/proc/1/environ`。组件的 secret 变了，`up` 就重启它。
 

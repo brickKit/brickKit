@@ -64,7 +64,7 @@ Quadlet 目录下本项目自己的子目录（Quadlet 递归扫子目录，`pod
 | compose 里 | Quadlet 里 |
 | --- | --- |
 | 项目网络 `brickkit-<项目名>-net` | `brickkit-<项目名>.network`（`NetworkName=` 同名）；部署文件写了 `network:` 时不生成，单元 `Network=<那个名字>` |
-| 组件 service | `brickkit-<项目名>-<版本化服务名>.container`，`ContainerName=` 同名，`NetworkAlias=<版本化服务名>`（别的组件照旧按服务名找它） |
+| 组件 service | `brickkit-<项目名>_<版本化服务名>.container`（实现后审查改：项目名与服务名之间用 `_`），`ContainerName=` 同名，`NetworkAlias=<版本化服务名>`（别的组件照旧按服务名找它） |
 | 外壳承载成员的网络别名 | 外壳单元上每个成员一行 `NetworkAlias=` |
 | 迁移 service | `…-migration.container`，`[Service] Type=oneshot`（见 §5.2） |
 | `image` | `Image=`，精确 tag；`Pull=missing` |
@@ -203,3 +203,27 @@ systemd 忽略这条顺序，存在时保证防火墙规则先加上。文档给
 1. **字段写法**：`podman: { units: quadlet }`（§3），不加新的 target 值。新 target 会让 `target` 同时承担“引擎”和“文件格式”两件事，
    有根 / 无根、环境检查、`build` 的说法都要再拆一遍。
 2. **做完之后的推荐**：单机用 Podman 交付时，文档推荐 Quadlet；compose 留给开发机与本机进程混跑（开发机与交付机本来就是两份部署文件）。
+
+
+## 11. 实现之后的审查（2026-11-02）
+
+独立审查（一个只看代码与本文档的子代理）提出 11 条，核实后这样处理（实现与上文不一致之处以这里为准）：
+
+1. **名字前缀相撞**：项目 `shop` 按前缀删 secret 会删掉 `shop-x` 的；单元名也能撞（`shop` 的 `x-api` 与 `shop-x` 的 `api`）。
+   改成 `brickkit-<项目名>_<服务名>`、secret `…_<键>`：项目名与服务名里都没有 `_`。
+2. **升级时旧版本先被停**：服务名带版本号，单元名就换了，旧单元在迁移之前就被停、删。改成迁移全部成功之后才卸下不再生成的单元。
+3. **迁移失败后再 up，组件跑着旧配置却报成功**：“变没变”拿磁盘上的文件比，而失败的那次已经写进去了。安装目录里加 `.brickkit-pending-restart`，
+   记下写了还没重启的单元，重启成功才划掉。
+4. **空值的 secret 让 up 失败**：Podman 不收空 secret。空值写进单元。
+5. **迁移命令里的换行把单元截断**：`quote()` 按 C 的写法转义换行、回车、制表符（实测 Quadlet 还原 `\n`）。
+6. **库暂时没起来时组件永远起不来**：组件 `Requires=` 迁移，开机或崩溃重启时迁移失败，组件以“依赖失败”结束，`Restart=` 不重试。
+   改成迁移留存（`RemainAfterExit=yes`）、组件 `Wants=` + `After=` 迁移：`up` 仍单独先跑迁移把关；开机时迁移失败不挡组件；组件崩溃重启不重跑迁移。
+   实测：`up` 的 `restart` 迁移不连带组件、崩溃重启不重跑、迁移失败组件照跑、开机迁移失败组件照起。`--job-mode=ignore-requirements` 因此不再需要。
+7. **第一次拉大镜像超过启动时限**：`up` 先把缺的镜像拉好（`QuadletUnits.Images`）。
+8. **停一个没加载的单元以 5 退出，up 与 down 永远卡住**：只停 `LoadState=loaded` 的。
+9. **换 CLI 语言重启全部组件**：文件头与 `Description=` 改成固定英文。
+10. **换成 `target: docker` 后单元还在**：Docker 的 compose 引擎也卸下它们。有根与无根是两个目录，`down`/`status` 要用跑 `up` 的那个用户——写进排障页。
+    换成 `k8s` 不卸（compose ↔ k8s 今天也不停本机的容器，部署目标换到别处不等于这台机器上的要停）。
+11. **`down` 半路失败**：删网络失败时 secret 也没删。改成能做的都做完、报第一个错；`up` 删 compose 留下的容器放到迁移成功之后。
+
+审查中修 #3、#6 时顺带查出一个本轮引入的缺陷：重写 `Up` 时建 secret 传了 `nil` 作为标准输入，单元测试抓到了。

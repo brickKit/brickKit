@@ -25,6 +25,7 @@ type quadletRecorder struct {
 func newQuadletRecorder() *quadletRecorder {
 	return &quadletRecorder{stdin: map[string]string{}, output: map[string]string{
 		"version --format": "5.7.0\n",
+		// 停之前问 systemd 加载了没有：按调用里的单元数答 loaded（见 run）
 	}, fail: map[string]bool{}}
 }
 
@@ -38,6 +39,13 @@ func (r *quadletRecorder) run(_ context.Context, stdin []byte, name string, args
 		if strings.Contains(call, pattern) {
 			return []byte(r.output[pattern]), errors.New("exit status 1")
 		}
+	}
+	if _, set := r.output["show --property=LoadState"]; !set && strings.Contains(call, "show --property=LoadState --value") {
+		units := len(args) - 3
+		if args[0] == "--user" {
+			units--
+		}
+		return []byte(strings.Repeat("loaded\n", units)), nil
 	}
 	for pattern, out := range r.output {
 		if strings.Contains(call, pattern) {
@@ -65,37 +73,42 @@ func units() *QuadletUnits {
 	return &QuadletUnits{
 		Files: []UnitFile{
 			{Name: "brickkit-shop.network", Content: []byte("[Network]\nNetworkName=brickkit-shop-net\n")},
-			{Name: "brickkit-shop-api-1-0-0-migration.container", Content: []byte("migration v1")},
-			{Name: "brickkit-shop-api-1-0-0.container", Content: []byte("api v1")},
-			{Name: "brickkit-shop-web-1-0-0@.container", Content: []byte("web v1")},
-			{Name: "brickkit-shop-web-1-0-0@1.container", LinkTo: "brickkit-shop-web-1-0-0@.container"},
-			{Name: "brickkit-shop-web-1-0-0@2.container", LinkTo: "brickkit-shop-web-1-0-0@.container"},
+			{Name: "brickkit-shop_api-1-0-0-migration.container", Content: []byte("migration v1")},
+			{Name: "brickkit-shop_api-1-0-0.container", Content: []byte("api v1")},
+			{Name: "brickkit-shop_web-1-0-0@.container", Content: []byte("web v1")},
+			{Name: "brickkit-shop_web-1-0-0@1.container", LinkTo: "brickkit-shop_web-1-0-0@.container"},
+			{Name: "brickkit-shop_web-1-0-0@2.container", LinkTo: "brickkit-shop_web-1-0-0@.container"},
 		},
-		Secrets:    []Secret{{Name: "brickkit-shop-api-1-0-0-DB_PASSWORD", Value: []byte("pa$$\nword")}},
-		Migrations: []string{"brickkit-shop-api-1-0-0-migration.service"},
+		Secrets:    []Secret{{Name: "brickkit-shop_api-1-0-0_DB_PASSWORD", Value: []byte("pa$$\nword")}},
+		Images:     []string{"registry.example.com/api:1.0.0", "registry.example.com/web:1.0.0"},
+		Migrations: []string{"brickkit-shop_api-1-0-0-migration.service"},
 		Components: []string{
-			"brickkit-shop-api-1-0-0.service", "brickkit-shop-web-1-0-0@1.service", "brickkit-shop-web-1-0-0@2.service",
+			"brickkit-shop_api-1-0-0.service", "brickkit-shop_web-1-0-0@1.service", "brickkit-shop_web-1-0-0@2.service",
 		},
 	}
 }
 
-// 首次 up：secret 从标准输入建（值不落盘、不进命令行），单元写进项目的子目录（实例是指向模板的链接），
-// daemon-reload，先单独跑迁移，再把（全是新的）组件重启、启动；最后删掉本项目不再用的 secret。用户的 systemd。
+// 首次 up：缺的镜像先拉，secret 从标准输入建（值不落盘、不进命令行），单元写进项目的子目录（实例是指向模板的
+// 链接），daemon-reload，起网络、重跑迁移，再把（全是新的）组件重启、启动；最后划掉待重启的记录、删掉本项目
+// 不再用的 secret（别的项目的不碰，哪怕名字以本项目名开头）。用户的 systemd。
 func TestQuadletFirstUp(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.output["secret ls"] = "brickkit-shop-api-1-0-0-DB_PASSWORD\nbrickkit-shop-api-1-0-0-OLD\nbrickkit-other-x-1-0-0-KEY\n"
+	rec.output["secret ls"] = "brickkit-shop_api-1-0-0_DB_PASSWORD\nbrickkit-shop_api-1-0-0_OLD\nbrickkit-shop-x_api-1-0-0_KEY\n"
+	rec.fail["image exists registry.example.com/web:1.0.0"] = true
 	q := quadletWith(t, rec, false)
 
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 
-	assert.Equal(t, "pa$$\nword", rec.stdin["podman secret create --replace brickkit-shop-api-1-0-0-DB_PASSWORD -"])
+	assert.Equal(t, "pa$$\nword", rec.stdin["podman secret create --replace brickkit-shop_api-1-0-0_DB_PASSWORD -"])
+	assert.True(t, rec.called("podman pull registry.example.com/web:1.0.0"))
+	assert.False(t, rec.called("podman pull registry.example.com/api:1.0.0"), "已经在本机的不拉")
 	dir := q.Dir("brickkit-shop")
-	content, err := os.ReadFile(filepath.Join(dir, "brickkit-shop-api-1-0-0.container"))
+	content, err := os.ReadFile(filepath.Join(dir, "brickkit-shop_api-1-0-0.container"))
 	require.NoError(t, err)
 	assert.Equal(t, "api v1", string(content))
-	target, err := os.Readlink(filepath.Join(dir, "brickkit-shop-web-1-0-0@2.container"))
+	target, err := os.Readlink(filepath.Join(dir, "brickkit-shop_web-1-0-0@2.container"))
 	require.NoError(t, err)
-	assert.Equal(t, "brickkit-shop-web-1-0-0@.container", target)
+	assert.Equal(t, "brickkit-shop_web-1-0-0@.container", target)
 
 	var systemctl []string
 	for _, c := range rec.calls {
@@ -105,15 +118,17 @@ func TestQuadletFirstUp(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		"systemctl --user daemon-reload",
-		"systemctl --user start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service",
-		"systemctl --user restart --job-mode=ignore-requirements brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
-		"systemctl --user start --job-mode=ignore-requirements brickkit-shop-api-1-0-0.service brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service",
+		"systemctl --user start brickkit-shop-network.service",
+		"systemctl --user restart brickkit-shop_api-1-0-0-migration.service",
+		"systemctl --user restart brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service",
+		"systemctl --user start brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service",
 	}, systemctl)
-	assert.True(t, rec.called("podman secret rm brickkit-shop-api-1-0-0-OLD"))
-	assert.False(t, rec.called("brickkit-other-x"), "别的项目的 secret 不碰")
+	assert.True(t, rec.called("podman secret rm brickkit-shop_api-1-0-0_OLD"))
+	assert.False(t, rec.called("brickkit-shop-x_"), "项目 shop-x 的 secret 不碰：名字以 brickkit-shop- 开头，不以 brickkit-shop_ 开头")
+	assert.NoFileExists(t, filepath.Join(dir, pendingFile), "都重启过了，待重启的记录划掉")
 }
 
-// 再 up 一次、内容没变：迁移照样再跑，组件只 start（在跑的不动），不 restart。
+// 再 up 一次、内容没变：迁移照样重跑（restart），组件只 start（在跑的不动），不 restart。
 // 只改了模板：它的每个实例都重启，别的不动。
 func TestQuadletRestartsOnlyWhatChanged(t *testing.T) {
 	rec := newQuadletRecorder()
@@ -122,18 +137,19 @@ func TestQuadletRestartsOnlyWhatChanged(t *testing.T) {
 
 	rec.calls = nil
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
-	assert.True(t, rec.called("systemctl --user start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service"))
-	assert.False(t, rec.called("restart"))
+	assert.True(t, rec.called("systemctl --user restart brickkit-shop_api-1-0-0-migration.service"))
+	assert.False(t, rec.called("restart brickkit-shop_api-1-0-0.service"))
+	assert.False(t, rec.called("restart brickkit-shop_web"))
 
 	rec.calls = nil
 	changed := units()
 	changed.Files[3].Content = []byte("web v2")
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: changed}))
-	assert.True(t, rec.called("systemctl --user restart --job-mode=ignore-requirements brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service"))
-	assert.False(t, rec.called("restart brickkit-shop-api"))
+	assert.True(t, rec.called("systemctl --user restart brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service"))
+	assert.False(t, rec.called("restart brickkit-shop_api-1-0-0.service"))
 }
 
-// 不再生成的单元：先停再删文件（文件没了 systemd 就管不到它的容器），并报给调用方。
+// 不再生成的单元：迁移成功之后，先停再删文件（文件没了 systemd 就管不到它的容器），并报给调用方。
 func TestQuadletStopsAndRemovesStaleUnits(t *testing.T) {
 	rec := newQuadletRecorder()
 	q := quadletWith(t, rec, false)
@@ -147,41 +163,77 @@ func TestQuadletStopsAndRemovesStaleUnits(t *testing.T) {
 	require.NoError(t, q.Up(context.Background(), UpRequest{
 		Project: "brickkit-shop", Quadlet: fewer, OnPrune: func(u string) { pruned = append(pruned, u) },
 	}))
-	assert.True(t, rec.called("systemctl --user stop brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service"))
-	assert.Equal(t, []string{"brickkit-shop-web-1-0-0@1.service", "brickkit-shop-web-1-0-0@2.service"}, pruned)
-	_, err := os.Stat(filepath.Join(q.Dir("brickkit-shop"), "brickkit-shop-web-1-0-0@.container"))
+	assert.True(t, rec.called("systemctl --user stop brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service"))
+	assert.Equal(t, []string{"brickkit-shop_web-1-0-0@1.service", "brickkit-shop_web-1-0-0@2.service"}, pruned)
+	_, err := os.Stat(filepath.Join(q.Dir("brickkit-shop"), "brickkit-shop_web-1-0-0@.container"))
 	assert.True(t, os.IsNotExist(err))
 }
 
-// 迁移失败：报 MIGRATION_FAILED，点名失败的单元与看日志的命令；组件一个都不动（旧版本照跑）。
+// 迁移失败：报 MIGRATION_FAILED，点名失败的单元与看日志的命令；组件一个都不动（旧版本照跑）——升级时旧版本的
+// 单元名不同，它也不停、不删；compose 留下的容器也不删。修好再 up：上次换了的单元照样重启（待重启的记录），
+// 不会因为文件已经是新的就以为没变、让组件跑着旧配置却报成功。
 func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.fail["start brickkit-shop-network.service brickkit-shop-api-1-0-0-migration.service"] = true
-	rec.output["is-failed"] = "failed\n"
 	q := quadletWith(t, rec, false)
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 
-	err := q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()})
+	upgraded := units()
+	upgraded.Files[2] = UnitFile{Name: "brickkit-shop_api-2-0-0.container", Content: []byte("api v2")}
+	upgraded.Files[1] = UnitFile{Name: "brickkit-shop_api-2-0-0-migration.container", Content: []byte("migration v2")}
+	upgraded.Migrations = []string{"brickkit-shop_api-2-0-0-migration.service"}
+	upgraded.Components[0] = "brickkit-shop_api-2-0-0.service"
+	rec.calls = nil
+	rec.fail["restart brickkit-shop_api-2-0-0-migration.service"] = true
+	rec.output["is-failed"] = "failed\n"
+	rec.output["label=com.docker.compose.project"] = "brickkit-shop-old-1\n"
+
+	err := q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: upgraded})
 	require.Error(t, err)
-	e := clierr.As(err)
-	assert.Equal(t, clierr.CodeMigrationFailed, e.Code)
-	assert.Contains(t, err.Error(), "brickkit-shop-api-1-0-0-migration.service")
-	assert.Contains(t, err.Error(), "journalctl --user -u brickkit-shop-api-1-0-0-migration.service")
-	assert.False(t, rec.called("restart"))
-	assert.False(t, rec.called("ignore-requirements"))
+	assert.Equal(t, clierr.CodeMigrationFailed, clierr.As(err).Code)
+	assert.Contains(t, err.Error(), "brickkit-shop_api-2-0-0-migration.service")
+	assert.Contains(t, err.Error(), "journalctl --user -u brickkit-shop_api-2-0-0-migration.service")
+	assert.False(t, rec.called("restart brickkit-shop_api-2-0-0.service"))
+	assert.False(t, rec.called("stop"), "旧版本的单元不停")
+	assert.FileExists(t, filepath.Join(q.Dir("brickkit-shop"), "brickkit-shop_api-1-0-0.container"))
+	assert.False(t, rec.called("podman rm"), "compose 留下的容器不删")
+
+	delete(rec.fail, "restart brickkit-shop_api-2-0-0-migration.service")
+	delete(rec.output, "label=com.docker.compose.project")
+	rec.calls = nil
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: upgraded}))
+	assert.True(t, rec.called("systemctl --user stop brickkit-shop_api-1-0-0-migration.service brickkit-shop_api-1-0-0.service"))
+	assert.True(t, rec.called("systemctl --user restart brickkit-shop_api-2-0-0.service"),
+		"上次写进去、没来得及重启的单元这次照样重启")
+}
+
+// 停之前只停 systemd 加载了的单元：没加载的（生成器拒绝了它的文件，或上次在写文件与 reload 之间被打断）stop 会以 5
+// 退出，up 与 down 就永远卡在它上面。
+func TestQuadletStopsOnlyLoadedUnits(t *testing.T) {
+	rec := newQuadletRecorder()
+	q := quadletWith(t, rec, false)
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
+
+	rec.calls = nil
+	// 顺序与安装目录里的文件一样：网络、迁移、api、web@1、web@2
+	rec.output["show --property=LoadState"] = "not-found\nnot-found\nloaded\nloaded\nloaded\n"
+	require.NoError(t, q.Down(context.Background(), DownRequest{Project: "brickkit-shop"}))
+	assert.True(t, rec.called("systemctl --user stop brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service"))
+	_, err := os.Stat(q.Dir("brickkit-shop"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 // 组件起不来：点名哪几个单元失败、日志怎么看。
 func TestQuadletComponentFailureNamesTheUnits(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.fail["restart"] = true
+	rec.fail["restart brickkit-shop_api-1-0-0.service"] = true
 	rec.output["is-failed"] = "active\nfailed\nactive\n"
 	q := quadletWith(t, rec, true)
 
 	err := q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()})
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeEngineFailed, clierr.As(err).Code)
-	assert.Contains(t, err.Error(), "journalctl -u brickkit-shop-web-1-0-0@1.service", "有根：系统的日志，不带 --user")
-	assert.NotContains(t, err.Error(), "brickkit-shop-api-1-0-0.service")
+	assert.Contains(t, err.Error(), "journalctl -u brickkit-shop_web-1-0-0@1.service", "有根：系统的日志，不带 --user")
+	assert.NotContains(t, err.Error(), "brickkit-shop_api-1-0-0.service")
 }
 
 // Podman 太旧：报要几，什么都不装。
@@ -218,38 +270,37 @@ func TestUnitOf(t *testing.T) {
 // 没装过时什么都不做。
 func TestQuadletDown(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.output["secret ls"] = "brickkit-shop-api-1-0-0-DB_PASSWORD\n"
+	rec.output["secret ls"] = "brickkit-shop_api-1-0-0_DB_PASSWORD\n"
 	q := quadletWith(t, rec, false)
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 
 	rec.calls = nil
 	require.NoError(t, q.Down(context.Background(), DownRequest{Project: "brickkit-shop"}))
-	assert.True(t, rec.called("systemctl --user stop brickkit-shop-api-1-0-0-migration.service brickkit-shop-api-1-0-0.service "+
-		"brickkit-shop-web-1-0-0@1.service brickkit-shop-web-1-0-0@2.service brickkit-shop-network.service"))
+	assert.True(t, rec.called("systemctl --user stop brickkit-shop-network.service brickkit-shop_api-1-0-0-migration.service "+
+		"brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service"))
 	assert.True(t, rec.called("systemctl --user daemon-reload"))
 	assert.True(t, rec.called("podman network rm brickkit-shop-net"))
-	assert.True(t, rec.called("podman secret rm brickkit-shop-api-1-0-0-DB_PASSWORD"))
+	assert.True(t, rec.called("podman secret rm brickkit-shop_api-1-0-0_DB_PASSWORD"))
 	_, err := os.Stat(q.Dir("brickkit-shop"))
 	assert.True(t, os.IsNotExist(err))
 
 	rec.calls = nil
 	require.NoError(t, q.Down(context.Background(), DownRequest{Project: "brickkit-shop"}))
-	assert.Equal(t, []string{"podman ps -a --filter label=com.docker.compose.project=brickkit-shop --format {{.Names}}"}, rec.calls,
-		"没装过单元：只查一遍 compose 留下的容器")
+	assert.False(t, rec.called("systemctl"), "没装过单元：systemd 那边什么都不做，只清 compose 留下的容器与本项目的 secret")
 }
 
 // 部署文件从 compose 改成了 Quadlet：up 先删掉这个项目由 compose 建的容器（按 compose 的项目标签，不要 docker-compose），
 // 并报出来——两种都留着会抢同一批端口。
 func TestQuadletUpRemovesComposeContainers(t *testing.T) {
 	rec := newQuadletRecorder()
-	rec.output["label=com.docker.compose.project=brickkit-shop"] = "brickkit-shop-api-1-0-0-1\n"
+	rec.output["label=com.docker.compose.project=brickkit-shop"] = "brickkit-shop_api-1-0-0-1\n"
 	q := quadletWith(t, rec, false)
 	var pruned []string
 	require.NoError(t, q.Up(context.Background(), UpRequest{
 		Project: "brickkit-shop", Quadlet: units(), OnPrune: func(s string) { pruned = append(pruned, s) },
 	}))
-	assert.True(t, rec.called("podman rm -f brickkit-shop-api-1-0-0-1"))
-	assert.Equal(t, []string{"brickkit-shop-api-1-0-0-1"}, pruned)
+	assert.True(t, rec.called("podman rm -f brickkit-shop_api-1-0-0-1"))
+	assert.Equal(t, []string{"brickkit-shop_api-1-0-0-1"}, pruned)
 }
 
 // 反过来：从 Quadlet 改回 compose，Podman 的 compose 引擎在 up 之前把这个项目的单元卸下并报出来。
@@ -266,7 +317,7 @@ func TestPodmanComposeUpRemovesQuadletUnits(t *testing.T) {
 		File: "compose.yaml", Project: "brickkit-shop", OnPrune: func(s string) { pruned = append(pruned, s) },
 	}))
 	assert.True(t, qrec.called("systemctl --user stop"))
-	assert.Contains(t, pruned, "brickkit-shop-api-1-0-0.service")
+	assert.Contains(t, pruned, "brickkit-shop_api-1-0-0.service")
 	_, err := os.Stat(q.Dir("brickkit-shop"))
 	assert.True(t, os.IsNotExist(err))
 }
@@ -280,12 +331,12 @@ func TestQuadletStatus(t *testing.T) {
 
 	rec.output["ps -a --format json"] = `[
  {"State":"running","Status":"Up 2 minutes (healthy)",
-  "Labels":{"brickkit.io/service":"api-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-api-1-0-0.service"},
+  "Labels":{"brickkit.io/service":"api-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop_api-1-0-0.service"},
   "Ports":[{"host_ip":"","host_port":18080,"container_port":8080,"protocol":"tcp"}]},
  {"State":"running","Status":"Up 2 minutes (healthy)",
-  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-web-1-0-0@1.service"}},
+  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop_web-1-0-0@1.service"}},
  {"State":"running","Status":"Up 1 minute (unhealthy)",
-  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop-web-1-0-0@2.service"}},
+  "Labels":{"brickkit.io/service":"web-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-shop_web-1-0-0@2.service"}},
  {"State":"running","Status":"Up 1 minute (healthy)",
   "Labels":{"brickkit.io/service":"api-1-0-0","PODMAN_SYSTEMD_UNIT":"brickkit-other-api-1-0-0.service"}}
 ]`

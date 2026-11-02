@@ -146,7 +146,7 @@ podman:
 | 开机时的顺序 | 迁移先跑，每个组件等它需要的组件健康之后才启动 | 没有：容器一起起来，靠重试 |
 | 迁移 | 每次 `up` 跑，开机也跑 | 只在每次 `up` 时跑 |
 | 组件变得不健康 | 杀掉、重新拉起（只在它没有单独声明 `readinessCheck` 时） | 不管 |
-| 日志 | journald：`journalctl [--user] -u 'brickkit-<项目名>-*'` | `podman compose logs` |
+| 日志 | journald：`journalctl [--user] -u 'brickkit-<项目名>_*'` | `podman compose logs` |
 | 迁移失败 | `up` 在动任何组件之前就停下：它们照旧跑着上一个版本 | 组件等着迁移，不启动 |
 | 主机上要装的 | Podman 5.3 或更新 | Podman、Docker 的 Compose V2（`docker-compose`）、`podman.socket` |
 | 本机进程、焦点运行 | 装载时就拒绝 | 支持 |
@@ -154,7 +154,7 @@ podman:
 
 单元就是你看到的那些：`up` 先写进 `.brickkit/generated/quadlet/`（`up --dry-run` 到此为止），再复制进它们自己的目录，`~/.config/containers/systemd/brickkit-<项目名>/`（无根）
 或 `/etc/containers/systemd/brickkit-<项目名>/`（有根），`down` 删掉这个目录。不能写在文件里让人看到的值——密钥、`file://` 的内容、`${VAR}` 模板、跨好几行的值——
-在 `up` 时求值、作为 Podman secret 交过去，单元里只写它们的名字。一个项目同一时刻只用一种方式：改了 `podman.units` 再 `up`，会把另一种留下的（compose 的容器，或者那些单元）
+在 `up` 时求值、作为 Podman secret 交过去，单元里只写它们的名字。一个项目同一时刻只用一种方式：改了 `podman.units`（或者改成 `target: docker`）再 `up`，会把另一种留下的（compose 的容器，或者那些单元）
 卸下，并说出来。
 
 在 BrickKit 上验证过的：Quadlet 单元、无根、Podman 5.7.0——`up`、改一个组件只重启它、迁移失败时上一个版本照跑、多副本、切到 compose 再切回来、`down`。

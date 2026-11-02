@@ -188,9 +188,9 @@ func logsCommand(engineName, project, service string) string {
 	if engineName == logsQuadlet {
 		// 单元的日志在 journald 里（LogDriver=journald）。服务名后面接 *：多副本时是 <单元>@<n>，
 		// 迁移单元是 <单元>-migration，看一个组件时它们都该在
-		pattern := project + "-*"
+		pattern := project + "_*"
 		if service != "" {
-			pattern = project + "-" + service + "*"
+			pattern = project + "_" + service + "*"
 		}
 		if quadletRootful(nil) {
 			return fmt.Sprintf("journalctl -u '%s'", pattern)

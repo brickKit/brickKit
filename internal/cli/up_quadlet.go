@@ -102,22 +102,22 @@ func upQuadlet(ctx context.Context, opts *Options, flags upOptions, plan *upPlan
 // failedUnitsCommand 列出本项目失败了的单元（迁移的容器跑完就删，失败只在 systemd 那里看得到）。
 func failedUnitsCommand(project string) string {
 	if quadletRootful(nil) {
-		return "systemctl --failed '" + project + "-*'"
+		return "systemctl --failed '" + project + "_*'"
 	}
-	return "systemctl --user --failed '" + project + "-*'"
+	return "systemctl --user --failed '" + project + "_*'"
 }
 
 // unitsCommand 列出本项目的单元与它们的状态。
 func unitsCommand(project string) string {
 	if quadletRootful(nil) {
-		return "systemctl list-units --all '" + project + "-*'"
+		return "systemctl list-units --all '" + project + "_*'"
 	}
-	return "systemctl --user list-units --all '" + project + "-*'"
+	return "systemctl --user list-units --all '" + project + "_*'"
 }
 
 // quadletUnits 把生成结果交给引擎的形状（engine 不依赖 quadlet 包）。
 func quadletUnits(r *quadlet.Result) *engine.QuadletUnits {
-	units := &engine.QuadletUnits{Migrations: r.Migrations, Components: r.Components}
+	units := &engine.QuadletUnits{Migrations: r.Migrations, Components: r.Components, Images: r.Images}
 	for _, f := range r.Files {
 		units.Files = append(units.Files, engine.UnitFile{Name: f.Name, Content: f.Content, LinkTo: f.LinkTo})
 	}

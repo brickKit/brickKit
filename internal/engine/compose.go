@@ -22,14 +22,17 @@ type Compose struct {
 	base []string
 	// runner 执行命令，测试可替换。
 	runner func(ctx context.Context, name string, args ...string) ([]byte, error)
-	// quadlet 只在 Podman 上有：同一个项目在 Podman 上同一时刻只有一种形式（compose 或 Quadlet 单元），
-	// up 与 down 先把另一种卸掉——两种都留着，开机时 Quadlet 的单元会与 compose 的容器抢同一批端口。
+	// quadlet：同一个项目在一台机器上同一时刻只有一种形式，up 与 down 先把以 Quadlet 单元部署的那一份卸掉——
+	// 两种都留着，开机时 Quadlet 的单元会与 compose 的容器抢同一批端口。
 	quadlet *Quadlet
 }
 
 // NewDocker 返回 docker compose 引擎。
+//
+// 它也卸下这个项目以 Podman 的 Quadlet 单元部署的那一份（部署文件从 podman 改成了 docker）：那些单元开机就起，
+// 会与 Docker 的容器抢同一批端口。没装 Podman 的机器上没有那个目录，什么都不做。
 func NewDocker() *Compose {
-	return &Compose{name: Docker, bin: "docker", base: []string{"compose"}, runner: run}
+	return &Compose{name: Docker, bin: "docker", base: []string{"compose"}, runner: run, quadlet: NewQuadlet()}
 }
 
 // NewPodman 返回 podman compose 引擎。

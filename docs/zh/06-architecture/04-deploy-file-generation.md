@@ -152,11 +152,11 @@ components:
 
 ```ini
 [Unit]
-Description=demo/caller@1.0.0 — BrickKit project qtest
-Requires=brickkit-qtest-demo-caller-1-0-0-migration.service
-After=brickkit-qtest-demo-caller-1-0-0-migration.service
-Wants=brickkit-qtest-demo-hello-1-0-0.service
-After=brickkit-qtest-demo-hello-1-0-0.service
+Description=demo/caller@1.0.0 (BrickKit project qtest)
+Wants=brickkit-qtest_demo-caller-1-0-0-migration.service
+After=brickkit-qtest_demo-caller-1-0-0-migration.service
+Wants=brickkit-qtest_demo-hello-1-0-0.service
+After=brickkit-qtest_demo-hello-1-0-0.service
 
 [Service]
 Restart=always
@@ -168,7 +168,7 @@ Network=brickkit-qtest.network
 Environment="COMPONENT_ID=demo/caller"
 Environment="DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080"
 Environment="PORT=8080"
-ContainerName=brickkit-qtest-demo-caller-1-0-0
+ContainerName=brickkit-qtest_demo-caller-1-0-0
 NetworkAlias=demo-caller-1-0-0
 PublishPort=18555:8080
 HealthCmd=wget -q -O /dev/null http://127.0.0.1:8080/healthz || curl -fsS -o /dev/null http://127.0.0.1:8080/healthz || exit 1
@@ -188,7 +188,10 @@ WantedBy=default.target
 
 和 Compose 不同的地方，以及为什么：
 
-- **自己的迁移是必需的**（`Requires=` + `After=`）：它先跑，`up` 时和开机时都是，失败了组件就不启动。迁移单元是一次性的，跑完回到 inactive，下一次启动会再跑一遍。
+- **名字**：`brickkit-<项目名>_<服务名>`——`_` 标出项目名在哪里结束（项目名与服务名里都没有它），两个项目的单元、容器、secret 不会同名。
+- **自己的迁移先跑**（`Wants=` + `After=`）：开机时每个迁移在它的组件之前跑。把关的是 `up`：它单独把每个迁移跑一遍（`systemctl restart`），有一个失败就停下，
+  一个组件都不动。开机时迁移失败不挡组件——库结构在上一次 `up` 时已经迁好；写成 `Requires=` 的话，数据库起得晚一点组件就永远停着，因为 `Restart=` 不会重试
+  一个失败的依赖。迁移单元跑完保持 active（`RemainAfterExit=yes`），组件崩溃重启时不会再跑它。
 - **依赖只管顺序**（`Wants=` + `After=`）：`Requires=` 会在依赖被停止或重启时连带停掉、重启这个组件，而组件自己会重试连接——与 Compose 的 `depends_on` 一样。
   依赖自己的 `Notify=healthy` 让它的启动在健康之后才算完成，所以 `After=` 等的是健康，相当于 `service_healthy`。
 - **不健康就杀掉重启**（`HealthOnFailure=kill`），但只在探的是存活检查时：声明了 `readinessCheck` 的组件探的是就绪，暂时不接流量不会因此被杀，与 Kubernetes 一样。
@@ -196,7 +199,9 @@ WantedBy=default.target
   （`Secret=<名字>,type=env,target=<键>`）；单元带着 `Label="brickkit.io/secret-digest=…"`，换了值组件就会重启。普通的值写成 `Environment=`，`%` 与 `$` 双写：
   Quadlet 把它们放进 `ExecStart`，systemd 会在那里展开。
 - **多副本**是一个模板单元（`…@.container`）加每个实例一个链接；每个实例挂同一个 `NetworkAlias`。
-- 文件里**不写生成时间**：`up` 正好重启单元变了的那些组件。
+- 文件里**不写生成时间，也不跟语言走**：`up` 正好重启单元变了的那些组件。写进去了还没来得及重启的单元（迁移失败、`up` 被打断）记在单元的目录里，
+  下一次 `up` 重启它。
+- **镜像由 `up` 先拉好**，再启动任何东西，第一次拉一个大镜像不算进单元的启动时限。会成为空 Podman secret 的值改为写进单元（Podman 不收空的 secret）。
 
 ## Kubernetes
 

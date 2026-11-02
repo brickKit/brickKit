@@ -121,3 +121,9 @@ R106	Podman 低于 5.3 时 podman.units: quadlet 的 up 报出现有版本与要
 R107	Quadlet 迁移失败时，up 的报错点名是哪个组件的迁移（引擎只认得单元名）	.	./internal/cli	TestUpQuadletMigrationFailureNamesTheComponent
 R108	Quadlet：只改了一个 secret 的值（单元别处不变），up 也会重启那个组件——单元上的 brickkit.io/secret-digest 跟着值变；没有 secret 的组件不写	.	./internal/quadlet	TestSecretDigestChangesWithTheValues
 R109	status 说出上一次失败的迁移（Quadlet 的 failed 单元、compose 下非 0 退出的迁移容器）与看日志的命令：Quadlet 下迁移失败时组件照跑旧版本，表格全绿	.	./internal/cli	TestStatusNamesAFailedMigration
+R110	Quadlet 的单元、容器与 secret 名字是 brickkit-<项目名>_<服务名>：项目 shop 的 up / down 不会删到项目 shop-x 的 secret	.	./internal/engine	TestQuadletFirstUp
+R111	Quadlet 升级时迁移失败：旧版本的单元不停不删、compose 留下的容器不删；修好再 up，上次写进去还没重启的单元照样重启（不会跑着旧配置却报成功）	.	./internal/engine	TestQuadletMigrationFailureTouchesNoComponent
+R112	Quadlet：会成为空 Podman secret 的值写进单元（Podman 不收空 secret），up 不因空的密钥失败	.	./internal/quadlet	TestEmptySecretGoesIntoTheUnit
+R113	Quadlet 的 up / down 只停 systemd 加载了的单元：一个没加载的单元不会让它们永远失败	.	./internal/engine	TestQuadletStopsOnlyLoadedUnits
+R114	Quadlet 单元的内容与 CLI 的语言无关：换了语言，up 不因此重启组件	.	./internal/quadlet	TestUnitsDoNotFollowTheLanguage
+R115	Quadlet：迁移命令参数里的换行、制表符按 C 的写法转义，单元不被截断	.	./internal/quadlet	TestMigrationArgumentsKeepNewlines

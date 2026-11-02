@@ -55,6 +55,8 @@ type QuadletUnits struct {
 	Migrations []string
 	// Components 是组件单元：内容变了的重启，其余启动（已经在跑的不动）。
 	Components []string
+	// Images 是单元用到的镜像：缺的先拉下来，拉镜像不算进单元的启动时限。
+	Images []string
 }
 
 // Quadlet 是 podman.units: quadlet 的引擎。
@@ -98,16 +100,23 @@ func (q *Quadlet) JournalCommand(unit string) string {
 	return "journalctl --user -u " + unit
 }
 
+// pendingFile 是安装目录里记着“单元已经换了、容器还没按它重建”的文件（一行一个单元）。
+//
+// 单元一写进去就是新的，下一次 up 拿磁盘上的文件比，就看不出它变过：上一次 up 写完单元、迁移却失败了（或者被
+// Ctrl+C 打断），修好再 up，组件会照旧跑着旧配置、up 还报成功。所以变了的单元先记在这里，重启成功才划掉。
+// 以点开头：Quadlet 只认它认得的后缀，install 与 installed 也跳过它。
+const pendingFile = ".brickkit-pending-restart"
+
 // Up 装单元、建 secret、跑迁移、启动组件。
+//
+// 顺序是为了“迁移失败时什么都不动”：迁移全部成功之前，旧版本的单元不停、compose 留下的容器不删、组件不重启。
+// 升级时服务名带着版本号，单元名就换了——旧单元要是先停了，迁移一失败组件就没了。
 func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	units := req.Quadlet
 	if units == nil {
 		return errors.New("engine: Quadlet.Up without units")
 	}
 	if err := q.checkVersion(ctx); err != nil {
-		return err
-	}
-	if err := q.removeComposeContainers(ctx, req.Project, req.OnPrune); err != nil {
 		return err
 	}
 	if req.Network != "" {
@@ -118,6 +127,14 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 				WithCause(err)
 		}
 	}
+	for _, image := range units.Images {
+		if _, err := q.podman(ctx, nil, "image", "exists", image); err == nil {
+			continue
+		}
+		if _, err := q.podman(ctx, nil, "pull", image); err != nil {
+			return err
+		}
+	}
 	for _, s := range units.Secrets {
 		if _, err := q.podman(ctx, s.Value, "secret", "create", "--replace", s.Name, "-"); err != nil {
 			return err
@@ -125,7 +142,7 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	}
 
 	dir := q.Dir(req.Project)
-	changed, err := q.install(ctx, dir, units.Files, req.OnPrune)
+	changed, stale, err := q.install(dir, units.Files)
 	if err != nil {
 		return err
 	}
@@ -133,24 +150,31 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 		return err
 	}
 
-	// 先把网络与全部迁移跑完（普通方式启动：迁移链上的前一版、网络照样被拉起）。任何一个失败就停在这里：
-	// 组件一个都不动，旧版本照跑——restart 是先停再启，等不到迁移结果再停就晚了
+	// 网络与迁移：迁移单元留存（RemainAfterExit），restart 让它再跑一遍；组件只 Wants= 它，不受连带
 	var first []string
 	for _, f := range units.Files {
 		if strings.HasSuffix(f.Name, ".network") {
 			first = append(first, UnitOf(f.Name))
 		}
 	}
-	first = append(first, units.Migrations...)
 	if len(first) > 0 {
 		if _, err := q.systemctl(ctx, append([]string{"start"}, first...)...); err != nil {
+			return err
+		}
+	}
+	if len(units.Migrations) > 0 {
+		if _, err := q.systemctl(ctx, append([]string{"restart"}, units.Migrations...)...); err != nil {
 			return q.unitsFailed(ctx, units.Migrations, true, err)
 		}
 	}
-	// 再动组件，带 --job-mode=ignore-requirements：组件 Requires= 自己的迁移，迁移跑完回到 inactive，
-	// 普通方式 start 一个组件——哪怕它已经在跑——会把迁移再拉起来跑一遍（2026-11-02 实测）。迁移刚刚跑过，
-	// 不要它的依赖；单元之间的先后顺序（After=，依赖健康之后才启动）照旧遵守。开机时没有这个选项，
-	// Requires= 让迁移先跑，正是要的
+
+	// 迁移都成功了：这才卸下另一种形式与不再生成的单元，再动组件
+	if err := q.removeComposeContainers(ctx, req.Project, req.OnPrune); err != nil {
+		return err
+	}
+	if err := q.removeStale(ctx, dir, stale, req.OnPrune); err != nil {
+		return err
+	}
 	var restart []string
 	for _, unit := range units.Components {
 		if changed[unit] {
@@ -158,28 +182,34 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 		}
 	}
 	if len(restart) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"restart", "--job-mode=ignore-requirements"}, restart...)...); err != nil {
+		if _, err := q.systemctl(ctx, append([]string{"restart"}, restart...)...); err != nil {
 			return q.unitsFailed(ctx, units.Components, false, err)
 		}
 	}
 	if len(units.Components) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"start", "--job-mode=ignore-requirements"}, units.Components...)...); err != nil {
+		if _, err := q.systemctl(ctx, append([]string{"start"}, units.Components...)...); err != nil {
 			return q.unitsFailed(ctx, units.Components, false, err)
 		}
+	}
+	if err := os.Remove(filepath.Join(dir, pendingFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return installError(dir, err)
 	}
 	return q.pruneSecrets(ctx, req.Project, units.Secrets)
 }
 
-// install 把单元同步进安装目录，返回内容变了（含新装）的单元；删掉的单元经 onPrune 报出。
-// 删之前先停：文件没了 systemd 就不认得它，容器会一直跑着没人管。
-func (q *Quadlet) install(
-	ctx context.Context, dir string, files []UnitFile, onPrune func(string),
-) (map[string]bool, error) {
+// install 把单元写进安装目录（不删、不停任何东西），返回要重启的单元——这次内容变了的，加上之前记着还没重启的
+// （pendingFile）——以及安装目录里不再生成的文件。要重启的这一份同时写回 pendingFile。
+func (q *Quadlet) install(dir string, files []UnitFile) (map[string]bool, []string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, installError(dir, err)
+		return nil, nil, installError(dir, err)
+	}
+	changed := map[string]bool{}
+	if pending, err := os.ReadFile(filepath.Join(dir, pendingFile)); err == nil {
+		for _, unit := range strings.Fields(string(pending)) {
+			changed[unit] = true
+		}
 	}
 	wanted := map[string]bool{}
-	changed := map[string]bool{}
 	// 模板变了，它的每个实例都算变了
 	templateChanged := map[string]bool{}
 	for _, f := range files {
@@ -192,7 +222,7 @@ func (q *Quadlet) install(
 			continue
 		}
 		if err := os.WriteFile(path, f.Content, 0o644); err != nil {
-			return nil, installError(dir, err)
+			return nil, nil, installError(dir, err)
 		}
 		if strings.HasSuffix(f.Name, "@.container") {
 			templateChanged[f.Name] = true
@@ -213,42 +243,80 @@ func (q *Quadlet) install(
 		}
 		_ = os.Remove(path)
 		if err := os.Symlink(f.LinkTo, path); err != nil {
-			return nil, installError(dir, err)
+			return nil, nil, installError(dir, err)
 		}
 		changed[UnitOf(f.Name)] = true
 	}
 
-	entries, err := os.ReadDir(dir)
+	var pending []string
+	for unit := range changed {
+		pending = append(pending, unit)
+	}
+	sort.Strings(pending)
+	if err := os.WriteFile(filepath.Join(dir, pendingFile), []byte(strings.Join(pending, "\n")+"\n"), 0o644); err != nil {
+		return nil, nil, installError(dir, err)
+	}
+
+	present, err := q.installed(dir)
 	if err != nil {
-		return nil, installError(dir, err)
+		return nil, nil, err
 	}
 	var stale []string
-	for _, e := range entries {
-		if !wanted[e.Name()] {
-			stale = append(stale, e.Name())
+	for _, name := range present {
+		if !wanted[name] {
+			stale = append(stale, name)
 		}
 	}
-	sort.Strings(stale)
+	return changed, stale, nil
+}
+
+// removeStale 停掉并删掉不再生成的单元（删之前先停：文件没了 systemd 就不认得它，容器会一直跑着没人管），
+// 经 onPrune 报出。
+func (q *Quadlet) removeStale(ctx context.Context, dir string, stale []string, onPrune func(string)) error {
+	if len(stale) == 0 {
+		return nil
+	}
 	var stop []string
 	for _, name := range stale {
 		if unit := UnitOf(name); unit != "" {
 			stop = append(stop, unit)
 		}
 	}
-	if len(stop) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"stop"}, stop...)...); err != nil {
-			return nil, err
-		}
+	if err := q.stop(ctx, stop); err != nil {
+		return err
 	}
 	for _, name := range stale {
-		if err := os.Remove(filepath.Join(dir, name)); err != nil {
-			return nil, installError(dir, err)
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return installError(dir, err)
 		}
 		if unit := UnitOf(name); unit != "" && onPrune != nil {
 			onPrune(unit)
 		}
 	}
-	return changed, nil
+	_, err := q.systemctl(ctx, "daemon-reload")
+	return err
+}
+
+// stop 停掉 systemd 加载了的那些单元。一个没加载的（Quadlet 的生成器拒绝了它的文件，或者 up 在写文件与
+// daemon-reload 之间被打断）stop 会以 5 退出（"Unit … not loaded"，实测）：它也没有在跑的东西，跳过，
+// 否则 up 与 down 都会被它永远卡住。
+func (q *Quadlet) stop(ctx context.Context, units []string) error {
+	if len(units) == 0 {
+		return nil
+	}
+	out, _ := q.systemctlRaw(ctx, append([]string{"show", "--property=LoadState", "--value"}, units...)...)
+	states := strings.Fields(string(out))
+	var loaded []string
+	for i, unit := range units {
+		if i < len(states) && states[i] == "loaded" {
+			loaded = append(loaded, unit)
+		}
+	}
+	if len(loaded) == 0 {
+		return nil
+	}
+	_, err := q.systemctl(ctx, append([]string{"stop"}, loaded...)...)
+	return err
 }
 
 // UnitOf 是一个 Quadlet 文件生成的 systemd 服务名；模板（x@.container）自己不是一个服务，返回空。
@@ -269,6 +337,7 @@ func UnitOf(file string) string {
 }
 
 // Down 停掉并卸下本项目的全部单元，删掉它的网络与 secret。不删数据卷（BrickKit 本来就不建卷）。
+// 一步失败也把能做的做完（单元已经卸下时，secret 照样要删），最后报第一个错。
 func (q *Quadlet) Down(ctx context.Context, req DownRequest) error {
 	if err := q.removeComposeContainers(ctx, req.Project, nil); err != nil {
 		return err
@@ -278,44 +347,46 @@ func (q *Quadlet) Down(ctx context.Context, req DownRequest) error {
 	if err != nil {
 		return err
 	}
-	if len(files) == 0 {
-		return nil
-	}
-	var stop []string
-	var networks []string
+	var units, networks []string
 	for _, name := range files {
 		if unit := UnitOf(name); unit != "" {
-			stop = append(stop, unit)
+			units = append(units, unit)
 		}
 		if strings.HasSuffix(name, ".network") {
-			if name := networkNameIn(filepath.Join(dir, name)); name != "" {
-				networks = append(networks, name)
+			if network := networkNameIn(filepath.Join(dir, name)); network != "" {
+				networks = append(networks, network)
 			}
 		}
 	}
-	// 迁移单元跑完是 inactive，stop 照样接受
-	if len(stop) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"stop"}, stop...)...); err != nil {
+	if len(units) > 0 {
+		if err := q.stop(ctx, units); err != nil {
 			return err
 		}
 	}
-	if err := os.RemoveAll(dir); err != nil {
-		return installError(dir, err)
+	if len(files) > 0 {
+		if err := os.RemoveAll(dir); err != nil {
+			return installError(dir, err)
+		}
+		if _, err := q.systemctl(ctx, "daemon-reload"); err != nil {
+			return err
+		}
+		// 失败过的单元留在 systemd 的记录里，status 会一直报它
+		_, _ = q.systemctlRaw(ctx, append([]string{"reset-failed"}, units...)...)
 	}
-	if _, err := q.systemctl(ctx, "daemon-reload"); err != nil {
-		return err
+	var first error
+	if err := q.pruneSecrets(ctx, req.Project, nil); err != nil {
+		first = err
 	}
-	// 失败过的单元留在 systemd 的记录里，status 会一直报它
-	_, _ = q.systemctl(ctx, append([]string{"reset-failed"}, stop...)...)
 	// 停掉网络单元不删网络（2026-11-02 实测），要显式删
 	for _, network := range networks {
-		if _, err := q.podman(ctx, nil, "network", "exists", network); err == nil {
-			if _, err := q.podman(ctx, nil, "network", "rm", network); err != nil {
-				return err
-			}
+		if _, err := q.podman(ctx, nil, "network", "exists", network); err != nil {
+			continue
+		}
+		if _, err := q.podman(ctx, nil, "network", "rm", network); err != nil && first == nil {
+			first = err
 		}
 	}
-	return q.pruneSecrets(ctx, req.Project, nil)
+	return first
 }
 
 // removeComposeContainers 删掉这个项目由 compose 建的容器（部署文件从 compose 改成了 podman.units: quadlet）：
@@ -367,13 +438,16 @@ func (q *Quadlet) installed(dir string) ([]string, error) {
 	}
 	var out []string
 	for _, e := range entries {
-		out = append(out, e.Name())
+		if !strings.HasPrefix(e.Name(), ".") {
+			out = append(out, e.Name())
+		}
 	}
 	sort.Strings(out)
 	return out, nil
 }
 
-// pruneSecrets 删掉本项目不再用的 secret（keep 之外的、名字以 <项目>- 开头的）。
+// pruneSecrets 删掉本项目不再用的 secret（keep 之外的、名字以 <引擎侧项目名>_ 开头的：项目名里没有 _，
+// 所以 shop 删不到 shop-x 的）。
 func (q *Quadlet) pruneSecrets(ctx context.Context, project string, keep []Secret) error {
 	out, err := q.podman(ctx, nil, "secret", "ls", "--format", "{{.Name}}")
 	if err != nil {
@@ -385,7 +459,7 @@ func (q *Quadlet) pruneSecrets(ctx context.Context, project string, keep []Secre
 	}
 	var stale []string
 	for _, name := range strings.Fields(string(out)) {
-		if strings.HasPrefix(name, project+"-") && !wanted[name] {
+		if strings.HasPrefix(name, project+"_") && !wanted[name] {
 			stale = append(stale, name)
 		}
 	}
@@ -438,9 +512,9 @@ func (q *Quadlet) Status(ctx context.Context, project string) ([]Status, error) 
 	return statuses, nil
 }
 
-// serviceOfUnit 从单元名取回服务名：brickkit-<项目>-<服务>[@n].service。
+// serviceOfUnit 从单元名取回服务名：brickkit-<项目>_<服务>[@n].service。
 func serviceOfUnit(project, unit string) string {
-	service := strings.TrimSuffix(strings.TrimPrefix(unit, project+"-"), ".service")
+	service := strings.TrimSuffix(strings.TrimPrefix(unit, project+"_"), ".service")
 	if at := strings.Index(service, "@"); at >= 0 {
 		service = service[:at]
 	}
