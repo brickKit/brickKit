@@ -168,14 +168,13 @@ What a shell looks like in Compose (network aliases, `BRICKKIT_SERVED_MEMBERS`, 
 With `podman.units: quadlet` the same plan becomes systemd units in Podman's Quadlet format: one `.container` per
 component, one per migration, and the project's `.network` (none when the deploy file names its own `network:`). `up`
 copies them into `~/.config/containers/systemd/brickkit-<project>/` (rootless) or
-`/etc/containers/systemd/brickkit-<project>/` (rootful), reloads systemd, runs every migration, then starts the
-components; systemd keeps them running and starts them at boot. `demo/caller` from the example:
+`/etc/containers/systemd/brickkit-<project>/` (rootful) in two steps: the network's and the migrations' units, a reload
+of systemd and every migration; then, only if all succeeded, the components' units, another reload, and the components.
+systemd keeps them running and starts them at boot. `demo/caller` from the example:
 
 ```ini
 [Unit]
 Description=demo/caller@1.0.0 (BrickKit project qtest)
-Wants=brickkit-qtest_demo-caller-1-0-0-migration.service
-After=brickkit-qtest_demo-caller-1-0-0-migration.service
 Wants=brickkit-qtest_demo-hello-1-0-0.service
 After=brickkit-qtest_demo-hello-1-0-0.service
 
@@ -211,12 +210,13 @@ What differs from Compose, and why:
 
 - **Names**: `brickkit-<project>_<service>` — the `_` marks where the project name ends (neither it nor a service name
   contains one), so two projects never share a unit, container or secret name.
-- **Its own migration comes first** (`Wants=` + `After=`): at boot each migration runs before its component. The gate is
-  `up`, which runs every migration on its own (`systemctl restart`) and stops before touching any component when one
-  fails. At boot a failing migration doesn't hold the component back — the schema was migrated at the last `up`, and
-  with `Requires=` a database that comes up late would leave the component stopped for good, as `Restart=` doesn't retry
-  a failed dependency. The migration unit stays active once done (`RemainAfterExit=yes`), so a component that crashes
-  and restarts doesn't run it again.
+- **Migrations run only at `up`**: a migration's unit has no `[Install]` and no component depends on it, so neither a
+  boot nor a component that crashes and restarts runs it. The gate is `up`: it runs every migration on its own
+  (`systemctl restart`) and installs the components' units — and replaces their Podman secrets — only once all have
+  succeeded; a migration has secrets of its own for that reason. So what systemd starts at boot, or when a component
+  restarts, is always what the last successful `up` installed, never a new version facing an unmigrated database. The
+  schema was migrated at that `up`; running migrations at boot would only fail against a database that boots with the
+  components and isn't accepting connections yet, leaving failed units behind on every boot.
 - **A dependency only orders it** (`Wants=` + `After=`): `Requires=` would stop or restart the component whenever the
   dependency is stopped or restarted, while a component retries its connections by itself — as with Compose's
   `depends_on`. The dependency's own `Notify=healthy` makes its start complete only once it's healthy, so `After=` waits
@@ -232,7 +232,7 @@ What differs from Compose, and why:
 - **Replicas** are one template unit (`…@.container`) and one link per instance; every instance carries the same
   `NetworkAlias`.
 - **No timestamp, nothing localized** in the files: `up` restarts exactly the components whose unit changed. A unit
-  written but not yet restarted (a migration failed, `up` was interrupted) is remembered in the units' directory and
+  written but not yet restarted (the restart failed, `up` was interrupted) is remembered in the units' directory and
   restarted by the next `up`.
 - **Images are pulled by `up`** before anything starts, so a large first pull doesn't count against a unit's start limit.
   A value that would be an empty Podman secret is written into the unit instead (Podman refuses empty secrets).

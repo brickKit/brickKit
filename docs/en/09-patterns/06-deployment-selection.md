@@ -188,11 +188,11 @@ podman:
 | --- | --- | --- |
 | At boot | Each unit starts by itself; nothing else to enable | Podman's boot unit `podman-restart.service`, enabled by hand |
 | Waiting for the network at boot | Built in (rootless too) | Rootless: a drop-in by hand |
-| Order at boot | Migrations first, then each component after the ones it needs are healthy | None: containers start all at once and retry |
-| Migrations | At every `up`, and at boot | At every `up` only |
+| Order at boot | Each component after the ones it needs are healthy | None: containers start all at once and retry |
+| Migrations | At every `up` only | At every `up` only |
 | A component turns unhealthy | Killed and restarted (only when it declares no separate `readinessCheck`) | Left running |
 | Logs | journald: `journalctl [--user] -u 'brickkit-<project>_*'` | `podman compose logs` |
-| A migration fails | `up` stops before touching any component: they keep running their previous version | The component waits for its migration and doesn't start |
+| A migration fails | `up` stops before installing any component's unit: they keep running their previous version, after a reboot too | The component waits for its migration and doesn't start |
 | What the host needs | Podman 5.3 or later | Podman, Docker's Compose V2 (`docker-compose`), `podman.socket` |
 | Processes on this machine, focus runs | Refused while loading | Supported |
 | Runs `up` | Rootless: the deploying user. Rootful: root (`sudo brickkit up`) — it installs into `/etc/containers/systemd` | The deploying user; rootful also through a socket group ([step 5](#setting-up-a-host-for-rootful-podman)) |
@@ -201,13 +201,15 @@ The units are what you see: `up` writes them into `.brickkit/generated/quadlet/`
 copies them into a directory of their own, `~/.config/containers/systemd/brickkit-<project>/` (rootless) or
 `/etc/containers/systemd/brickkit-<project>/` (rootful), and `down` removes that directory. Values that must not be
 read in a file — secrets, `file://` contents, `${VAR}` templates, values spanning several lines — are evaluated at `up`
-and handed over as Podman secrets; a unit only names them. A project runs one way at a time: switching `podman.units`
+and handed over as Podman secrets; a unit only names them. `mount: file` values are the exception: the units mount them
+from the project's `.brickkit/generated/secrets/`, so the project directory has to stay where it is. A project runs one way at a time: switching `podman.units`
 (or to `target: docker`) and running `up` removes what the other way left (compose's containers, or the units) and says
 so.
 
 Verified with BrickKit: Quadlet units, rootless, on Podman 5.7.0 — `up`, a change restarting only that component, a failed
-migration leaving the previous version running, replicas, switching to compose and back, `down`. A real reboot with
-Quadlet units hasn't been verified yet.
+migration leaving the previous version running, replicas, switching to compose and back, `down`. Real reboots, rootful
+and rootless (by a user on Ubuntu 26.04 with the database in Docker on the same machine): every component came back
+healthy in dependency order without `podman-restart.service` or the network drop-in, and nothing came back after `down`.
 
 ### Setting up a host for rootful Podman
 
@@ -333,8 +335,9 @@ has to be in place for each:
 - What comes back is what the last `up` created. `down` removes the containers (and the units), so nothing comes back
   after it.
 - With compose or Docker the engine starts the containers by itself at boot: not in the order `up` waits through
-  (`depends_on`), and the migrations don't run again — they ran at the last `up`. Quadlet units keep the order: each
-  migration runs first, and a component starts once the ones it needs are healthy. Either way a component that starts
+  (`depends_on`). Quadlet units keep the order: a component starts once the ones it needs are healthy. In neither case do
+  the migrations run again — they ran at the last `up`, and a database that boots with the components is often not
+  accepting connections yet. Either way a component that starts
   before its dependency is reachable must keep retrying rather than give up; it needs that anyway, for a dependency that
   restarts.
 - Processes on this machine never come back: nothing restarts them or starts them at boot.

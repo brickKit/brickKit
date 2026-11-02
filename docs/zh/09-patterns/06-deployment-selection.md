@@ -143,22 +143,24 @@ podman:
 | --- | --- | --- |
 | 开机时 | 每个单元自己起来，不用另外启用什么 | Podman 的开机单元 `podman-restart.service`，要手动启用 |
 | 开机时等网络 | 自带（无根也是） | 无根：要手写一个 drop-in |
-| 开机时的顺序 | 迁移先跑，每个组件等它需要的组件健康之后才启动 | 没有：容器一起起来，靠重试 |
-| 迁移 | 每次 `up` 跑，开机也跑 | 只在每次 `up` 时跑 |
+| 开机时的顺序 | 每个组件等它需要的组件健康之后才启动 | 没有：容器一起起来，靠重试 |
+| 迁移 | 只在每次 `up` 时跑 | 只在每次 `up` 时跑 |
 | 组件变得不健康 | 杀掉、重新拉起（只在它没有单独声明 `readinessCheck` 时） | 不管 |
 | 日志 | journald：`journalctl [--user] -u 'brickkit-<项目名>_*'` | `podman compose logs` |
-| 迁移失败 | `up` 在动任何组件之前就停下：它们照旧跑着上一个版本 | 组件等着迁移，不启动 |
+| 迁移失败 | `up` 在装任何组件的单元之前就停下：它们照旧跑着上一个版本，重启机器之后也是 | 组件等着迁移，不启动 |
 | 主机上要装的 | Podman 5.3 或更新 | Podman、Docker 的 Compose V2（`docker-compose`）、`podman.socket` |
 | 本机进程、焦点运行 | 装载时就拒绝 | 支持 |
 | 谁跑 `up` | 无根：部署的那个用户。有根：root（`sudo brickkit up`）——要装进 `/etc/containers/systemd` | 部署的那个用户；有根时也可以经套接字组（[第 5 步](#为有根-podman-准备主机)） |
 
 单元就是你看到的那些：`up` 先写进 `.brickkit/generated/quadlet/`（`up --dry-run` 到此为止），再复制进它们自己的目录，`~/.config/containers/systemd/brickkit-<项目名>/`（无根）
 或 `/etc/containers/systemd/brickkit-<项目名>/`（有根），`down` 删掉这个目录。不能写在文件里让人看到的值——密钥、`file://` 的内容、`${VAR}` 模板、跨好几行的值——
-在 `up` 时求值、作为 Podman secret 交过去，单元里只写它们的名字。一个项目同一时刻只用一种方式：改了 `podman.units`（或者改成 `target: docker`）再 `up`，会把另一种留下的（compose 的容器，或者那些单元）
+在 `up` 时求值、作为 Podman secret 交过去，单元里只写它们的名字。例外是 `mount: file` 的值：单元从项目的 `.brickkit/generated/secrets/` 把它们挂进去，
+所以项目目录要留在原处。一个项目同一时刻只用一种方式：改了 `podman.units`（或者改成 `target: docker`）再 `up`，会把另一种留下的（compose 的容器，或者那些单元）
 卸下，并说出来。
 
 在 BrickKit 上验证过的：Quadlet 单元、无根、Podman 5.7.0——`up`、改一个组件只重启它、迁移失败时上一个版本照跑、多副本、切到 compose 再切回来、`down`。
-Quadlet 单元的真重启还没有验证。
+真重启，有根与无根各一次（一位使用者，Ubuntu 26.04，数据库在同一台机器的 Docker 里）：不用 `podman-restart.service`、不用等网络的 drop-in，每个组件都按依赖顺序回来、全部 healthy；
+`down` 之后再重启什么都不回来。
 
 ### 为有根 Podman 准备主机
 
@@ -257,8 +259,8 @@ Quadlet 单元的真重启还没有验证。
 
 - 用 compose 时 Podman 用 `always`，是因为它的开机单元只启动策略为 `always` 的容器；除此之外两种策略在 Podman 里行为相同。Docker 上用 `unless-stopped`，手动停掉的容器保持停止。
 - 回来的是上一次 `up` 建出来的那些。`down` 会删掉容器（以及单元），所以 `down` 之后重启机器什么都不会回来。
-- 用 compose 或 Docker 时，开机由引擎自己启动容器：不按 `up` 等待的那个顺序（`depends_on`），迁移也不再跑——上一次 `up` 时已经跑过。Quadlet 单元保留这个顺序：
-  每个迁移先跑，组件等它需要的组件健康之后才启动。不管哪种，一个组件比它的依赖先起来时，要一直重试，不能放弃；依赖重启时它本来也需要这样。
+- 用 compose 或 Docker 时，开机由引擎自己启动容器：不按 `up` 等待的那个顺序（`depends_on`）。Quadlet 单元保留这个顺序：组件等它需要的组件健康之后才启动。
+  哪种都不再跑迁移——上一次 `up` 时已经跑过，而与组件一起开机的数据库这时常常还不接受连接。不管哪种，一个组件比它的依赖先起来时，要一直重试，不能放弃；依赖重启时它本来也需要这样。
 - 本机进程永远不会回来：没有谁重启它们，也没有谁开机启动它们。
 
 ## 决定二：拓扑——组件最终收拢成几个容器？

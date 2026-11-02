@@ -99,8 +99,8 @@ Docker / Podman 下一个宿主机端口只能映射给一个容器。端口要�
 
 迁移以非零退出，主服务不会启动。按提示看迁移容器的日志，修好之后重新 `up`，迁移会再跑一次。详见 [迁移问题](07-migration-issues.md)。
 
-`podman.units: quadlet` 时，报错点名迁移的单元和它的日志（`journalctl [--user] -u <单元>`），而且 `up` 在动任何组件之前就停下了：它们照旧跑着上一个版本。
-迁移成功之前，`brickkit status` 会一直说上一次的迁移失败了。
+`podman.units: quadlet` 时，报错点名迁移的单元和它的日志（`journalctl [--user] -u <单元>`），而且 `up` 在装任何组件的单元之前就停下了：它们照旧跑着上一个版本，重启机器之后也是。
+迁移成功之前（或者机器重启之前），`brickkit status` 会一直说上一次的迁移失败了。
 
 ## 组件日志正常，平台却说它不健康
 
@@ -472,7 +472,7 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 
 | 你看到的 | 原因 | 解决 |
 | --- | --- | --- |
-| `这些单元没有起来`，每个带一条 `journalctl` 命令 | 容器起来又退出了，或者在单元的启动时限内一直没有 healthy | 用那条命令看单元的日志；`systemctl --user --failed 'brickkit-<项目名>_*'` 列出所有失败的单元 |
+| `这些单元没有起来`，每个带一条 `journalctl` 命令 | 容器起来又退出了，或者在单元的启动时限内一直没有 healthy | 用那条命令看单元的日志；`systemctl --user list-units --failed 'brickkit-<项目名>_*'` 列出所有失败的单元 |
 | `Podman <版本> 太旧，podman.units: quadlet 要 5.3 或更新的版本` | 单元用到 Podman 5.3 才齐的键（`Notify=healthy`、模板、`NetworkAlias=`、无根时等网络） | 升级 Podman；或者这台机器不写 `podman.units`，用 compose |
 | `单元写不进 /etc/containers/systemd/…` | 有根 Podman：单元装进系统的 systemd，只有 root 能写 | `sudo brickkit up` |
 | 重新加载之后紧接着 `Unit brickkit-….service not found` | Podman 的 Quadlet 生成器拒绝了一个单元文件，没有为它生成服务 | `/usr/libexec/podman/quadlet -dryrun -user`（有根 Podman 去掉 `-user`）会说出原因；单元在 `.brickkit/generated/quadlet/` |

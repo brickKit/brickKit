@@ -606,8 +606,8 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 6. 在本机跑进程的组件生成 `local-debug.<版本化服务名>.env`：`mode: debug` 的，你在 IDE 里拿它启动；`mode: local` 的由 `up`
    启动，这份文件留给你手动跑迁移或别的一次性命令；
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；本地源里拉取的组件旁边放着 `Dockerfile` 时，警告它没被用到；
-8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job、Quadlet 单元时一次性的单元），失败则阻断主服务。Quadlet 单元时 `up` 把单元装进 systemd、跑完每个迁移，
-   再重启单元变了的组件、启动其余的；有迁移失败时，每个组件照旧跑着上一个版本；
+8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job、Quadlet 单元时一次性的单元），失败则阻断主服务。Quadlet 单元时 `up` 把迁移的单元装进 systemd、跑完每个迁移，
+   再装组件的单元、重启单元变了的组件、启动其余的；有迁移失败时，每个组件——以及开机时 systemd 起的——照旧是上一个版本；
 9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。启动任何一个之前先确认它们的端口空着（否则
    `PORT_CONFLICT`），组件写了 `local.migrationCommand` 时先跑它再启动——外壳还有从本地仓库编进去的成员的（失败就不启动：`MIGRATION_FAILED`）。每个进程继承这个终端的环境，只有平台管的名字除外
    （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见

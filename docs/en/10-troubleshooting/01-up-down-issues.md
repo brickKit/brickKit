@@ -110,8 +110,8 @@ The migration exited non-zero, so the main service won't start. Read the migrati
 says, fix it, and `up` again; the migration runs once more. More in [Migration problems](07-migration-issues.md).
 
 With `podman.units: quadlet` the error names the migration's unit and its log (`journalctl [--user] -u <unit>`), and `up`
-stopped before touching any component: they keep running their previous version. `brickkit status` keeps saying that the
-last migration failed until one succeeds.
+stopped before installing any component's unit: they keep running their previous version, after a reboot too.
+`brickkit status` keeps saying that the last migration failed until one succeeds (or the machine restarts).
 
 ## The component's logs look fine, yet the platform says it's unhealthy
 
@@ -556,7 +556,7 @@ The deploy file has `podman.units: quadlet`, and `up` fails with one of:
 
 | What you see | Cause | Fix |
 | --- | --- | --- |
-| `these units did not start`, each with a `journalctl` command | The container started and exited, or never turned healthy within the unit's start limit | Read the unit's log with that command; `systemctl --user --failed 'brickkit-<project name>_*'` lists every failed unit |
+| `these units did not start`, each with a `journalctl` command | The container started and exited, or never turned healthy within the unit's start limit | Read the unit's log with that command; `systemctl --user list-units --failed 'brickkit-<project name>_*'` lists every failed unit |
 | `Podman <version> is too old for podman.units: quadlet` | The units use keys Podman 5.3 brought (`Notify=healthy`, templates, `NetworkAlias=`, the rootless wait for the network) | Upgrade Podman, or leave `podman.units` out on this machine and run with compose |
 | `could not write the units into /etc/containers/systemd/…` | Rootful Podman: the units go into the system's systemd, which only root may write | `sudo brickkit up` |
 | `Unit brickkit-….service not found` right after the reload | Podman's Quadlet generator rejected a unit file and generated nothing for it | `/usr/libexec/podman/quadlet -dryrun -user` (without `-user` for rootful Podman) prints why; the units are in `.brickkit/generated/quadlet/` |

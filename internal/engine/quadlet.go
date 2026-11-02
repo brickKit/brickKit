@@ -48,10 +48,10 @@ type Secret struct {
 type QuadletUnits struct {
 	// Files 是全部单元文件；安装目录里多出来的会先停掉再删。
 	Files []UnitFile
-	// Secrets 是单元引用的全部 Podman secret；本项目多出来的在最后删掉。
-	Secrets []Secret
-	// Migrations 是迁移单元：先单独跑完它们，全部成功才动组件——restart 是先停再启，
-	// 迁移失败时旧版本要还在跑。
+	// Secrets 是组件单元引用的 Podman secret，MigrationSecrets 是迁移单元引用的；本项目多出来的在最后删掉。
+	Secrets          []Secret
+	MigrationSecrets []Secret
+	// Migrations 是迁移单元：先单独跑完它们，全部成功才装组件的单元、换组件的 secret（见 Up）。
 	Migrations []string
 	// Components 是组件单元：内容变了的重启，其余启动（已经在跑的不动）。
 	Components []string
@@ -102,15 +102,22 @@ func (q *Quadlet) JournalCommand(unit string) string {
 
 // pendingFile 是安装目录里记着“单元已经换了、容器还没按它重建”的文件（一行一个单元）。
 //
-// 单元一写进去就是新的，下一次 up 拿磁盘上的文件比，就看不出它变过：上一次 up 写完单元、迁移却失败了（或者被
-// Ctrl+C 打断），修好再 up，组件会照旧跑着旧配置、up 还报成功。所以变了的单元先记在这里，重启成功才划掉。
+// 单元一写进去就是新的，下一次 up 拿磁盘上的文件比，就看不出它变过：上一次 up 写完组件的单元、重启却失败了
+// （或者被 Ctrl+C 打断），再 up，组件会照旧跑着旧配置、up 还报成功。所以变了的单元先记在这里，重启成功才划掉。
 // 以点开头：Quadlet 只认它认得的后缀，install 与 installed 也跳过它。
 const pendingFile = ".brickkit-pending-restart"
 
 // Up 装单元、建 secret、跑迁移、启动组件。
 //
-// 顺序是为了“迁移失败时什么都不动”：迁移全部成功之前，旧版本的单元不停、compose 留下的容器不删、组件不重启。
-// 升级时服务名带着版本号，单元名就换了——旧单元要是先停了，迁移一失败组件就没了。
+// 分两步装，为了“迁移失败时什么都不动”——不只是这一刻，也包括之后的每一次开机与崩溃重启：
+//
+//  1. 网络与迁移的单元、迁移的 secret，daemon-reload，跑全部迁移。
+//  2. 迁移全部成功了，才写组件的单元、换组件的 secret，卸下另一种形式与不再生成的单元，再重启、启动组件。
+//
+// 组件的单元一写进 Quadlet 目录、daemon-reload 之后就是“开机要起的那个”，它的 secret 一换，下一次崩溃重启
+// 拿到的就是新值。要是迁移失败之前就换了，up 报了失败、旧版本照跑，机器一重启起来的却是新版本（升级时
+// 服务名带着版本号，新旧两份还会一起起来），面对的是没迁移过的库。迁移不在开机时跑（quadlet 包的 waits），
+// 所以“开机时组件的单元就是上一次成功的 up 装的”这一点只能由这里保证。
 func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	units := req.Quadlet
 	if units == nil {
@@ -135,30 +142,27 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 			return err
 		}
 	}
-	for _, s := range units.Secrets {
-		if _, err := q.podman(ctx, s.Value, "secret", "create", "--replace", s.Name, "-"); err != nil {
-			return err
-		}
-	}
 
+	// 第一步：网络与迁移
 	dir := q.Dir(req.Project)
-	changed, stale, err := q.install(dir, units.Files)
-	if err != nil {
+	first, components := splitFiles(units)
+	if err := q.createSecrets(ctx, units.MigrationSecrets); err != nil {
+		return err
+	}
+	if _, err := q.write(dir, first); err != nil {
 		return err
 	}
 	if _, err := q.systemctl(ctx, "daemon-reload"); err != nil {
 		return err
 	}
-
-	// 网络与迁移：迁移单元留存（RemainAfterExit），restart 让它再跑一遍；组件只 Wants= 它，不受连带
-	var first []string
-	for _, f := range units.Files {
+	var networks []string
+	for _, f := range first {
 		if strings.HasSuffix(f.Name, ".network") {
-			first = append(first, UnitOf(f.Name))
+			networks = append(networks, UnitOf(f.Name))
 		}
 	}
-	if len(first) > 0 {
-		if _, err := q.systemctl(ctx, append([]string{"start"}, first...)...); err != nil {
+	if len(networks) > 0 {
+		if _, err := q.systemctl(ctx, append([]string{"start"}, networks...)...); err != nil {
 			return err
 		}
 	}
@@ -168,8 +172,22 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 		}
 	}
 
-	// 迁移都成功了：这才卸下另一种形式与不再生成的单元，再动组件
+	// 第二步：迁移都成功了，这才换组件的 secret、装组件的单元，卸下另一种形式与不再生成的单元，再动组件
+	if err := q.createSecrets(ctx, units.Secrets); err != nil {
+		return err
+	}
+	changed, err := q.installComponents(dir, components)
+	if err != nil {
+		return err
+	}
+	if _, err := q.systemctl(ctx, "daemon-reload"); err != nil {
+		return err
+	}
 	if err := q.removeComposeContainers(ctx, req.Project, req.OnPrune); err != nil {
+		return err
+	}
+	stale, err := q.stale(dir, units.Files)
+	if err != nil {
 		return err
 	}
 	if err := q.removeStale(ctx, dir, stale, req.OnPrune); err != nil {
@@ -194,26 +212,43 @@ func (q *Quadlet) Up(ctx context.Context, req UpRequest) error {
 	if err := os.Remove(filepath.Join(dir, pendingFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return installError(dir, err)
 	}
-	return q.pruneSecrets(ctx, req.Project, units.Secrets)
+	return q.pruneSecrets(ctx, req.Project, append(append([]Secret{}, units.MigrationSecrets...), units.Secrets...))
 }
 
-// install 把单元写进安装目录（不删、不停任何东西），返回要重启的单元——这次内容变了的，加上之前记着还没重启的
-// （pendingFile）——以及安装目录里不再生成的文件。要重启的这一份同时写回 pendingFile。
-func (q *Quadlet) install(dir string, files []UnitFile) (map[string]bool, []string, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, nil, installError(dir, err)
+// splitFiles 把单元文件分成 Up 的两步：网络与迁移的，和组件的（含副本的模板与实例）。
+func splitFiles(units *QuadletUnits) (first, components []UnitFile) {
+	migrations := map[string]bool{}
+	for _, unit := range units.Migrations {
+		migrations[unit] = true
 	}
-	changed := map[string]bool{}
-	if pending, err := os.ReadFile(filepath.Join(dir, pendingFile)); err == nil {
-		for _, unit := range strings.Fields(string(pending)) {
-			changed[unit] = true
+	for _, f := range units.Files {
+		if strings.HasSuffix(f.Name, ".network") || migrations[UnitOf(f.Name)] {
+			first = append(first, f)
+			continue
+		}
+		components = append(components, f)
+	}
+	return first, components
+}
+
+func (q *Quadlet) createSecrets(ctx context.Context, secrets []Secret) error {
+	for _, s := range secrets {
+		if _, err := q.podman(ctx, s.Value, "secret", "create", "--replace", s.Name, "-"); err != nil {
+			return err
 		}
 	}
-	wanted := map[string]bool{}
-	// 模板变了，它的每个实例都算变了
+	return nil
+}
+
+// write 把单元写进安装目录（不删、不停任何东西），返回内容变了的单元。副本的实例是指向模板的链接；模板变了，
+// 它的每个实例都算变了。
+func (q *Quadlet) write(dir string, files []UnitFile) (map[string]bool, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, installError(dir, err)
+	}
+	changed := map[string]bool{}
 	templateChanged := map[string]bool{}
 	for _, f := range files {
-		wanted[f.Name] = true
 		if f.LinkTo != "" {
 			continue
 		}
@@ -222,7 +257,7 @@ func (q *Quadlet) install(dir string, files []UnitFile) (map[string]bool, []stri
 			continue
 		}
 		if err := os.WriteFile(path, f.Content, 0o644); err != nil {
-			return nil, nil, installError(dir, err)
+			return nil, installError(dir, err)
 		}
 		if strings.HasSuffix(f.Name, "@.container") {
 			templateChanged[f.Name] = true
@@ -243,23 +278,45 @@ func (q *Quadlet) install(dir string, files []UnitFile) (map[string]bool, []stri
 		}
 		_ = os.Remove(path)
 		if err := os.Symlink(f.LinkTo, path); err != nil {
-			return nil, nil, installError(dir, err)
+			return nil, installError(dir, err)
 		}
 		changed[UnitOf(f.Name)] = true
 	}
+	return changed, nil
+}
 
+// installComponents 写组件的单元，返回要重启的——这次内容变了的，加上之前记着还没重启的（pendingFile）。
+// 要重启的这一份同时写回 pendingFile，重启成功之后 Up 才把它删掉。
+func (q *Quadlet) installComponents(dir string, files []UnitFile) (map[string]bool, error) {
+	changed, err := q.write(dir, files)
+	if err != nil {
+		return nil, err
+	}
+	if pending, err := os.ReadFile(filepath.Join(dir, pendingFile)); err == nil {
+		for _, unit := range strings.Fields(string(pending)) {
+			changed[unit] = true
+		}
+	}
 	var pending []string
 	for unit := range changed {
 		pending = append(pending, unit)
 	}
 	sort.Strings(pending)
 	if err := os.WriteFile(filepath.Join(dir, pendingFile), []byte(strings.Join(pending, "\n")+"\n"), 0o644); err != nil {
-		return nil, nil, installError(dir, err)
+		return nil, installError(dir, err)
 	}
+	return changed, nil
+}
 
+// stale 是安装目录里不再生成的文件。
+func (q *Quadlet) stale(dir string, files []UnitFile) ([]string, error) {
 	present, err := q.installed(dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	wanted := map[string]bool{}
+	for _, f := range files {
+		wanted[f.Name] = true
 	}
 	var stale []string
 	for _, name := range present {
@@ -267,7 +324,7 @@ func (q *Quadlet) install(dir string, files []UnitFile) (map[string]bool, []stri
 			stale = append(stale, name)
 		}
 	}
-	return changed, stale, nil
+	return stale, nil
 }
 
 // removeStale 停掉并删掉不再生成的单元（删之前先停：文件没了 systemd 就不认得它，容器会一直跑着没人管），

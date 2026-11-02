@@ -76,8 +76,11 @@ type Secret struct {
 type Result struct {
 	// Files 按文件名排序。
 	Files []File
-	// Secrets 按名字排序。
-	Secrets []Secret
+	// Secrets 是组件单元引用的 secret，MigrationSecrets 是迁移单元引用的，都按名字排序。两份分开，是为了 up 能在
+	// 迁移全部成功之后才换组件的：组件的容器每次（重新）创建都读一遍 secret——崩溃重启、开机都是——
+	// 迁移失败时换掉了它，旧版本的组件下一次重启就拿到新值。
+	Secrets          []Secret
+	MigrationSecrets []Secret
 	// SecretFiles 是以文件交付的配置项（mount: file），写法与 compose 相同：单元把项目里的目录只读挂进容器。
 	SecretFiles []machine.SecretFile
 	// Migrations 是迁移单元（systemd 的服务名），按名字排序：up 先单独跑完它们，全部成功才动组件。
@@ -119,10 +122,13 @@ type generator struct {
 	proj    *project.Project
 	opts    Options
 	project string
-	// env 是每个服务的环境：inline 写进单元（Environment=），secrets 是这个服务要挂的 secret（Secret=）。
-	inline  map[string][]string
-	secrets map[string][]string
-	values  map[string][]byte
+	// inline 是每个服务写进单元的环境（Environment=），组件与它的迁移共用。
+	inline map[string][]string
+	// secrets 是每个单元（组件的服务名，或迁移的服务名）要挂的 secret（Secret=）；values 与 migrationValues
+	// 是组件单元与迁移单元的 secret 的值，按 secret 名。
+	secrets         map[string][]string
+	values          map[string][]byte
+	migrationValues map[string][]byte
 	// digests 是每个服务的 secret 值的摘要（见 secretDigest）。
 	digests map[string]hash.Hash
 	// replicas 是多副本组件的服务名 → 副本数（> 1）。
@@ -144,7 +150,7 @@ func Generate(
 	g := &generator{
 		Plan: plan, proj: proj, opts: opts, project: proj.Decl.Project,
 		inline: map[string][]string{}, secrets: map[string][]string{}, values: map[string][]byte{},
-		digests: map[string]hash.Hash{}, replicas: map[string]int{},
+		migrationValues: map[string][]byte{}, digests: map[string]hash.Hash{}, replicas: map[string]int{},
 	}
 	for _, c := range plan.Components() {
 		if n := c.Entry.ReplicaCount(); n > 1 {
@@ -181,14 +187,21 @@ func Generate(
 		result.Images = append(result.Images, image)
 	}
 	sort.Strings(result.Images)
-	for name, value := range g.values {
-		result.Secrets = append(result.Secrets, Secret{Name: name, Value: value})
-	}
+	result.Secrets = sortedSecrets(g.values)
+	result.MigrationSecrets = sortedSecrets(g.migrationValues)
 	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Name < result.Files[j].Name })
-	sort.Slice(result.Secrets, func(i, j int) bool { return result.Secrets[i].Name < result.Secrets[j].Name })
 	sort.Strings(result.Migrations)
 	sort.Strings(result.Components)
 	return result, nil
+}
+
+func sortedSecrets(values map[string][]byte) []Secret {
+	var out []Secret
+	for name, value := range values {
+		out = append(out, Secret{Name: name, Value: value})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // ============================================================
@@ -197,9 +210,23 @@ func Generate(
 
 // placeEnvironment 为每个要生成容器的服务算好两份：写进单元的字面量，与要放进 secret 的值。
 // 去处的判定与 compose 共用（machine.PlacementOf）；不同的是 Quadlet 在这里就求值，见包注释。
+//
+// 组件与它的迁移看到的环境一样，secret 却各建一份（名字里是各自的服务名），见 Result.Secrets。
+// 外壳承载的成员只有迁移单元。
 func (g *generator) placeEnvironment() error {
 	undefined := map[string]bool{}
-	for _, c := range append(append([]machine.Workload{}, g.Components()...), g.MemberMigrations()...) {
+	type workload struct {
+		machine.Workload
+		component bool
+	}
+	var workloads []workload
+	for _, c := range g.Components() {
+		workloads = append(workloads, workload{c, true})
+	}
+	for _, m := range g.MemberMigrations() {
+		workloads = append(workloads, workload{m, false})
+	}
+	for _, c := range workloads {
 		for _, v := range c.Env.Env {
 			placement := machine.PlacementOf(v)
 			if placement == machine.PlaceSkip {
@@ -224,18 +251,29 @@ func (g *generator) placeEnvironment() error {
 				g.inline[c.Service] = append(g.inline[c.Service], v.Name+"=")
 				continue
 			}
-			name := secretName(g.project, c.Service, v.Name)
-			g.values[name] = []byte(value)
+			if c.Manifest.Migration != nil {
+				g.addSecret(g.migrationValues, machine.MigrationService(c.Service), v.Name, value)
+			}
+			if !c.component {
+				continue
+			}
+			g.addSecret(g.values, c.Service, v.Name, value)
 			if g.digests[c.Service] == nil {
 				g.digests[c.Service] = sha256.New()
 			}
 			// 带长度前缀：否则 A="b", C="d" 与 A="bC=d" 会算出同一个摘要；c.Env.Env 按变量名排序，摘要因此稳定。
 			// hash.Hash 的 Write 从不返回错误
 			_, _ = fmt.Fprintf(g.digests[c.Service], "%d:%s=%d:%s", len(v.Name), v.Name, len(value), value)
-			g.secrets[c.Service] = append(g.secrets[c.Service], name+",type=env,target="+v.Name)
 		}
 	}
 	return machine.UndefinedError(undefined)
+}
+
+// addSecret 记下单元 owner（一个服务名）的一条 secret 与它的值。
+func (g *generator) addSecret(values map[string][]byte, owner, variable, value string) {
+	name := secretName(g.project, owner, variable)
+	values[name] = []byte(value)
+	g.secrets[owner] = append(g.secrets[owner], name+",type=env,target="+variable)
 }
 
 // secretName 是一条变量的 Podman secret 名：brickkit-<项目名>_<服务名>_<变量名>。
@@ -302,7 +340,8 @@ func (g *generator) network() string {
 }
 
 // common 是组件与它的迁移共有的部分：网络、环境、文件交付的配置项、宿主机别名、有根时的顺序。
-func (g *generator) common(u *unit, c machine.Workload, mounts []string) {
+// owner 是这个单元的服务名（组件的，或迁移的）：secret 各用各的。
+func (g *generator) common(u *unit, c machine.Workload, owner string, mounts []string) {
 	if g.opts.Rootful {
 		u.add("Unit", "After", ForwardUnit)
 	}
@@ -311,7 +350,7 @@ func (g *generator) common(u *unit, c machine.Workload, mounts []string) {
 	for _, kv := range g.inline[c.Service] {
 		u.add("Container", "Environment", quote(kv))
 	}
-	for _, s := range g.secrets[c.Service] {
+	for _, s := range g.secrets[owner] {
 		u.add("Container", "Secret", systemdValue(s))
 	}
 	sort.Strings(mounts)
@@ -349,7 +388,7 @@ func (g *generator) componentUnit(c machine.Workload) []byte {
 	u := newUnit()
 	u.add("Unit", "Description", g.description(c.Ref.String()))
 	g.waits(u, c)
-	g.common(u, c, g.SecretOwnersOf(c))
+	g.common(u, c, c.Service, g.SecretOwnersOf(c))
 
 	name := UnitBase(g.project, c.Service)
 	if g.replicas[c.Service] > 0 {
@@ -418,23 +457,17 @@ func (g *generator) secretDigest(service string) string {
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
-// waits 把启动等待写成单元之间的依赖：一律 Wants= + After=，只排顺序、拉起，不连带。
-//
-//	迁移（自己的、外壳承载的成员的）  After=：开机时先跑完它。它失败不挡组件：迁移在上一次成功的 up 时已经做完
-//	                                （up 先单独跑迁移，失败就停下、不动组件），开机时这一遍只是重复确认；
-//	                                写 Requires= 的话，库暂时没起来时组件以“依赖失败”结束，Restart= 不会再试，
-//	                                组件就一直起不来（compose 与 K8s 都会一直重试）
-//	强依赖                          Requires= 会在依赖被停止或重启时连带停掉、重启这个组件，而平台的约定是组件
-//	                                自己重试连接（与 compose 的 depends_on 一样）
-//
+// waits 把对强依赖的启动等待写成单元之间的依赖：Wants= + After=，只排顺序、拉起，不连带——Requires= 会在依赖
+// 被停止或重启时连带停掉、重启这个组件，而平台的约定是组件自己重试连接（与 compose 的 depends_on 一样）。
 // 等到“健康”还是“启动了”由依赖自己的单元决定：有健康检查的写了 Notify=healthy，启动作业等到健康才完成。
-// 迁移单元留存（RemainAfterExit=yes），组件重启时 Wants= 拉的是一个已经 active 的单元，不会再跑一遍。
+//
+// 对迁移（自己的、外壳承载的成员的）不写任何依赖：迁移只由 up 跑——它先单独跑完全部迁移，有一个失败就停下、
+// 组件的单元一个都不装（Quadlet.Up）。开机与组件崩溃重启都不跑迁移：库结构在上一次成功的 up 时已经迁好，
+// 而数据库常与组件一起开机、比它们晚到——开机时跑的话迁移连不上库而失败，用户的 systemd 每次开机都是
+// degraded（FRR-025 复测，无根）；写 Requires= 的话组件还会以“依赖失败”结束，Restart= 不再试。
 func (g *generator) waits(u *unit, c machine.Workload) {
 	for _, w := range g.Waits(c) {
 		if w.Kind == machine.WaitCompleted {
-			dep := ServiceUnit(g.project, w.Service)
-			u.add("Unit", "Wants", dep)
-			u.add("Unit", "After", dep)
 			continue
 		}
 		for _, dep := range g.unitsOf(w.Service) {
@@ -457,9 +490,9 @@ func (g *generator) unitsOf(service string) []string {
 	return out
 }
 
-// migrationFile 是一个迁移的一次性单元，留存（RemainAfterExit=yes）：跑完保持 active，组件崩溃重启时不会把它
-// 再跑一遍；up 用 restart 重跑它（组件只 Wants= 它，restart 不连带组件——2026-11-02 实测）。同一组件后一个版本的
-// 迁移 Requires= 前一个：前一个失败，后一个不该跑。
+// migrationFile 是一个迁移的一次性单元：只由 up 启动（没有 [Install]，组件也不依赖它，见 waits），跑完回到
+// inactive，失败的留在 systemd 的记录里（status 据此报上一次失败的迁移）。同一组件后一个版本的迁移 Requires=
+// 前一个：前一个失败，后一个不该跑。
 func (g *generator) migrationFile(c machine.Workload) File {
 	service := machine.MigrationService(c.Service)
 	u := newUnit()
@@ -471,7 +504,7 @@ func (g *generator) migrationFile(c machine.Workload) File {
 		u.add("Unit", "After", dep)
 	}
 	// 环境变量与主容器完全一致，以文件交付的那几项也一样挂进来
-	g.common(u, c, []string{c.Service})
+	g.common(u, c, service, []string{c.Service})
 	u.add("Container", "ContainerName", UnitBase(g.project, service))
 
 	// 必须同时覆盖 entrypoint 与参数：组件镜像普遍带 ENTRYPOINT，只给参数会拼成 `<entrypoint> <迁移命令>`，
@@ -489,7 +522,6 @@ func (g *generator) migrationFile(c machine.Workload) File {
 	u.add("Container", "Label", quote(LabelService+"="+service))
 	u.add("Container", "LogDriver", "journald")
 	u.add("Service", "Type", "oneshot")
-	u.add("Service", "RemainAfterExit", "yes")
 	return File{Name: UnitBase(g.project, service) + ".container", Content: u.render(g.project)}
 }
 

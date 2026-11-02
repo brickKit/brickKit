@@ -55,6 +55,16 @@ func (r *quadletRecorder) run(_ context.Context, stdin []byte, name string, args
 	return nil, nil
 }
 
+// index 是第一条包含 want 的命令的位置；没有时为 -1。
+func (r *quadletRecorder) index(want string) int {
+	for i, c := range r.calls {
+		if strings.Contains(c, want) {
+			return i
+		}
+	}
+	return -1
+}
+
 // called 报告有没有一条命令包含 want。
 func (r *quadletRecorder) called(want string) bool {
 	for _, c := range r.calls {
@@ -79,7 +89,10 @@ func units() *QuadletUnits {
 			{Name: "brickkit-shop_web-1-0-0@1.container", LinkTo: "brickkit-shop_web-1-0-0@.container"},
 			{Name: "brickkit-shop_web-1-0-0@2.container", LinkTo: "brickkit-shop_web-1-0-0@.container"},
 		},
-		Secrets:    []Secret{{Name: "brickkit-shop_api-1-0-0_DB_PASSWORD", Value: []byte("pa$$\nword")}},
+		Secrets: []Secret{{Name: "brickkit-shop_api-1-0-0_DB_PASSWORD", Value: []byte("pa$$\nword")}},
+		MigrationSecrets: []Secret{
+			{Name: "brickkit-shop_api-1-0-0-migration_DB_PASSWORD", Value: []byte("pa$$\nword")},
+		},
 		Images:     []string{"registry.example.com/api:1.0.0", "registry.example.com/web:1.0.0"},
 		Migrations: []string{"brickkit-shop_api-1-0-0-migration.service"},
 		Components: []string{
@@ -89,8 +102,9 @@ func units() *QuadletUnits {
 }
 
 // 首次 up：缺的镜像先拉，secret 从标准输入建（值不落盘、不进命令行），单元写进项目的子目录（实例是指向模板的
-// 链接），daemon-reload，起网络、重跑迁移，再把（全是新的）组件重启、启动；最后划掉待重启的记录、删掉本项目
-// 不再用的 secret（别的项目的不碰，哪怕名字以本项目名开头）。用户的 systemd。
+// 链接）。分两步：迁移的 secret 与单元、daemon-reload、起网络、重跑迁移；之后才建组件的 secret、装组件的单元、
+// 再 daemon-reload，把（全是新的）组件重启、启动；最后划掉待重启的记录、删掉本项目不再用的 secret（别的项目的
+// 不碰，哪怕名字以本项目名开头）。用户的 systemd。
 func TestQuadletFirstUp(t *testing.T) {
 	rec := newQuadletRecorder()
 	rec.output["secret ls"] = "brickkit-shop_api-1-0-0_DB_PASSWORD\nbrickkit-shop_api-1-0-0_OLD\nbrickkit-shop-x_api-1-0-0_KEY\n"
@@ -100,6 +114,11 @@ func TestQuadletFirstUp(t *testing.T) {
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
 
 	assert.Equal(t, "pa$$\nword", rec.stdin["podman secret create --replace brickkit-shop_api-1-0-0_DB_PASSWORD -"])
+	assert.Equal(t, "pa$$\nword", rec.stdin["podman secret create --replace brickkit-shop_api-1-0-0-migration_DB_PASSWORD -"])
+	migrate := rec.index("restart brickkit-shop_api-1-0-0-migration.service")
+	assert.Less(t, rec.index("secret create --replace brickkit-shop_api-1-0-0-migration_DB_PASSWORD"), migrate)
+	assert.Greater(t, rec.index("secret create --replace brickkit-shop_api-1-0-0_DB_PASSWORD"), migrate,
+		"组件的 secret 在迁移成功之后才换")
 	assert.True(t, rec.called("podman pull registry.example.com/web:1.0.0"))
 	assert.False(t, rec.called("podman pull registry.example.com/api:1.0.0"), "已经在本机的不拉")
 	dir := q.Dir("brickkit-shop")
@@ -120,6 +139,7 @@ func TestQuadletFirstUp(t *testing.T) {
 		"systemctl --user daemon-reload",
 		"systemctl --user start brickkit-shop-network.service",
 		"systemctl --user restart brickkit-shop_api-1-0-0-migration.service",
+		"systemctl --user daemon-reload",
 		"systemctl --user restart brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service",
 		"systemctl --user start brickkit-shop_api-1-0-0.service brickkit-shop_web-1-0-0@1.service brickkit-shop_web-1-0-0@2.service",
 	}, systemctl)
@@ -170,8 +190,8 @@ func TestQuadletStopsAndRemovesStaleUnits(t *testing.T) {
 }
 
 // 迁移失败：报 MIGRATION_FAILED，点名失败的单元与看日志的命令；组件一个都不动（旧版本照跑）——升级时旧版本的
-// 单元名不同，它也不停、不删；compose 留下的容器也不删。修好再 up：上次换了的单元照样重启（待重启的记录），
-// 不会因为文件已经是新的就以为没变、让组件跑着旧配置却报成功。
+// 单元名不同，它也不停、不删；compose 留下的容器也不删。组件的单元与 secret 也不换：开机与崩溃重启时 systemd
+// 照着它们起的仍是旧版本，而不是面对没迁移过的库的新版本。修好再 up：新版本照常装上、启动，旧版本卸下。
 func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	rec := newQuadletRecorder()
 	q := quadletWith(t, rec, false)
@@ -195,6 +215,9 @@ func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	assert.False(t, rec.called("restart brickkit-shop_api-2-0-0.service"))
 	assert.False(t, rec.called("stop"), "旧版本的单元不停")
 	assert.FileExists(t, filepath.Join(q.Dir("brickkit-shop"), "brickkit-shop_api-1-0-0.container"))
+	assert.NoFileExists(t, filepath.Join(q.Dir("brickkit-shop"), "brickkit-shop_api-2-0-0.container"),
+		"新版本的组件单元没装：装上它，下一次开机就会起来")
+	assert.False(t, rec.called("secret create --replace brickkit-shop_api-1-0-0_DB_PASSWORD"), "组件的 secret 不换")
 	assert.False(t, rec.called("podman rm"), "compose 留下的容器不删")
 
 	delete(rec.fail, "restart brickkit-shop_api-2-0-0-migration.service")
@@ -202,8 +225,26 @@ func TestQuadletMigrationFailureTouchesNoComponent(t *testing.T) {
 	rec.calls = nil
 	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: upgraded}))
 	assert.True(t, rec.called("systemctl --user stop brickkit-shop_api-1-0-0-migration.service brickkit-shop_api-1-0-0.service"))
-	assert.True(t, rec.called("systemctl --user restart brickkit-shop_api-2-0-0.service"),
-		"上次写进去、没来得及重启的单元这次照样重启")
+	assert.True(t, rec.called("systemctl --user restart brickkit-shop_api-2-0-0.service"))
+}
+
+// 组件的单元换了、重启却失败了（或被打断）：再 up 时文件已经是新的，照样重启它（待重启的记录），
+// 不会以为没变、让组件跑着旧配置却报成功。
+func TestQuadletRetriesARestartThatFailed(t *testing.T) {
+	rec := newQuadletRecorder()
+	q := quadletWith(t, rec, false)
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: units()}))
+
+	changed := units()
+	changed.Files[2].Content = []byte("api v2")
+	rec.fail["restart brickkit-shop_api-1-0-0.service"] = true
+	require.Error(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: changed}))
+
+	delete(rec.fail, "restart brickkit-shop_api-1-0-0.service")
+	rec.calls = nil
+	require.NoError(t, q.Up(context.Background(), UpRequest{Project: "brickkit-shop", Quadlet: changed}))
+	assert.True(t, rec.called("systemctl --user restart brickkit-shop_api-1-0-0.service"))
+	assert.NoFileExists(t, filepath.Join(q.Dir("brickkit-shop"), pendingFile))
 }
 
 // 停之前只停 systemd 加载了的单元：没加载的（生成器拒绝了它的文件，或上次在写文件与 reload 之间被打断）stop 会以 5

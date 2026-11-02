@@ -59,9 +59,10 @@ In order:
 6. **Run database migrations.** A component that declares `migration.command` first runs its migration with the same
    image; if the migration fails, that component doesn't start.
 7. **Call the engine.** `docker compose up` (or `podman compose`, `kubectl apply`), waiting for every component's health
-   check to pass. With `podman.units: quadlet` the units are installed into systemd instead: every migration runs first,
-   and only if all succeed are the components whose unit changed restarted and the rest started — a failed migration
-   leaves every component on its previous version.
+   check to pass. With `podman.units: quadlet` the units are installed into systemd instead: the migrations' units first,
+   and every migration runs; only if all succeed are the components' units installed, the components whose unit changed
+   restarted and the rest started — a failed migration leaves every component on its previous version, after a reboot
+   too.
 8. **Start the `mode: local` processes**, when there are any. First, every port they will bind is checked: one another
    program already holds stops `up` with `PORT_CONFLICT`, and none starts. Then, in start order, a component that declares
    `local.migrationCommand` has its migration run from source — for a shell, first those of its members compiled in from

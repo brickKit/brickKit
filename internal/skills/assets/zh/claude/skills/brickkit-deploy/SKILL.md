@@ -186,8 +186,9 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 有根 Podman 的网络由内核转发（CPU 比无根少 9–10%）；无根的引擎从不以 root 运行，但要做主机设置，每一项缺了都要到下次重启才暴露，
 常驻内存比 Docker 的守护进程少约 0.4 GiB（有根的内存没量过）。引擎是 root 时，镜像要以非 root 的 `USER` 运行。
 
-`podman.units: quadlet` 交给 systemd 每个组件、每个迁移一个单元（Podman 5.3 起）：开机时每个单元自己起来、自己等网络，迁移先跑，
-组件等它需要的组件健康之后才启动；不健康的杀掉重启（组件单独声明了 `readinessCheck` 时不杀）；迁移失败时每个组件照旧跑着上一个版本；
+`podman.units: quadlet` 交给 systemd 每个组件、每个迁移一个单元（Podman 5.3 起）：开机时每个单元自己起来、自己等网络，
+组件等它需要的组件健康之后才启动；迁移只在 `up` 时跑（开机不跑）；不健康的杀掉重启（组件单独声明了 `readinessCheck` 时不杀）；
+迁移失败时每个组件照旧跑着上一个版本，重启机器之后也是；
 日志在 journald（`journalctl [--user] -u 'brickkit-<项目名>_*'`）；密钥、`file://` 的内容、`${VAR}` 模板、多行的值在 `up` 时求值、
 放进 Podman secret。有根要 `sudo brickkit up`。它拒绝 `mode: local` / `debug` 与 `focus`——开发机不写 `podman.units`，用 compose
 （`podman compose`、Docker 的 `docker-compose`、`podman.socket`）。改了 `podman.units` 再 `up`，会卸下另一种方式留下的。

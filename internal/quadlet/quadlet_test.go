@@ -99,9 +99,9 @@ func names(r *quadlet.Result) []string {
 	return out
 }
 
-func secrets(r *quadlet.Result) map[string]string {
+func secrets(list []quadlet.Secret) map[string]string {
 	out := map[string]string{}
-	for _, s := range r.Secrets {
+	for _, s := range list {
 		out[s.Name] = string(s.Value)
 	}
 	return out
@@ -193,13 +193,14 @@ func TestRootfulUnits(t *testing.T) {
 
 // 迁移是一次性单元，留存（组件重启时不再跑一遍；up 用 restart 重跑它），组件 Wants= + After= 它——
 // 不是 Requires=：开机时库暂时没起来、迁移失败，组件也要起来自己重试，不能以“依赖失败”永远停着；
-// entrypoint 与参数都覆盖，参数按 systemd 的规则加引号（带空格的参数保持一个）。
+// entrypoint 与参数都覆盖，参数按 systemd 的规则加引号（带空格的参数保持一个）。迁移只由 up 跑：没有 [Install]，
+// 组件也不依赖它——开机与崩溃重启都不跑迁移（开机时库常常还没起来，FRR-025 复测）。
 func TestMigrationUnit(t *testing.T) {
 	r := newBuilder(t).component(withMigration(simple("erp/api", "1.0.0", 8080)), projecttest.Entry{}).generate()
 
 	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0-migration.service"}, r.Migrations)
 	migration := file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container")
-	assert.Contains(t, migration, "[Service]\nType=oneshot\nRemainAfterExit=yes\n")
+	assert.Contains(t, migration, "[Service]\nType=oneshot\n\n")
 	assert.NotContains(t, migration, "Restart=")
 	assert.NotContains(t, migration, "[Install]")
 	assert.Contains(t, migration, "Entrypoint=/app/server\n")
@@ -208,8 +209,7 @@ func TestMigrationUnit(t *testing.T) {
 	assert.NotContains(t, migration, "NetworkAlias", "迁移不是服务，别的组件不找它")
 
 	unit := file(t, r, "brickkit-shop_erp-api-1-0-0.container")
-	assert.Contains(t, unit, "Wants=brickkit-shop_erp-api-1-0-0-migration.service\n")
-	assert.Contains(t, unit, "After=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.NotContains(t, unit, "migration")
 	assert.NotContains(t, unit, "Requires=")
 }
 
@@ -309,7 +309,7 @@ func TestReplicasAreTemplateInstances(t *testing.T) {
 	assert.Contains(t, web, "After=brickkit-shop_erp-api-1-0-0@2.service\n")
 }
 
-// 外壳：挂上成员的服务名作别名；成员的迁移用成员自己的镜像单独跑，外壳 Requires= 它。
+// 外壳：挂上成员的服务名作别名；成员的迁移用成员自己的镜像单独跑，外壳不依赖它（与组件对自己的迁移一样）。
 func TestShellHostsItsMembers(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell", "1.0.0", 9000), projecttest.Entry{})
@@ -320,8 +320,23 @@ func TestShellHostsItsMembers(t *testing.T) {
 	assert.Equal(t, []string{"brickkit-shop_erp-api-1-0-0-migration.service"}, r.Migrations)
 	shell := file(t, r, "brickkit-shop_infra-shell-1-0-0.container")
 	assert.Contains(t, shell, "NetworkAlias=infra-shell-1-0-0\nNetworkAlias=erp-api-1-0-0\n")
-	assert.Contains(t, shell, "Wants=brickkit-shop_erp-api-1-0-0-migration.service\n")
+	assert.NotContains(t, shell, "migration")
 	assert.Contains(t, file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container"), "Image=registry.example.com/erp-api:1.0.0\n")
+}
+
+// 外壳承载的成员只有迁移单元：它的 secret 只建迁移那一份，不建一份没有单元引用的。
+func TestHostedMemberSecretsBelongToItsMigration(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell", "1.0.0", 9000), projecttest.Entry{})
+	b.component(withMigration(withSchema(simple("erp/api", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+		"DB_PASSWORD": {Type: "string", Secret: true},
+	})), projecttest.Entry{ServedBy: "infra/shell@1.0.0", Config: map[string]any{"DB_PASSWORD": "pw"}})
+	r := b.generate()
+
+	assert.Equal(t, map[string]string{"brickkit-shop_erp-api-1-0-0-migration_DB_PASSWORD": "pw"}, secrets(r.MigrationSecrets))
+	for name := range secrets(r.Secrets) {
+		assert.NotContains(t, name, "erp-api", "成员没有组件单元")
+	}
 }
 
 // 普通字面量写进单元：$ 与 % 双写（Quadlet 把值放进 ExecStart，systemd 在那里展开它们——实测），
@@ -339,7 +354,7 @@ func TestInlineValuesAreEscapedForSystemd(t *testing.T) {
 }
 
 // 密钥、file://、${VAR} 模板、带换行的字面量：在生成时求值，进 Podman secret，单元里只有引用；
-// 主容器与迁移挂同一个 secret。
+// 主容器与迁移各挂各的 secret（值相同）：up 在迁移成功之后才换组件的。
 func TestSecretsGoToPodmanSecrets(t *testing.T) {
 	b := newBuilder(t)
 	b.spec.Files["keys/ca.pem"] = "-----BEGIN-----\nabc\n-----END-----\n"
@@ -357,19 +372,29 @@ func TestSecretsGoToPodmanSecrets(t *testing.T) {
 	b.env = map[string]string{"DB_PASS": "p"}
 	r := b.generate()
 
-	assert.Equal(t, map[string]string{
-		"brickkit-shop_erp-api-1-0-0_DB_PASSWORD": "pa$$word",
-		"brickkit-shop_erp-api-1-0-0_CA":          "-----BEGIN-----\nabc\n-----END-----\n",
-		"brickkit-shop_erp-api-1-0-0_DSN":         "pg://u:p@h/$x",
-		"brickkit-shop_erp-api-1-0-0_BANNER":      "line one\nline two",
-	}, secrets(r))
-	for _, name := range []string{"brickkit-shop_erp-api-1-0-0.container", "brickkit-shop_erp-api-1-0-0-migration.container"} {
-		unit := file(t, r, name)
-		assert.Contains(t, unit, "Secret=brickkit-shop_erp-api-1-0-0_DB_PASSWORD,type=env,target=DB_PASSWORD\n", name)
-		assert.Contains(t, unit, "Secret=brickkit-shop_erp-api-1-0-0_BANNER,type=env,target=BANNER\n", name)
-		assert.NotContains(t, unit, "pa$", name)
-		assert.NotContains(t, unit, "line one", name)
+	values := map[string]string{
+		"DB_PASSWORD": "pa$$word",
+		"CA":          "-----BEGIN-----\nabc\n-----END-----\n",
+		"DSN":         "pg://u:p@h/$x",
+		"BANNER":      "line one\nline two",
 	}
+	for owner, list := range map[string][]quadlet.Secret{
+		"brickkit-shop_erp-api-1-0-0":           r.Secrets,
+		"brickkit-shop_erp-api-1-0-0-migration": r.MigrationSecrets,
+	} {
+		want := map[string]string{}
+		for key, value := range values {
+			want[owner+"_"+key] = value
+		}
+		assert.Equal(t, want, secrets(list), owner)
+		unit := file(t, r, owner+".container")
+		assert.Contains(t, unit, "Secret="+owner+"_DB_PASSWORD,type=env,target=DB_PASSWORD\n", owner)
+		assert.Contains(t, unit, "Secret="+owner+"_BANNER,type=env,target=BANNER\n", owner)
+		assert.NotContains(t, unit, "pa$", owner)
+		assert.NotContains(t, unit, "line one", owner)
+	}
+	assert.NotContains(t, file(t, r, "brickkit-shop_erp-api-1-0-0-migration.container"), "secret-digest",
+		"迁移每次 up 都跑，不靠摘要触发")
 }
 
 // ${VAR} 展不开：生成时就报，与 K8s 和 compose 同一个错误。

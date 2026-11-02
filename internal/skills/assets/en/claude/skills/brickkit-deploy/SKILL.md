@@ -209,9 +209,10 @@ engine as root but needs host settings that each fail silently until the next re
 images must run as a non-root `USER`.
 
 `podman.units: quadlet` hands systemd one unit per component and per migration (Podman 5.3+): each
-starts at boot by itself, waits for the network, runs its migration first and starts after the
-components it needs are healthy; unhealthy is killed and restarted (unless the component declares a
-separate `readinessCheck`); a failed migration leaves every component on its previous version; logs
+starts at boot by itself, waits for the network and starts after the components it needs are
+healthy; migrations run only at `up` (not at boot); unhealthy is killed and restarted (unless the
+component declares a separate `readinessCheck`); a failed migration leaves every component on its
+previous version, after a reboot too; logs
 are in journald (`journalctl [--user] -u 'brickkit-<project>_*'`); secrets, `file://` contents,
 `${VAR}` templates and multi-line values are evaluated at `up` into Podman secrets. Rootful needs
 `sudo brickkit up`. It refuses `mode: local` / `debug` and `focus` — a development machine leaves

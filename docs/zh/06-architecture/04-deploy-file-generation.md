@@ -148,13 +148,12 @@ components:
 
 `podman.units: quadlet` 时，同一份计划变成 Podman 的 Quadlet 格式的 systemd 单元：每个组件一个 `.container`、每个迁移一个，加上项目的 `.network`
 （部署文件写了自己的 `network:` 时没有）。`up` 把它们复制进 `~/.config/containers/systemd/brickkit-<项目名>/`（无根）或
-`/etc/containers/systemd/brickkit-<项目名>/`（有根），重新加载 systemd，跑完每个迁移，再启动组件；systemd 让它们一直跑着、开机拉起。示例里的 `demo/caller`：
+`/etc/containers/systemd/brickkit-<项目名>/`（有根），分两步：先是网络与迁移的单元，重新加载 systemd，跑完每个迁移；全部成功了，才是组件的单元，
+再重新加载一次，启动组件。systemd 让它们一直跑着、开机拉起。示例里的 `demo/caller`：
 
 ```ini
 [Unit]
 Description=demo/caller@1.0.0 (BrickKit project qtest)
-Wants=brickkit-qtest_demo-caller-1-0-0-migration.service
-After=brickkit-qtest_demo-caller-1-0-0-migration.service
 Wants=brickkit-qtest_demo-hello-1-0-0.service
 After=brickkit-qtest_demo-hello-1-0-0.service
 
@@ -189,9 +188,10 @@ WantedBy=default.target
 和 Compose 不同的地方，以及为什么：
 
 - **名字**：`brickkit-<项目名>_<服务名>`——`_` 标出项目名在哪里结束（项目名与服务名里都没有它），两个项目的单元、容器、secret 不会同名。
-- **自己的迁移先跑**（`Wants=` + `After=`）：开机时每个迁移在它的组件之前跑。把关的是 `up`：它单独把每个迁移跑一遍（`systemctl restart`），有一个失败就停下，
-  一个组件都不动。开机时迁移失败不挡组件——库结构在上一次 `up` 时已经迁好；写成 `Requires=` 的话，数据库起得晚一点组件就永远停着，因为 `Restart=` 不会重试
-  一个失败的依赖。迁移单元跑完保持 active（`RemainAfterExit=yes`），组件崩溃重启时不会再跑它。
+- **迁移只在 `up` 时跑**：迁移的单元没有 `[Install]`，也没有组件依赖它，所以开机与组件崩溃重启都不跑它。把关的是 `up`：它单独把每个迁移跑一遍
+  （`systemctl restart`），全部成功了才装组件的单元、换组件的 Podman secret——迁移为此有自己的一份 secret。于是开机或组件重启时 systemd 起的，
+  永远是上一次成功的 `up` 装的那些，不会是一个面对没迁移过的库的新版本。库结构在那次 `up` 时已经迁好；开机时再跑迁移，只会撞上与组件一起开机、
+  还不接受连接的数据库而失败，每次开机都留下失败的单元。
 - **依赖只管顺序**（`Wants=` + `After=`）：`Requires=` 会在依赖被停止或重启时连带停掉、重启这个组件，而组件自己会重试连接——与 Compose 的 `depends_on` 一样。
   依赖自己的 `Notify=healthy` 让它的启动在健康之后才算完成，所以 `After=` 等的是健康，相当于 `service_healthy`。
 - **不健康就杀掉重启**（`HealthOnFailure=kill`），但只在探的是存活检查时：声明了 `readinessCheck` 的组件探的是就绪，暂时不接流量不会因此被杀，与 Kubernetes 一样。
@@ -199,7 +199,7 @@ WantedBy=default.target
   （`Secret=<名字>,type=env,target=<键>`）；单元带着 `Label="brickkit.io/secret-digest=…"`，换了值组件就会重启。普通的值写成 `Environment=`，`%` 与 `$` 双写：
   Quadlet 把它们放进 `ExecStart`，systemd 会在那里展开。
 - **多副本**是一个模板单元（`…@.container`）加每个实例一个链接；每个实例挂同一个 `NetworkAlias`。
-- 文件里**不写生成时间，也不跟语言走**：`up` 正好重启单元变了的那些组件。写进去了还没来得及重启的单元（迁移失败、`up` 被打断）记在单元的目录里，
+- 文件里**不写生成时间，也不跟语言走**：`up` 正好重启单元变了的那些组件。写进去了还没来得及重启的单元（重启失败、`up` 被打断）记在单元的目录里，
   下一次 `up` 重启它。
 - **镜像由 `up` 先拉好**，再启动任何东西，第一次拉一个大镜像不算进单元的启动时限。会成为空 Podman secret 的值改为写进单元（Podman 不收空的 secret）。
 

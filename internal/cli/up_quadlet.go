@@ -100,11 +100,12 @@ func upQuadlet(ctx context.Context, opts *Options, flags upOptions, plan *upPlan
 }
 
 // failedUnitsCommand 列出本项目失败了的单元（迁移的容器跑完就删，失败只在 systemd 那里看得到）。
+// 要写 list-units：只写 --failed 加一个模式，systemctl 把模式当成命令（"Unknown command verb"，实测 systemd 259）。
 func failedUnitsCommand(project string) string {
 	if quadletRootful(nil) {
-		return "systemctl --failed '" + project + "_*'"
+		return "systemctl list-units --failed '" + project + "_*'"
 	}
-	return "systemctl --user --failed '" + project + "_*'"
+	return "systemctl --user list-units --failed '" + project + "_*'"
 }
 
 // unitsCommand 列出本项目的单元与它们的状态。
@@ -123,6 +124,9 @@ func quadletUnits(r *quadlet.Result) *engine.QuadletUnits {
 	}
 	for _, s := range r.Secrets {
 		units.Secrets = append(units.Secrets, engine.Secret{Name: s.Name, Value: s.Value})
+	}
+	for _, s := range r.MigrationSecrets {
+		units.MigrationSecrets = append(units.MigrationSecrets, engine.Secret{Name: s.Name, Value: s.Value})
 	}
 	return units
 }
