@@ -1,4 +1,4 @@
-package compose
+package machine
 
 import (
 	"errors"
@@ -11,15 +11,15 @@ import (
 )
 
 // Manifest 里的资源配额用 K8s 的写法（`100m` / `128Mi`），
-// compose 用的是另一套（`0.10` / `128M`）。这里做转换。
+// compose 与 podman run 用的是另一套（`0.10` / `128M`）。这里做转换。
 //
 // 组件作者只需要在 component.yaml 里写一种写法，两种部署目标各自翻译——
 // 否则同一份 Manifest 得为 Docker 和 K8s 各写一遍配额。
 
-// cpuToCompose 把 K8s 的 CPU 写法转成 compose 的 cpus。
+// CPUs 把 K8s 的 CPU 写法转成 compose 的 cpus（也是 podman run --cpus 的写法）。
 //
 //	100m → 0.10      1 → 1.00      1500m → 1.50
-func cpuToCompose(value string) (string, error) {
+func CPUs(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", nil
@@ -40,12 +40,12 @@ func cpuToCompose(value string) (string, error) {
 	return fmt.Sprintf("%.2f", parsed), nil
 }
 
-// memoryToCompose 把 K8s 的内存写法转成 compose 的 memory。
+// Memory 把 K8s 的内存写法转成 compose 的 memory（podman run --memory 也认这种写法）。
 //
 //	128Mi → 128M     1Gi → 1G      512M → 512M
 //
 // compose 的 M / G 与 K8s 的 Mi / Gi 都是 2 的幂，只是写法不同。
-func memoryToCompose(value string) (string, error) {
+func Memory(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "", nil

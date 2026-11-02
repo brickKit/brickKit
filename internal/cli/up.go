@@ -24,6 +24,7 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/machine"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/procsup"
@@ -175,7 +176,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err := writeEnvFiles(plan.proj.Layout, plan.generated.EnvFiles); err != nil {
 		return err
 	}
-	localEnv := append(append([]compose.LocalEnvFile{}, plan.generated.LocalEnvFiles...), plan.generated.MemberEnvFiles...)
+	localEnv := append(append([]machine.LocalEnvFile{}, plan.generated.LocalEnvFiles...), plan.generated.MemberEnvFiles...)
 	if err := writeLocalEnvFiles(opts, plan.proj.Layout, localEnv); err != nil {
 		return err
 	}
@@ -545,7 +546,6 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 
 	result, err := compose.Generate(p.proj, p.graph, p.states, env, compose.Options{
 		Now:                 opts.Now,
-		Engine:              engineName(opts, p.proj),
 		Root:                root,
 		Lookup:              envref.Lookup(root),
 		HostAliasOnLoopback: opts.hostAliasOnLoopback,
@@ -562,8 +562,8 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 //
 // mode: debug、mode: local 与 外壳成员全部跳过：三者都没有自己的容器
 // （前两个是裸进程——一个在宿主机上跑，一个由 brickkit 自己拉起；第三个代码
-// 打进了外壳镜像），镜像也不必检查。跟 compose 渲染器判断"该不该生成
-// workload"用的是同一条件（internal/compose/compose.go 的
+// 打进了外壳镜像），镜像也不必检查。跟一台机器上的部署计划判断"该不该生成
+// workload"用的是同一条件（internal/machine 的 Build：
 // IsBareProcess / cascade.Result.HostOf）——
 // 漏了任何一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标
 // 列表，而生成的 compose 文件里根本没有这个 service，真机执行直接报
@@ -577,7 +577,7 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 			noWorkload[ref] = true
 			continue
 		}
-		// 外壳没跑时成员按普通组件对待，交给引擎启动——与 internal/shell、internal/compose、
+		// 外壳没跑时成员按普通组件对待，交给引擎启动——与 internal/shell、internal/machine、
 		// internal/k8s 同一个判据（cascade.Result.HostOf）
 		if _, hosted := p.states.HostOf(p.proj, ref); hosted {
 			noWorkload[ref] = true
@@ -766,11 +766,11 @@ func describeState(s engine.Status) string {
 // renderHostAlias 说本机进程拿到的 host.docker.internal 是原样给的还是换成了 localhost（compose.plan.onHostMachine）：
 // 两种都是对的，但交给别的组件的地址（预签名地址、回调地址）只在原样给时两边都通——没说出来，使用者要到对方
 // 取不到时才知道，还要去翻生成的 env 文件。
-func renderHostAlias(opts *Options, use compose.HostAliasUse) {
+func renderHostAlias(opts *Options, use machine.HostAliasUse) {
 	switch use {
-	case compose.HostAliasKept:
+	case machine.HostAliasKept:
 		opts.Printf("%s\n", i18n.T(msgid.CliUpHostAliasKept))
-	case compose.HostAliasRewritten:
+	case machine.HostAliasRewritten:
 		opts.Printf("%s\n", i18n.T(msgid.CliUpHostAliasRewritten))
 	}
 }
@@ -1038,9 +1038,9 @@ func engineName(opts *Options, proj *project.Project) string {
 		return opts.Engine.Name()
 	}
 	if proj != nil && proj.Deploy.Target == deployfile.TargetPodman {
-		return compose.EnginePodman
+		return engine.Podman
 	}
-	return compose.EngineDocker
+	return engine.Docker
 }
 
 // writeGenerated 把部署文件写进 .brickkit/generated/。
@@ -1069,7 +1069,7 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 // ——brickkit 自己拉起，internal/cli/up_local.go 的 buildLocalEnv 直接用 LocalEnvFile.Vars
 // 严格展开——所以"No container is generated; start it in your IDE"对它是一句假话，会跟紧随其后
 // mode: local 自己那段"会启动"的输出自相矛盾（用真实进程手动验证时发现），不打印。
-func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.LocalEnvFile) error {
+func writeLocalEnvFiles(opts *Options, layout project.Layout, files []machine.LocalEnvFile) error {
 	keep := map[string]bool{}
 	for _, file := range files {
 		keep[file.Name] = true
@@ -1078,7 +1078,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 	if err := removeLocalEnvFiles(layout, keep); err != nil {
 		return err
 	}
-	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
+	debugFiles := make([]machine.LocalEnvFile, 0, len(files))
 	for _, file := range files {
 		path := filepath.Join(layout.GeneratedDir(), file.Name)
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
@@ -1116,7 +1116,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 	return nil
 }
 
-// localEnvPattern 匹配本机进程组件的环境变量文件（compose.LocalEnvFile.Name）；
+// localEnvPattern 匹配本机进程组件的环境变量文件（machine.LocalEnvFile.Name）；
 // legacyLocalEnvFile 是按服务名分文件之前的单文件格式，同样可能带着密钥。
 const (
 	localEnvPattern    = "local-debug.*.env"
@@ -1152,7 +1152,7 @@ func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
 	if err := os.RemoveAll(filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(compose.SecretFilesPath(layout)); err != nil {
+	if err := os.RemoveAll(machine.SecretFilesPath(layout)); err != nil {
 		return err
 	}
 	if err := os.Remove(filepath.Join(layout.GeneratedDir(), composeFileName)); err != nil && !os.IsNotExist(err) {
@@ -1222,14 +1222,14 @@ func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 
 // writeSecretFiles 写出以文件交付的配置项（configSchema 的 mount: file），并删掉这次没再生成的。
 //
-// 这个目录是挂在容器里的（compose.SecretFileDir 那段注释讲了为什么是目录、权限为什么是这样），所以写法有讲究：
+// 这个目录是挂在容器里的（machine.SecretFileDir 那段注释讲了为什么是目录、权限为什么是这样），所以写法有讲究：
 //
 //   - 组件的目录一旦建了就不删了重建：容器挂的是那个 inode，重建之后容器里看到的是一个再也不会变的旧目录。
 //   - 文件写临时文件再改名：容器里的进程要么读到旧的整份，要么读到新的整份，读不到写了一半的。
 //   - 内容没变就不动：盯着修改时间做热加载的组件不该被每一次 up 惊动。
 //   - 权限每次都设一遍：创建时的权限受 umask 影响，已存在的文件也不会被 WriteFile 改权限。
-func writeSecretFiles(layout project.Layout, files []compose.SecretFile) error {
-	root := compose.SecretFilesPath(layout)
+func writeSecretFiles(layout project.Layout, files []machine.SecretFile) error {
+	root := machine.SecretFilesPath(layout)
 	if len(files) == 0 {
 		// 一项都没有了：不留一个装过密钥的空壳，也不平白建目录
 		return os.RemoveAll(root)

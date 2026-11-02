@@ -241,7 +241,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/cascade/` | 这次到底跑哪些组件：`mode`、"跟着上层走"、焦点的可达性、外壳承载 |
 | `internal/inject/` | 每个组件的环境变量：依赖地址、配置、资源配额 |
 | `internal/shell/` | 外壳分组与成员的 JSON 配置 |
-| `internal/compose/` | 给 docker / podman 渲染 `compose.yaml` |
+| `internal/machine/` | 一台机器上的部署计划，几个渲染器共用：哪些组件进容器、哪些是本机进程，外壳承载，迁移链，启动等待，宿主机端口与改写后的地址，以文件交付的配置项 |
+| `internal/compose/` | 把这份计划给 docker / podman 渲染成 `compose.yaml` |
 | `internal/k8s/` | 渲染 Kubernetes 清单 |
 | `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
 | `internal/docspec/` | 组件与项目文档规范本身（写成数据）：文件、小节、各语言的标题、译本的文件名 |
@@ -287,7 +288,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 
 | 功能 | 从这里开始 | 接着看 |
 | --- | --- | --- |
-| `up` | `internal/cli/up.go`（`up_local.go`、`up_k8s.go`、`up_upgrade.go`） | `cascade`、`inject`、`compose`、`k8s`、`engine`、`procsup` |
+| `up` | `internal/cli/up.go`（`up_local.go`、`up_k8s.go`、`up_upgrade.go`） | `cascade`、`inject`、`machine`、`compose`、`k8s`、`engine`、`procsup` |
 | `down`、`status` | `internal/cli/down.go`、`internal/cli/status.go`、`internal/cli/lifecycle.go` | `engine`、`sessionlock` |
 | `add`、`remove`、`upgrade` | `internal/cli/add.go`、`internal/cli/remove.go`、`internal/cli/upgrade.go`、`internal/cli/install_apply.go` | `install`、`configdir`、`source`（发版说明：`internal/source/notes.go`） |
 | `fetch` | `internal/cli/fetch.go`、`internal/cli/artifacts.go` | `source` |

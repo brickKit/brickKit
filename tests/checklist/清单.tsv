@@ -77,7 +77,7 @@ compat.2	brickkit down 正常停止	.	./internal/engine	TestDownNeverRemovesVolu
 compat.3	brickkit status 正常展示	.	./internal/cli	TestStatusShowsRunningComponents
 compat.4	健康检查：healthy 才算就绪	.	./internal/engine	TestRunningRequiresHealthy
 compat.5	migration 失败则主服务不启动	.	./internal/compose	TestMainServiceWaitsForMigration
-compat.6	mode: debug 的组件经 extra_hosts 指到宿主机（host-gateway）	.	./internal/compose	TestHostGateway
+compat.6	mode: debug 的组件经 extra_hosts 指到宿主机（host-gateway）	.	./internal/machine	TestHostGateway
 compat.7	down 不删数据卷	.	./internal/engine	TestDownNeverRemovesVolumes
 compat.8	网络隔离：每个项目一个网络	.	./internal/compose	TestEveryServiceJoinsTheNetwork
 compat.9	expose 才映射到宿主机	.	./internal/compose	TestComponentWithoutExposeHasNoPorts

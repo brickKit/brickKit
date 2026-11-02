@@ -2,7 +2,7 @@
 //
 // 业务行为已由 local_test.go 从"生成出来的文件里有什么"这一侧盯住；
 // 这里补的是那些从外面不容易逼出来的边界（端口越界、重复占用、端口耗尽）。
-package compose
+package machine
 
 import (
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -70,8 +70,7 @@ func TestPortTableAllocateSkipsTakenPortsInSequence(t *testing.T) {
 
 // Docker 与 Podman 用同一个魔法值（在真 Podman 上实测过，见 local_test.go 的说明）。
 func TestHostGateway(t *testing.T) {
-	assert.Equal(t, "host-gateway", hostGateway(EngineDocker))
-	assert.Equal(t, "host-gateway", hostGateway(""), "没指定引擎时按 Docker 处理")
+	assert.Equal(t, "host-gateway", hostGateway())
 }
 
 // setAddress 只改已有的、指向这个目标这个端口的变量：不存在意味着注入引擎判定"这条不该注入"

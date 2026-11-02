@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/machine"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
@@ -75,7 +76,7 @@ func TestCollectLocalComponentsDetectsARealGoFixture(t *testing.T) {
 
 func TestBuildLocalEnvUsesEvaluatedValues(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	file := compose.LocalEnvFile{Vars: []inject.Var{
+	file := machine.LocalEnvFile{Vars: []inject.Var{
 		{Name: "DB_PASSWORD", Value: inject.Literal("secret123")}, {Name: "PORT", Value: inject.Literal("9000")},
 	}}
 
@@ -89,7 +90,7 @@ func TestBuildLocalEnvUsesEvaluatedValues(t *testing.T) {
 // 一个莫名其妙的运行时错误。报错要点名组件、缺的环境变量与它要填的配置项。
 func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	file := compose.LocalEnvFile{
+	file := machine.LocalEnvFile{
 		Vars:       []inject.Var{{Name: "DB_PASSWORD", Value: inject.Literal("${PEOPLE_DB_PW}")}},
 		Unresolved: map[string]string{"DB_PASSWORD": "PEOPLE_DB_PW"},
 	}
@@ -108,7 +109,7 @@ func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangNode, compose.LocalEnvFile{}, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangNode, machine.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "NODE_OPTIONS=")
@@ -117,7 +118,7 @@ func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangJava, compose.LocalEnvFile{}, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangJava, machine.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "JAVA_TOOL_OPTIONS=")
@@ -129,7 +130,7 @@ func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 func TestBuildLocalEnvDoesNotStripUnaffectedLanguages(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangGo, compose.LocalEnvFile{}, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangGo, machine.LocalEnvFile{}, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, env)
@@ -488,7 +489,7 @@ func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
 	env, err := inject.Build(proj, graph, states)
 	require.NoError(t, err)
 	genResult, err := compose.Generate(proj, graph, states, env, compose.Options{
-		Engine: compose.EngineDocker, Root: f.Dir, Lookup: envref.Lookup(f.Dir),
+		Root: f.Dir, Lookup: envref.Lookup(f.Dir),
 	})
 	require.NoError(t, err)
 	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles, genResult.MemberEnvFiles, hostedMembers(proj, states))

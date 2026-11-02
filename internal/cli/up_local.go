@@ -12,6 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/machine"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/procsup"
@@ -185,7 +186,7 @@ func localGracePeriod(plans []localComponentPlan) time.Duration {
 // 其中从源码运行的那些（compose.Result.MemberEnvFiles）：它们的迁移在外壳启动之前从源码跑。
 func collectLocalComponents(
 	proj *project.Project, graph *resolver.Graph, order *resolver.Plan,
-	localEnvFiles, memberEnvFiles []compose.LocalEnvFile, hosted map[resolver.Ref][]resolver.Ref,
+	localEnvFiles, memberEnvFiles []machine.LocalEnvFile, hosted map[resolver.Ref][]resolver.Ref,
 ) ([]localComponentPlan, error) {
 	localMode := make(map[resolver.Ref]bool, len(proj.Decl.Components))
 	for _, c := range proj.Decl.Components {
@@ -198,12 +199,12 @@ func collectLocalComponents(
 	}
 
 	portOf := make(map[resolver.Ref]int, len(localEnvFiles))
-	fileOf := make(map[resolver.Ref]compose.LocalEnvFile, len(localEnvFiles))
+	fileOf := make(map[resolver.Ref]machine.LocalEnvFile, len(localEnvFiles))
 	for _, f := range localEnvFiles {
 		portOf[f.Ref] = f.Port
 		fileOf[f.Ref] = f
 	}
-	memberFileOf := make(map[resolver.Ref]compose.LocalEnvFile, len(memberEnvFiles))
+	memberFileOf := make(map[resolver.Ref]machine.LocalEnvFile, len(memberEnvFiles))
 	for _, f := range memberEnvFiles {
 		memberFileOf[f.Ref] = f
 	}
@@ -394,7 +395,7 @@ func programMissingError(ref resolver.Ref, err error) error {
 
 // memberMigration 是本机外壳里一个从源码运行的成员的迁移：在成员的本地仓库里、用它在外壳里拿到的那份环境
 // （file，地址指向本机）跑它的 local.migrationCommand。成员没写这个字段时返回 nil——迁移不跑，compose 已经提醒。
-func memberMigration(proj *project.Project, n *resolver.Node, service string, file compose.LocalEnvFile) (*localMigration, error) {
+func memberMigration(proj *project.Project, n *resolver.Node, service string, file machine.LocalEnvFile) (*localMigration, error) {
 	local := n.Manifest.Local
 	if n.Manifest.Migration == nil || local == nil || len(local.MigrationCommand) == 0 {
 		return nil, nil
@@ -458,7 +459,7 @@ var localDebugEnvVarsToStrip = map[string][]string{
 // 取最后一个，这里追加在最后，天然盖掉 os.Environ() 里继承来的任何值，不需要
 // procsup 知道这件事。
 func buildLocalEnv(
-	ref resolver.Ref, language string, file compose.LocalEnvFile, cmdEnv []string,
+	ref resolver.Ref, language string, file machine.LocalEnvFile, cmdEnv []string,
 ) ([]string, error) {
 	out := make([]string, 0, len(file.Vars)+len(cmdEnv)+2)
 	for _, v := range file.Vars {

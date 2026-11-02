@@ -23,6 +23,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/machine"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
@@ -730,7 +731,7 @@ func TestLocalEnvRewritesHostMachineAliasForTheHostProcess(t *testing.T) {
 	env := localEnv(t, result, "erp-sales-1-0-0")
 	assert.Equal(t, "localhost", env["DB_HOST"])
 	assert.Equal(t, "postgres://u@localhost:5432/sales", env["DB_URL"])
-	assert.Equal(t, compose.HostAliasRewritten, result.HostAlias, "本机解析不了这个名字（没给判断）：换成 localhost")
+	assert.Equal(t, machine.HostAliasRewritten, result.HostAlias, "本机解析不了这个名字（没给判断）：换成 localhost")
 
 	container := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	assert.Contains(t, extraHostsOf(t, container), "host.docker.internal:host-gateway")
@@ -754,14 +755,14 @@ func TestLocalEnvKeepsHostMachineAliasWhenItResolvesToLoopback(t *testing.T) {
 	result, err := b.build(compose.Options{HostAliasOnLoopback: func() bool { asked++; return true }})
 	require.NoError(t, err)
 	assert.Equal(t, "http://host.docker.internal:9000", localEnv(t, result, "erp-sales-1-0-0")["S3_URL"])
-	assert.Equal(t, compose.HostAliasKept, result.HostAlias)
+	assert.Equal(t, machine.HostAliasKept, result.HostAlias)
 	assert.Equal(t, 1, asked)
 
 	plain := newBuilder(t)
 	plain.component(simple("erp/sales", "1.0.0", 8081), projecttest.Entry{Mode: deployfile.ModeDebug})
 	result, err = plain.build(compose.Options{HostAliasOnLoopback: func() bool { asked++; return true }})
 	require.NoError(t, err)
-	assert.Equal(t, compose.HostAliasUnused, result.HostAlias)
+	assert.Equal(t, machine.HostAliasUnused, result.HostAlias)
 	assert.Equal(t, 1, asked, "值里没有这个名字：不去查")
 }
 
@@ -952,7 +953,7 @@ func TestExtraHostsUsesHostGateway(t *testing.T) {
 	b.component(dependsOn(simple("department/tree", "1.0.0", 8080), "people/basic", "1.0.0"),
 		projecttest.Entry{})
 
-	result, err := b.build(compose.Options{Engine: compose.EngineDocker})
+	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
 
 	text := string(result.YAML)

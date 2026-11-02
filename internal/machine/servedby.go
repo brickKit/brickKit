@@ -1,4 +1,4 @@
-package compose
+package machine
 
 // 本文件是外壳在 Docker 下的渲染：被承载的成员不生成主容器，外壳挂上成员的
 // 网络别名，外壳的环境里多出 BRICKKIT_SERVED_MEMBERS 与（放进 env 文件的）
@@ -36,7 +36,7 @@ type servedComponent struct {
 
 // applyShellGroups 把每个外壳分组合并进外壳自己的环境变量/labels，并
 // 记下它要挂哪些网络别名（供 componentService 渲染 networks 段用）。
-func (p *plan) applyShellGroups(groups []shell.Group) {
+func (p *Plan) applyShellGroups(groups []shell.Group) {
 	byShell := make(map[resolver.Ref]shell.Group, len(groups))
 	for _, g := range groups {
 		byShell[g.Shell] = g
@@ -85,7 +85,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 }
 
 // shellOf 判断 ref 是不是某个 外壳成员，是则返回它指向的外壳 ref。
-func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
+func (p *Plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	for _, s := range p.served {
 		if s.Ref == ref {
 			return s.Shell, true
@@ -98,7 +98,7 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 // 指向的外壳没跑，所以按自己的镜像独立部署了"——不说清楚的话，使用者
 // 会以为代码照常跑在外壳里，实际上跑的是它自己的镜像，而且它自己的迁移
 // 这次是真的会执行。
-func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
+func (p *Plan) fallbackStandaloneWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, c := range p.components {
 		shellRef, ok := cascade.ShellOf(p.proj, c.Ref)
@@ -124,7 +124,7 @@ func copyComponent(c inject.Component) inject.Component {
 }
 
 // envForShells 返回交给 shell.Resolve 的注入结果：被承载成员的环境换成计划里改写过的那一份。
-func (p *plan) envForShells(env *inject.Result) *inject.Result {
+func (p *Plan) envForShells(env *inject.Result) *inject.Result {
 	byRef := map[resolver.Ref]inject.Component{}
 	for _, s := range p.served {
 		byRef[s.Ref] = s.Env
@@ -140,7 +140,7 @@ func (p *plan) envForShells(env *inject.Result) *inject.Result {
 }
 
 // bareShell 报告这个外壳这次是不是裸进程（mode: debug / local）：它承载的成员也就是宿主机上的进程。
-func (p *plan) bareShell(shellRef resolver.Ref) bool {
+func (p *Plan) bareShell(shellRef resolver.Ref) bool {
 	return p.proj.DeployEntry(shellRef.ID, shellRef.Version).IsBareProcess()
 }
 
@@ -148,7 +148,7 @@ func (p *plan) bareShell(shellRef resolver.Ref) bool {
 // 外壳进程按成员声明的端口监听（shell.checkPortConflicts 在生成期守着；成员的 *_ENDPOINT 地址靠的也是它），
 // 所以成员条目上的 expose / exposePort 有落脚处，不该静默不生效。外壳是裸进程时不在这里——那时成员的端口
 // 本来就开在宿主机上，见 bareShellExposeWarnings。
-func (p *plan) exposedMembers() []servedComponent {
+func (p *Plan) exposedMembers() []servedComponent {
 	var out []servedComponent
 	for _, s := range p.served {
 		if s.Entry.Expose && s.Manifest != nil && !p.bareShell(s.Shell) {
@@ -168,7 +168,7 @@ func memberExposeHostPort(s servedComponent) int {
 
 // bareShellExposeWarnings：裸进程外壳承载的成员写了 expose——外壳进程就在宿主机上，成员的端口本来就开在那里，
 // 没有容器端口可映射。与 localExposeWarnings 同一种处理：不报错，说清楚东西实际在哪。
-func (p *plan) bareShellExposeWarnings() []*clierr.Error {
+func (p *Plan) bareShellExposeWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, s := range p.served {
 		if (!s.Entry.Expose && s.Entry.ExposePort == 0) || s.Manifest == nil || !p.bareShell(s.Shell) {
@@ -185,7 +185,7 @@ func (p *plan) bareShellExposeWarnings() []*clierr.Error {
 }
 
 // hostMember 报告 ref 是不是被一个裸进程外壳承载的成员（这次在宿主机上，由外壳进程替它监听端口）。
-func (p *plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
+func (p *Plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
 	for _, s := range p.served {
 		if s.Ref == ref && p.bareShell(s.Shell) {
 			return s, true
@@ -194,20 +194,20 @@ func (p *plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
 	return servedComponent{}, false
 }
 
-// runAfter 是裸进程外壳承载的成员的迁移 service：外壳没有容器，没有 service 等着它们，
+// RunAfter 是裸进程外壳承载的成员的迁移 service：外壳没有容器，没有 service 等着它们，
 // 由引擎在 up 之后单独跑（按服务名排序）。
 //
 // 例外是迁移链上排在前面的那个：同一组件的另一个版本独立部署、迁移排在它后面时，up 会经
 // 后一版迁移的 depends_on 把它带起来——再列进来就会在一次 up 里跑两遍。排在后面的那个 up
 // 带不到，列进来；引擎以 --no-deps 跑它，前一版此时已经由 up 跑完。
-func (p *plan) runAfter() []string {
+func (p *Plan) RunAfter() []string {
 	predecessors := map[string]bool{}
 	for _, previous := range p.migrationAfter {
 		predecessors[previous] = true
 	}
 	var out []string
 	for _, m := range p.memberMigrations {
-		service := migrationService(m.Service)
+		service := MigrationService(m.Service)
 		if shellRef, ok := p.shellOf(m.Ref); ok && p.bareShell(shellRef) && !predecessors[service] {
 			out = append(out, service)
 		}
@@ -217,7 +217,7 @@ func (p *plan) runAfter() []string {
 
 // bareSkipWaitForWarnings 提醒"skipWaitFor 这次不起作用"：以裸进程运行的组件、裸进程外壳里的
 // 成员都不在 compose 文件里，没有 depends_on 可去。不拦——换回容器时它又会生效。
-func (p *plan) bareSkipWaitForWarnings() []*clierr.Error {
+func (p *Plan) bareSkipWaitForWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, ref := range p.states.Running() {
 		if len(p.proj.DeployEntry(ref.ID, ref.Version).SkipWaitFor) == 0 {
@@ -236,7 +236,7 @@ func (p *plan) bareSkipWaitForWarnings() []*clierr.Error {
 
 // coHostedSkipWarnings 提醒"跳过的依赖跟它在同一个外壳里"：调用不出进程，本来就没有等待可跳过——
 // 写了等于没写，使用者却以为那条等待已经去掉了。
-func (p *plan) coHostedSkipWarnings(ref resolver.Ref) []*clierr.Error {
+func (p *Plan) coHostedSkipWarnings(ref resolver.Ref) []*clierr.Error {
 	host, ok := p.states.HostOf(p.proj, ref)
 	node := p.graph.Node(ref)
 	if !ok || node == nil {

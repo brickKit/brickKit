@@ -116,7 +116,7 @@
 | --- | --- |
 | 1 | 完成（`8e51608a`）：九项都有结论，设计 §5.1、§5.2、§6、§8 已改。AI 定的（待复核）：`up` 先单独跑全部迁移、成功才动组件（代价：变了的组件迁移多跑一次）；最低 Podman 5.3；配额全走 `PodmanArgs=` |
 | 2 | 完成：`podman.units`（compose / quadlet）、`Quadlet()`、`LongRunning()`；本机进程与焦点在 Quadlet 下装载即拒绝；`podman:` 写在别的 target 下警告（与 `k8s:` 一致，设计 §3 已改）；schema、字段参考、deploy.yaml schema 页；R98、R99 |
-| 3 | 未开始 |
+| 3 | 完成：新包 `internal/machine`（计划、本机进程、外壳、文件交付、配额、变量去处判定、启动等待、健康检查规格），compose 只剩渲染；209 个 compose 测试场景的全部生成物重构前后逐字节相同（临时路径归一化后），`make test-all` 通过。顺带去掉了不起作用的 `compose.Options.Engine`。注意到但没动：11 个文件原本就没有 gofmt；`AGENTS.zh-CN.md` 是旧版中文入口 |
 | 4 | 未开始 |
 | 5 | 未开始 |
 | 6 | 未开始 |

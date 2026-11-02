@@ -246,7 +246,8 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/cascade/` | What runs this time: `mode`, "follows the layer above", focus reachability, shell hosting |
 | `internal/inject/` | Each component's environment variables: dependency addresses, config, resources |
 | `internal/shell/` | Shell grouping and the members' JSON config |
-| `internal/compose/` | Rendering `compose.yaml` for docker / podman |
+| `internal/machine/` | The plan for one machine, shared by its renderers: which components run in containers and which as processes, shell hosting, the migration chain, start waits, host ports and rewritten addresses, values delivered as files |
+| `internal/compose/` | Rendering that plan as `compose.yaml` for docker / podman |
 | `internal/k8s/` | Rendering Kubernetes manifests |
 | `internal/deploy/` | Naming rules and file headers shared by both targets |
 | `internal/docspec/` | The component and project documentation spec as data: files, sections, heading names per language, translation names |
@@ -295,7 +296,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 
 | Feature | Start here | Then |
 | --- | --- | --- |
-| `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_upgrade.go`) | `cascade`, `inject`, `compose`, `k8s`, `engine`, `procsup` |
+| `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_upgrade.go`) | `cascade`, `inject`, `machine`, `compose`, `k8s`, `engine`, `procsup` |
 | `down`, `status` | `internal/cli/down.go`, `internal/cli/status.go`, `internal/cli/lifecycle.go` | `engine`, `sessionlock` |
 | `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` (release notes: `internal/source/notes.go`) |
 | `fetch` | `internal/cli/fetch.go`, `internal/cli/artifacts.go` | `source` |

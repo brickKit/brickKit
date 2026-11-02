@@ -1,4 +1,4 @@
-package compose
+package machine
 
 // 本文件实现 mode: debug。
 //
@@ -35,14 +35,6 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/yamlcomment"
-)
-
-// EngineDocker 与 EnginePodman 是 compose.Options.Engine 目前能取的两个值。
-// 只影响生成文件里记录的引擎名（见 hostGateway 已经预留的、但目前对两者
-// 一视同仁的引擎参数）——podman 真正的执行在 engine.NewPodman。
-const (
-	EngineDocker = "docker"
-	EnginePodman = "podman"
 )
 
 // 宿主机端口分配的基准。
@@ -96,10 +88,7 @@ type LocalEnvFile struct {
 // `invalid IP address in add-host`，容器根本创建不出来，mode: debug 整条路是断的。
 // 而 `host-gateway` 是 Docker 20.10+ 的内置魔法值（Podman 也认，实测 169.254.1.2，
 // 正是 host.containers.internal 的那个地址）。
-//
-// 参数保留是因为调用方本来就知道引擎是谁；将来若真出现第三种引擎需要别的值，
-// 改这一个函数即可。
-func hostGateway(string) string { return "host-gateway" }
+func hostGateway() string { return "host-gateway" }
 
 // localComponent 是一个不生成容器、跑在宿主机 IDE 里的组件。
 type localComponent struct {
@@ -182,7 +171,7 @@ func (t *portTable) allocate(preferred, base int, owner string) int {
 // 对外可达，只是这件事不再由平台来做。真正错的只有"在哪个端口"。所以这里
 // 要说的不是"你写错了"，而是"它不归平台管了，而且地址是这个"——报错反而会
 // 打断一个很正常的流程：给一个长期 expose 的前端组件临时加上 mode: debug 去调试。
-func (p *plan) localExposeWarnings() []*clierr.Error {
+func (p *Plan) localExposeWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, l := range p.locals {
 		if !l.Entry.Expose && l.Entry.ExposePort == 0 {
@@ -224,7 +213,7 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 // 而那份 brickkit.yaml 常常是从一份完整配置改出来的
 // ——labels 留在那里是正常的，只是这一次挂不上。真正要挂 labels 的是使用者
 // 自己写的那个外壳，不是这个不生成容器的条目。
-func (p *plan) localLabelWarnings() []*clierr.Error {
+func (p *Plan) localLabelWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, l := range p.locals {
 		if len(l.Entry.Labels) == 0 {
@@ -263,7 +252,7 @@ func sortedLabelKeys(labels map[string]string) []string {
 // 顺序不能乱：使用者**写死**的端口（exposePort / localPort / local 组件的额外端口）
 // 先占位，自动分配再在剩下的空位里挑。反过来会出现"自动分配抢走了
 // 使用者钦定的端口"这种莫名其妙的失败。
-func (p *plan) assignHostPorts() error {
+func (p *Plan) assignHostPorts() error {
 	ports := newPortTable()
 
 	// 1) 使用者钦定的 exposePort（冲突已由 checkExposePorts 拦下）
@@ -380,7 +369,7 @@ func (p *plan) assignHostPorts() error {
 //
 // brickKit 反馈：local 组件依赖 外壳成员时本地调试地址错误——最初的
 // 修复只是让这种情况"诚实地连不上并发出警告"，这里补的是让它真正连得上。
-func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
+func (p *Plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 	service := manifest.ServiceName(dep.ID, dep.Version)
 
 	// 依赖本身也是 local：两个进程都在宿主机上，直接走它的 localPort
@@ -456,7 +445,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 // 外壳成员（shellHostService 非空）时才记；依赖自己有 compose service
 // 的普通情况下，hostPortsOf 已经直接从 debugPort/debugExtraPort 里读，这里
 // 记了反而会在 ports: 列表里重复一遍同一条。
-func (p *plan) addShellMemberHostPort(shellHostService string, hostPort, containerPort int) {
+func (p *Plan) addShellMemberHostPort(shellHostService string, hostPort, containerPort int) {
 	if shellHostService == "" {
 		return
 	}
@@ -467,7 +456,7 @@ func (p *plan) addShellMemberHostPort(shellHostService string, hostPort, contain
 
 // runningDependencies 返回该组件本次要连、又真的在跑的组件：强依赖、起来了的弱依赖，以及配置用 $endpoint:
 // 引用了地址的组件——给宿主机上的进程开映射、改写地址都按它算（启动顺序不看它，那是 workloadDependencies）。
-func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
+func (p *Plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 	node := p.graph.Node(ref)
 	if node == nil {
 		return nil
@@ -484,7 +473,7 @@ func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 }
 
 // hostAccessPort 返回"从宿主机访问这个依赖的主端口"该用哪个端口。
-func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
+func (p *Plan) hostAccessPort(dep resolver.Ref) (int, bool) {
 	// 裸进程外壳里的成员：外壳进程在宿主机上按成员声明的端口监听
 	if s, onHost := p.hostMember(dep); onHost && s.Manifest != nil {
 		return s.Manifest.Deployment.Port, true
@@ -509,7 +498,7 @@ func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
 // 必须靠 extra_hosts 指到网关上。
 const hostMachineAlias = deploy.HostMachineAlias
 
-// extraHostsOf 返回该容器要映射到宿主机的名字。
+// ExtraHostsOf 返回该容器要映射到宿主机的名字。
 //
 // 两个来源：
 //
@@ -519,7 +508,7 @@ const hostMachineAlias = deploy.HostMachineAlias
 // 后者是真实装配时踩出来的：把资源 host 写成 host.docker.internal 之后，
 // 迁移容器直接报 `dial tcp: lookup host.docker.internal ... no such host`——
 // 而这个写法本身完全合理，只是缺了一行 extra_hosts。
-func (p *plan) extraHostsOf(c componentPlan) []string {
+func (p *Plan) ExtraHostsOf(c Workload) []string {
 	seen := map[string]bool{}
 	var out []string
 
@@ -537,7 +526,7 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 		_, isLocal := p.localPort[service]
 		_, isHostMember := p.hostMember(ref)
 		if isLocal || isHostMember {
-			add(service + ":" + hostGateway(p.engine))
+			add(service + ":" + hostGateway())
 		}
 	}
 	for _, dep := range p.workloadDependencies(c.Ref) {
@@ -549,7 +538,7 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 		onHost(target)
 	}
 	if p.usesHostMachineResource(c) {
-		add(hostMachineAlias + ":" + hostGateway(p.engine))
+		add(hostMachineAlias + ":" + hostGateway())
 	}
 
 	sort.Strings(out)
@@ -557,7 +546,7 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 }
 
 // referencedTargets 是这个容器里的代码用 $endpoint: 引用的、这次在跑的组件：外壳还包括它承载的成员引用的。
-func (p *plan) referencedTargets(ref resolver.Ref) []resolver.Ref {
+func (p *Plan) referencedTargets(ref resolver.Ref) []resolver.Ref {
 	refs := []resolver.Ref{ref}
 	for _, s := range p.served {
 		if s.Shell == ref {
@@ -584,7 +573,7 @@ func (p *plan) referencedTargets(ref resolver.Ref) []resolver.Ref {
 // extra_hosts 才解析得了。只在配置里真的用到时才加，加了也无害。
 //
 // 外壳还要看它承载的成员：成员的配置经由 JSON 在外壳进程里用。
-func (p *plan) usesHostMachineResource(c componentPlan) bool {
+func (p *Plan) usesHostMachineResource(c Workload) bool {
 	envs := [][]inject.Var{c.Env.Env}
 	for _, s := range p.served {
 		if s.Shell == c.Ref {
@@ -603,7 +592,7 @@ func (p *plan) usesHostMachineResource(c componentPlan) bool {
 
 // workloadDependencies 是这个容器这次真正要连、又真的在跑的依赖：外壳还包括它承载的成员的依赖
 // （shell.Dependencies）。启动顺序与寻址都按它算。
-func (p *plan) workloadDependencies(ref resolver.Ref) []resolver.Ref {
+func (p *Plan) workloadDependencies(ref resolver.Ref) []resolver.Ref {
 	requires, optional := shell.Dependencies(p.proj, p.graph, p.states, ref)
 	var out []resolver.Ref
 	for _, dep := range append(requires, optional...) {
@@ -615,8 +604,8 @@ func (p *plan) workloadDependencies(ref resolver.Ref) []resolver.Ref {
 	return out
 }
 
-// hostPortsOf 返回该容器要开到宿主机的端口映射。
-func (p *plan) hostPortsOf(c componentPlan) []string {
+// HostPortsOf 返回该容器要开到宿主机的端口映射。
+func (p *Plan) HostPortsOf(c Workload) []string {
 	var out []string
 	if hostPort, ok := p.exposedPort[c.Service]; ok {
 		out = append(out, fmt.Sprintf("%d:%d", hostPort, c.Manifest.Deployment.Port))
@@ -647,7 +636,7 @@ func (p *plan) hostPortsOf(c componentPlan) []string {
 //
 // 被外壳承载的成员同样要改：它的环境经由外壳的 JSON 在外壳进程里用，
 // 依赖一个本地调试中的组件时，拿到的也得是宿主机上那个进程的端口。
-func (p *plan) rewriteEndpointsForLocalDependencies() {
+func (p *Plan) rewriteEndpointsForLocalDependencies() {
 	rewrite := func(ref resolver.Ref, env []inject.Var) {
 		for _, dep := range p.runningDependencies(ref) {
 			service := manifest.ServiceName(dep.ID, dep.Version)
@@ -675,8 +664,8 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 	}
 }
 
-// localEnvFiles 生成所有 local 组件的调试 env 文件。
-func (p *plan) localEnvFiles(now time.Time) ([]LocalEnvFile, error) {
+// LocalEnvFiles 生成所有 local 组件的调试 env 文件。
+func (p *Plan) LocalEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	out := make([]LocalEnvFile, 0, len(p.locals))
 	for _, l := range p.locals {
 		file, err := p.localEnvFile(l, now)
@@ -688,9 +677,9 @@ func (p *plan) localEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	return out, nil
 }
 
-// memberEnvFiles 是本机外壳承载的、从源码运行的成员的环境变量文件：变量是成员在外壳里拿到的那一份
+// MemberEnvFiles 是本机外壳承载的、从源码运行的成员的环境变量文件：变量是成员在外壳里拿到的那一份
 // （地址已经指向本机，见 rewriteEndpointsForLocalDependencies），给它从源码跑的迁移与一次性命令用。
-func (p *plan) memberEnvFiles(now time.Time) ([]LocalEnvFile, error) {
+func (p *Plan) MemberEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	var out []LocalEnvFile
 	for _, s := range p.served {
 		if !s.FromSource || s.Manifest == nil {
@@ -722,7 +711,7 @@ func localValue(v inject.Var, root string, lookup func(string) (string, bool)) (
 	return value, true, nil
 }
 
-func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, error) {
+func (p *Plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, error) {
 	// 从容器版的注入结果出发，只改"怎么连过去"，不改连什么：
 	// 库名、配置项、密码引用都应当与容器里跑的完全一致，
 	// 否则本地调试出来的行为不能说明容器里也对。
@@ -745,7 +734,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 		}
 		value, ok, err := localValue(v, p.root, p.lookup)
 		if err != nil {
-			return LocalEnvFile{}, withVariable(err, l.Ref, v.Name)
+			return LocalEnvFile{}, WithVariable(err, l.Ref, v.Name)
 		}
 		if !ok {
 			continue
@@ -777,7 +766,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 // Windows 上写进 hosts 的是本机的局域网地址）原样给不一定连得上同一个服务，照旧换。
 //
 // 第一次遇到这个名字时问一次，整个部署用同一个结论。
-func (p *plan) onHostMachine(value string) string {
+func (p *Plan) onHostMachine(value string) string {
 	rewritten := deploy.OnHostMachine(value)
 	if rewritten == value {
 		return value
@@ -814,7 +803,7 @@ func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool)
 // pointSelfAtLocalhost 改写 $endpoint: 指向自己的地址（比如把自己的回调地址交给外部系统）：进程在宿主机上，
 // 自己的服务名在这里解析不了，换成它在宿主机上监听的端口——自己是 local 组件就是分给它的端口，
 // 被裸进程外壳承载就是它自己声明的端口（外壳进程替它监听）。额外端口在宿主机上按声明的号监听。
-func (p *plan) pointSelfAtLocalhost(ref resolver.Ref, vars []inject.Var) {
+func (p *Plan) pointSelfAtLocalhost(ref resolver.Ref, vars []inject.Var) {
 	node := p.graph.Node(ref)
 	if node == nil || node.Manifest == nil {
 		return
@@ -833,7 +822,7 @@ func (p *plan) pointSelfAtLocalhost(ref resolver.Ref, vars []inject.Var) {
 }
 
 // pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口。
-func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var) {
+func (p *Plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var) {
 	for _, dep := range p.runningDependencies(ref) {
 		node := p.graph.Node(dep)
 		if node == nil || node.Manifest == nil {
@@ -958,7 +947,7 @@ func needsShellQuoting(r rune) bool {
 //	写了、mode: debug                         进程归使用者启动：告诉他从源码跑哪条命令、用哪份环境
 //	没写                                      migration.command 是镜像里的路径，在这台机器上跑不了：
 //	                                          不给它，说明迁移只在镜像里运行，从源码运行要作者写 local.migrationCommand
-func (p *plan) localMigrationWarnings() []*clierr.Error {
+func (p *Plan) localMigrationWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, l := range p.locals {
 		if w := sourceMigrationWarning(l.Ref, l.Service, l.Manifest, l.Entry.Mode, resolver.Ref{}); w != nil {
