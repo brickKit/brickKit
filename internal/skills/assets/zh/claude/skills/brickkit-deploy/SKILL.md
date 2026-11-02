@@ -179,7 +179,11 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 没有 root 守护进程，常驻内存比 Docker 的守护进程少约 0.4 GiB，CPU 一样；`target: docker` 同等支持，给已经在跑
 Docker 的机器、或只认 Docker 的周边工具。集群，或者要自愈、跨机器扩容：`target: k8s`（单节点时控制面是约 2 GiB
 的固定开销）。重启机器之后回来是引擎的事，要把引擎设好：Docker 服务开机启动；无根 Podman 要
-`sudo loginctl enable-linger <用户>` 与 `systemctl --user enable podman-restart.service`（`up` 本身还要 `podman.socket`）。
+`sudo loginctl enable-linger <用户>`、`systemctl --user enable podman-restart.service` 并用 drop-in 让它等
+`podman-user-wait-network-online.service`、Ubuntu 23.10 起要有 apparmor 包带的 `/etc/apparmor.d/podman` 配置（没有它 Podman
+在开机时、ssh 里以 `failed to reexec: Permission denied` 失败）、存储在 `nofail` 的盘上时给 `user@<uid>.service` 加
+`RequiresMountsFor`（`up` 本身还要 `podman.socket`）——`scripts/podman/check-environment.sh` 全都查，步骤在
+`brickkit docs 09-patterns/06-deployment-selection`。
 BrickKit 在 Podman 上生成 `restart: always`，因为 Podman 的开机单元只启动这种策略；开机时引擎不按启动顺序，组件要自己重试连接。
 `mode: local` / `debug` 用于开发、演示与试用——每个组件都 `mode: local` 时不要任何引擎，但会话结束就停、重启机器之后不会回来。
 不要把它们当成交付方案提出来。

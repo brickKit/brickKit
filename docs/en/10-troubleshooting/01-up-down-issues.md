@@ -275,9 +275,12 @@ scripts/podman/check-environment.sh
 Run as a normal user, it checks rootless Podman; run as root, rootful. It's essentially read-only; to get real answers it
 starts a few throwaway test containers and one test network — you can't tell from configuration files alone, since what
 gets blocked depends on the policy and firewall rules currently loaded in the kernel. It checks, in order: whether
-`$XDG_DATA_HOME` is redirected by snap, whether `podman.socket` is on, whether two containers on one network can reach each
-other, and whether a container can be removed cleanly. Exit code `0` is fine, `1` means one of the known problems below
-reproduced, `2` means the check itself couldn't run (Podman not installed, say).
+`$XDG_DATA_HOME` is redirected by snap, whether rootless Podman can create its user namespace where the boot unit starts it
+(see [below](#podman-fails-with-failed-to-reexec-permission-denied)), whether `podman.socket` is on, whether two
+containers on one network can reach each other, and whether a container can be removed cleanly. Last, as warnings only,
+what a deployment needs to [come back after a reboot](#the-containers-dont-come-back-after-a-reboot): linger, the boot unit
+enabled and waiting for the network, Podman's storage mounted in time. Exit code `0` is fine, `1` means one of the known
+problems below reproduced, `2` means the check itself couldn't run (Podman not installed, say).
 
 **Two further prerequisites**
 
@@ -398,57 +401,93 @@ scripts/podman/fix-apparmor.sh
 
 **Read the script before running it — it's destructive.** It resets Podman to a clean state: deleting your existing Podman
 containers, images and volumes, reinstalling `podman` and `apparmor-utils` with apt, and regenerating the base
-configuration. It needs `sudo`, is verified only on Ubuntu / Debian, and doesn't touch Docker. It takes two routes, verified
-to fix the problem when used together:
+configuration. It needs `sudo`, is verified only on Ubuntu / Debian, and doesn't touch Docker. What fixes the signal:
 
-1. **Delete the placeholder `podman` AppArmor profile** (Debian's conclusion): it restricts nothing itself, but gives the
-   `podman` process a name, which triggers AppArmor's cross-profile signal mediation. The script first writes a minimal
-   file of the same name, unloads it from the kernel, then deletes the file — in the reverse order, the unload command
-   can't read the file, and the old profile quietly stays in the kernel.
-2. **Put `pasta` into complain mode** (`aa-complain /usr/bin/pasta`): AppArmor only logs this one process, without blocking.
-   The rest of the system is unaffected; the cost is that this one process is from then on only monitored, not confined.
+- **Put `pasta` into complain mode** (`aa-complain /usr/bin/pasta`): AppArmor only logs this one process, without blocking.
+  The rest of the system is unaffected; the cost is that this one process is from then on only monitored, not confined.
+  Verified on Ubuntu 26.04 with Podman 5.7.0: containers are removed cleanly, with the `podman` profile below in place.
+- **Keep the `podman` AppArmor profile** the apparmor package ships (`/etc/apparmor.d/podman`). It restricts nothing, but
+  it is what lets rootless Podman create its user namespace on Ubuntu 23.10 and later, so the script restores it when
+  it's missing. An earlier version of the script deleted it, which made Podman fail at boot, over ssh and from a plain
+  terminal (see [the next section](#podman-fails-with-failed-to-reexec-permission-denied)).
 
 The script also handles three things unrelated to this signal that likewise make `up` fail or hang: configuring default
 image registries in `registries.conf` (otherwise pulling an image without a registry prefix, like `alpine:3`, fails, or pops
 up an interactive choice that hangs a non-interactive `up`); setting `policy.json` (otherwise Podman refuses to pull any
 image); enabling the rootless `podman.socket` (see [above](#up-fails-on-podman-failed-to-connect-to-the-docker-api)).
 
+## Podman fails with `failed to reexec: Permission denied`
+
+**Symptom**
+
+The deploy target is `podman`, and every Podman call fails with this line — `brickkit up` (looking up images), `build`,
+`podman-restart.service` at boot (in `journalctl --user -u podman-restart.service`), `podman info` from ssh or a plain
+terminal:
+
+```text
+failed to reexec: Permission denied
+```
+
+The kernel log has the denial: `apparmor="DENIED" operation="exec" ... profile="unprivileged_userns" name="/proc/self/exe"`.
+The same commands may still work in a terminal of an application installed as a snap (VS Code, say), and when a container
+is already running. BrickKit recognises the line and adds a suggestion pointing here.
+
+**Cause**
+
+Ubuntu 23.10 and later restrict unprivileged user namespaces through AppArmor
+(`sysctl kernel.apparmor_restrict_unprivileged_userns` prints `1`). Rootless Podman creates a user namespace and then
+executes itself again; a process that has no AppArmor profile allowing `userns` is moved into the `unprivileged_userns`
+profile when it creates one, and that profile refuses the second execution. The apparmor package ships such a profile
+for Podman, `/etc/apparmor.d/podman` (`flags=(unconfined)` with `userns`); when it is missing or not loaded, Podman
+fails wherever nothing else allows user namespaces. A snap's own profile allows them, and with a container running Podman
+joins the existing namespace instead of creating one — which is why it can look fine from some terminals.
+
+An earlier version of `scripts/podman/fix-apparmor.sh` deleted that profile, and a package upgrade doesn't bring back a
+deleted configuration file.
+
+**Fix**
+
+Restore the profile the apparmor package ships (`--force-confmiss` restores missing configuration files,
+`--force-confold` keeps the ones you edited), then load it:
+
+```bash
+sudo apt-get install --reinstall -o Dpkg::Options::=--force-confmiss -o Dpkg::Options::=--force-confold apparmor
+sudo apparmor_parser -r /etc/apparmor.d/podman
+```
+
+Check from the user's systemd, where the boot unit runs Podman: `systemd-run --user --wait --pipe podman unshare cat
+/proc/self/attr/current` should print `podman (unconfined)`. The environment check does the same. Turning the restriction
+off for the whole machine (`kernel.apparmor_restrict_unprivileged_userns=0`) also works, but it lifts it for every
+program, not just Podman.
+
 ## The containers don't come back after a reboot
 
 **Symptom**
 
-The deployment ran; after the machine restarted, `brickkit status` shows its components not running, and `brickkit up`
-brings them back.
+The deployment ran; after the machine restarted, `brickkit status` shows its components not running, or running but
+failing their calls — and `brickkit up` brings them back.
 
 **Cause**
 
-BrickKit starts nothing at boot: the engine does, and only when the engine itself is set up to. By engine:
+BrickKit starts nothing at boot: the engine does, and only when it is set up to. Start with the boot unit's log —
+`journalctl --user -b -u podman-restart.service` for rootless Podman (without `--user` for rootful Podman;
+`journalctl -b -u docker` for Docker) — then find what you see:
 
-| Engine | What has to be in place | Check |
+| What you see | Cause | Fix |
 | --- | --- | --- |
-| Docker | The Docker service starts at boot | `systemctl is-enabled docker` |
-| Rootless Podman | Linger for the user (otherwise the user's services start only when someone logs in), and the user unit `podman-restart.service` enabled | `loginctl show-user <user> -p Linger`, `systemctl --user is-enabled podman-restart.service` |
-| Rootful Podman | The system unit `podman-restart.service` enabled | `systemctl is-enabled podman-restart.service` |
+| The boot unit has no entries at all (Docker: the daemon didn't start) | The engine isn't set to start at boot. Rootless Podman needs linger for the user (otherwise the user's services start only when someone logs in) and the user unit `podman-restart.service` enabled; rootful Podman the system unit; Docker the Docker service | `sudo loginctl enable-linger <user>` and `systemctl --user enable podman-restart.service`; rootful: `sudo systemctl enable podman-restart.service`; Docker: `sudo systemctl enable docker` |
+| The boot unit failed with `failed to reexec: Permission denied` | AppArmor keeps Podman from creating its user namespace | [The section above](#podman-fails-with-failed-to-reexec-permission-denied) |
+| The containers are up, but components keep restarting and can't reach anything on the host (`host.docker.internal`, ports published on the host) | Rootless Podman's network helper (`pasta`) started before the machine had an address, and it never picks one up later. The boot unit is written `After=network-online.target`, which means nothing in the user's systemd; Podman ships `podman-user-wait-network-online.service` for this, but the boot unit doesn't depend on it | Make the boot unit wait for the network (below); this time, stop and start the containers once — `systemctl --user restart podman-restart.service` does both, and the new `pasta` has the network |
+| Podman reports no containers, or its storage missing | Podman's storage is on a disk mounted with `nofail`, which may mount after the user's systemd starts | `sudo systemctl edit user@<uid>.service`, add `[Unit]` `RequiresMountsFor=<that mount point>` |
+| A few components restart a couple of times right after boot, then turn healthy | At boot the engine starts the containers without the start order `up` waits through (`depends_on`); a component started before its dependency was reachable | Nothing — the restart policy keeps trying; a component should retry its connections rather than exit |
+| Nothing came back, and `brickkit down` ran before the restart | `down` removes the containers; there is nothing to start | `brickkit up` |
+| On Podman, the containers' restart policy is `unless-stopped` (`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <container>`) | They were created by an older BrickKit; Podman's boot unit starts only containers whose policy is `always` | `brickkit up` once: it recreates containers whose restart policy changed |
 
-Two more causes on any engine: `brickkit down` was run before the restart (it removes the containers, so there is
-nothing to start), or the containers were created by an older BrickKit that gave Podman `restart: unless-stopped` —
-Podman's boot unit starts only containers whose policy is `always`; check with
-`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <container>`.
+The drop-in that makes the rootless boot unit wait for the network is step 5 of
+[Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
 
-**Fix**
-
-Set up what the table says is missing, for example for rootless Podman:
-
-```bash
-sudo loginctl enable-linger <user>
-systemctl --user enable podman-restart.service
-```
-
-then run `brickkit up` once: it recreates containers whose restart policy changed. After the next restart they come back
-by themselves. A component that keeps restarting right after boot usually started before its dependency was reachable —
-at boot the engine doesn't follow the start order `up` waits through; the restart policy keeps trying, and the component
-should retry its connections rather than exit (see
-[Coming back after a reboot](../09-patterns/06-deployment-selection.md#coming-back-after-a-reboot)).
+`scripts/podman/check-environment.sh` reports each of the boot settings above as a warning when it's missing. The whole
+setup, in order: [Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
 
 ## `down` can't stop a `mode: local` component
 

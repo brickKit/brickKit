@@ -122,7 +122,8 @@ All standalone, one batch (Kubernetes re-measured in a second batch with Docker 
   and 2.9 rootful; rootful Podman used 9–10% less CPU across the whole stack (another batch), at the price of a root
   engine.
 - Processes on this machine reached the infrastructure through Docker's published ports, so Docker's port proxy carried
-  that traffic once more: 20.5 CPU seconds per 1,000 requests, the largest platform cost of that row.
+  that traffic once more: the Docker serving the infrastructure took 20.5 CPU seconds per 1,000 requests on that row,
+  against 7.2 on the Podman row — about 13 seconds more, the largest platform cost of that row.
 - **A few processes on this machine, the rest in containers** (a later batch, after a change in the components that cut
   every cell by about 17%): against all-in-containers in the same batch, no difference (+2% with Docker, +4% with
   Podman); shells saved the same there — components −20% CPU and −35–36% memory, the whole stack −8 to −10%.
@@ -167,13 +168,36 @@ As the user who will own the deployment:
 3. `sudo loginctl enable-linger <user>` — the user's services keep running after logout, and start at boot without
    anyone logging in.
 4. `systemctl --user enable podman-restart.service` — starts the containers again at boot.
-5. A port below 1024 (`exposePort: 443`, say) can't be published by a rootless engine as is: publish a port from 1024
-   up and let the gateway in front take 443, or lower `net.ipv4.ip_unprivileged_port_start` on the host.
-6. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) once;
-   it tests that containers can reach each other and be removed cleanly.
+5. Make that unit wait for the network. It is written `After=network-online.target`, which means nothing in the user's
+   systemd: when the network comes up late (Wi-Fi, a slow DHCP), Podman's network helper starts without an address and
+   the containers never reach the host. Podman ships `podman-user-wait-network-online.service` for this; add it with a
+   drop-in:
 
-What has been verified with BrickKit is rootless Podman on a machine that also has Docker; a machine with only Podman
-and the Compose binary hasn't been verified end to end.
+   ```bash
+   mkdir -p ~/.config/systemd/user/podman-restart.service.d
+   printf '[Unit]\nWants=podman-user-wait-network-online.service\nAfter=podman-user-wait-network-online.service\n' \
+     > ~/.config/systemd/user/podman-restart.service.d/wait-network.conf
+   systemctl --user daemon-reload
+   ```
+
+6. Where AppArmor restricts unprivileged user namespaces (Ubuntu 23.10 and later:
+   `sysctl kernel.apparmor_restrict_unprivileged_userns` prints `1`), Podman needs the AppArmor profile the apparmor
+   package ships for it, `/etc/apparmor.d/podman`. Without it Podman fails at boot, over ssh and from a plain terminal
+   with `failed to reexec: Permission denied`, while a terminal inside a snap may still work. Check from the user's
+   systemd: `systemd-run --user --wait --pipe podman unshare cat /proc/self/attr/current` prints `podman (unconfined)`;
+   if not, restore the profile
+   ([how](../10-troubleshooting/01-up-down-issues.md#podman-fails-with-failed-to-reexec-permission-denied)).
+7. Podman's storage on a disk mounted with `nofail`: systemd doesn't then guarantee it is mounted before the user's
+   systemd starts. Add `RequiresMountsFor=<that mount point>` under `[Unit]` with `sudo systemctl edit user@<uid>.service`.
+8. A port below 1024 (`exposePort: 443`, say) can't be published by a rootless engine as is: publish a port from 1024
+   up and let the gateway in front take 443, or lower `net.ipv4.ip_unprivileged_port_start` on the host.
+9. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) once:
+   it tests that Podman can create its user namespace where the boot unit runs it, that containers can reach each other
+   and be removed cleanly, and warns about any of steps 3–5 and 7 that is missing.
+
+Verified with BrickKit: rootless Podman on a machine that also has Docker, including a real reboot with steps 1–7 in place
+(Ubuntu 26.04, Podman 5.7.0, Wi-Fi by DHCP; all 12 components healthy without anyone logging in or running `up`). A
+machine with only Podman and the Compose binary hasn't been verified end to end.
 
 ### Kubernetes
 
@@ -197,7 +221,7 @@ has to be in place for each:
 | Engine | After a crash | At boot |
 | --- | --- | --- |
 | Docker | `restart: unless-stopped`, generated | The Docker service enabled at boot (most packages do it; check with `systemctl is-enabled docker`) |
-| Rootless Podman | `restart: always`, generated | Linger for the user and the user unit `podman-restart.service` enabled ([steps 3 and 4](#setting-up-a-host-for-rootless-podman)) |
+| Rootless Podman | `restart: always`, generated | Linger for the user, the user unit `podman-restart.service` enabled and waiting for the network, Podman able to create its user namespace, its storage mounted in time ([steps 3–7](#setting-up-a-host-for-rootless-podman)) |
 | Rootful Podman | `restart: always`, generated | The system unit enabled: `sudo systemctl enable podman-restart.service` |
 | Kubernetes | The kubelet | The cluster |
 

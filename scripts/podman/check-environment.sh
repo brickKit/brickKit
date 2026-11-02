@@ -5,6 +5,8 @@
 #
 # It checks, in order:
 #   - a snap-redirected $XDG_DATA_HOME (rootless; breaks Podman after upgrades)
+#   - rootless Podman can create its user namespace where the boot unit runs it
+#     (AppArmor on Ubuntu 23.10+ needs the podman profile the apparmor package ships)
 #   - podman.socket, which `podman compose` talks through: the user unit when
 #     run as a normal user, the system unit when run as root
 #   - containers on one network can reach each other. Rootful Podman on a host
@@ -13,6 +15,8 @@
 #   - containers stop and remove cleanly. On Ubuntu, AppArmor's default policy
 #     can block the `pasta` helper (rootless Podman's userspace network) from
 #     receiving the SIGTERM that `podman rm` sends it during teardown
+#   - (warnings) what a deployment needs to come back after a reboot: linger,
+#     podman-restart.service enabled and waiting for the network, storage mounts
 #
 # Run it as the user that will run `brickkit up`: as root to check rootful
 # Podman, as yourself to check rootless Podman. The full story:
@@ -59,6 +63,43 @@ if ! podman info >/dev/null 2>&1; then
 fi
 pass "'podman info' runs cleanly."
 
+status=0
+
+# --- User namespaces outside this terminal ------------------------------------
+# Ubuntu 23.10 and later restrict unprivileged user namespaces through AppArmor
+# (kernel.apparmor_restrict_unprivileged_userns = 1). Rootless Podman creates one
+# and then re-executes itself; that is allowed only under an AppArmor profile
+# with `userns`, which the apparmor package ships for podman as
+# /etc/apparmor.d/podman. Without it, podman started by the boot unit, over ssh
+# or from a plain terminal fails with "failed to reexec: Permission denied" —
+# while a terminal inside a snap (VS Code) may still work, since the snap's own
+# profile allows user namespaces. So the check runs podman in the user's
+# systemd, where the boot unit runs it. It reads the AppArmor label too: with a
+# container already running podman joins the existing namespace and succeeds
+# even without the profile, but the label still shows whether a profile applies.
+if [[ $EUID -ne 0 && "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null)" == 1 ]]; then
+  echo
+  echo "AppArmor restricts unprivileged user namespaces here: checking podman as the user's systemd starts it..."
+  if ! command -v systemd-run >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
+    warn "No systemd user session to check with (run this as the user, in a login session)."
+  elif ! label="$(systemd-run --user --wait --pipe --quiet podman unshare cat /proc/self/attr/current 2>&1)"; then
+    status=1
+    fail "podman can't create its user namespace outside this terminal: ${label##*$'\n'}"
+  elif [[ "$label" == unconfined || "$label" == unprivileged_userns* ]]; then
+    status=1
+    fail "podman runs without an AppArmor profile that allows user namespaces (label: $label)."
+  else
+    pass "podman runs under an AppArmor profile that allows user namespaces ($label)."
+  fi
+  if [[ $status -ne 0 ]]; then
+    fail "At boot, over ssh and from a plain terminal, podman will fail with 'failed to reexec: Permission denied'."
+    echo "Restore the profile the apparmor package ships for podman, then load it:"
+    echo "  sudo apt-get install --reinstall -o Dpkg::Options::=--force-confmiss -o Dpkg::Options::=--force-confold apparmor"
+    echo "  sudo apparmor_parser -r /etc/apparmor.d/podman"
+    echo "Details: docs/en/10-troubleshooting/01-up-down-issues.md"
+  fi
+fi
+
 # --- podman.socket check -----------------------------------------------
 # `podman compose` shells out to the same docker-compose binary Docker
 # uses, which talks to Podman over a Docker-API-compatible socket. It's
@@ -82,7 +123,6 @@ else
   warn "Fix: $socket_fix"
 fi
 
-status=0
 NAME="brickkit-podman-check-$$"
 # A fresh log file per run, removed on exit. A fixed name in /tmp breaks the
 # documented order (first as yourself, then as root): the file left by the
@@ -175,6 +215,58 @@ else
   else
     warn "This doesn't match the known signature (no 'rootless netns' in the error)."
     echo "This looks like a different problem — the fix script below is unlikely to help."
+  fi
+fi
+
+# --- Coming back after a reboot ----------------------------------------------
+# Only a deployment that must keep running needs this, so these are warnings.
+# The engine starts the containers at boot, and only when set up to: for
+# rootless Podman the user's services must start without a login (linger), the
+# boot unit podman-restart.service must be enabled and must wait for the
+# network (in the user's systemd, network-online.target means nothing; Podman
+# ships podman-user-wait-network-online.service for this, but the boot unit
+# doesn't use it — a pasta started before the network has an address never
+# reaches the host), and Podman's storage must be mounted before the user's
+# systemd starts when it lives on a disk mounted with nofail.
+echo
+echo "Checking what a deployment needs to come back after a reboot (warnings only)..."
+if [[ $EUID -eq 0 ]]; then
+  if systemctl is-enabled --quiet podman-restart.service 2>/dev/null; then
+    pass "podman-restart.service is enabled."
+  else
+    warn "podman-restart.service is not enabled: nothing starts the containers at boot. Fix: systemctl enable podman-restart.service"
+  fi
+else
+  user="$(id -un)"
+  if [[ "$(loginctl show-user "$user" -p Linger --value 2>/dev/null)" == yes ]]; then
+    pass "Linger is on for $user."
+  else
+    warn "Linger is off for $user: the user's services start only when someone logs in. Fix: sudo loginctl enable-linger $user"
+  fi
+  if systemctl --user is-enabled --quiet podman-restart.service 2>/dev/null; then
+    pass "podman-restart.service (user unit) is enabled."
+  else
+    warn "podman-restart.service (user unit) is not enabled: nothing starts the containers at boot. Fix: systemctl --user enable podman-restart.service"
+  fi
+  if systemctl --user show podman-restart.service -p Wants --value 2>/dev/null | grep -qw podman-user-wait-network-online.service; then
+    pass "podman-restart.service waits for the network."
+  else
+    warn "podman-restart.service doesn't wait for the network: if the network comes up late, the containers start without a route to the host."
+    echo "  Fix: mkdir -p ~/.config/systemd/user/podman-restart.service.d"
+    echo "       printf '[Unit]\\nWants=podman-user-wait-network-online.service\\nAfter=podman-user-wait-network-online.service\\n' \\"
+    echo "         > ~/.config/systemd/user/podman-restart.service.d/wait-network.conf"
+    echo "       systemctl --user daemon-reload"
+  fi
+  graphroot="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null)"
+  mount="$(findmnt -n -o TARGET -T "$graphroot" 2>/dev/null)"
+  if [[ -n "$mount" && "$mount" != / ]] && findmnt --fstab -n -o OPTIONS "$mount" 2>/dev/null | grep -qw nofail; then
+    required="$(systemctl show "user@$(id -u).service" -p RequiresMountsFor --value 2>/dev/null)"
+    if [[ " $required " == *" $mount "* ]]; then
+      pass "Podman's storage ($mount, nofail) is mounted before the user's systemd starts."
+    else
+      warn "Podman's storage is on $mount, mounted with nofail: nothing makes it mount before the user's systemd starts."
+      echo "  Fix: sudo systemctl edit user@$(id -u).service, and add: [Unit] RequiresMountsFor=$mount"
+    fi
   fi
 fi
 

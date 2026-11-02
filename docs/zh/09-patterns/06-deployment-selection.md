@@ -93,7 +93,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 
 - 组件在每种引擎上花的一样；差别在平台的内存。全部用无根 Podman 而不用 Docker，每台机器省下这个差——这里约 0.4 GiB（另一批里 Docker 守护进程在构建了一天镜像之后涨到约 0.7 GiB）。
 - 无根 Podman 的用户态网络要花 CPU：Podman 自己每千次请求无根 13.1 CPU 秒、有根 2.9；有根 Podman 整套的 CPU 少 9–10%（另一批），代价是引擎以 root 运行。
-- 本机进程经 Docker 发布的端口连基础资源，Docker 的端口代理多转发一份这些流量：每千次请求 20.5 CPU 秒，是那一行最大的平台开销。
+- 本机进程经 Docker 发布的端口连基础资源，Docker 的端口代理多转发一份这些流量：那一行给基础资源服务的 Docker 每千次请求 20.5 CPU 秒，Podman 那一行是 7.2——多出约 13 秒，是那一行最大的平台开销。
 - **几个本机进程、其余在容器里**（后来的一批，组件的一处改动让每一格都少了约 17%）：与同一批全在容器里相比看不出差别（Docker +2%、Podman +4%）；外壳在那里省得一样——组件 CPU −20%、内存 −35–36%，整套 −8% 到 −10%。
 
 **定规格。** 负载加倍（每秒 7 → 14 次）时，组件与数据库的核数只多 50–56%，延迟不升；数据加倍只让数据库多 10–15%。整套容器放进 4 GiB、6 GiB 的内存上限都照常跑完——让出去的只是页缓存。
@@ -127,10 +127,28 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 2. `systemctl --user enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman。
 3. `sudo loginctl enable-linger <用户>`——这个用户的服务在退出登录后继续运行，开机时不用有人登录也会启动。
 4. `systemctl --user enable podman-restart.service`——开机时把容器再启动起来。
-5. 1024 以下的端口（比如 `exposePort: 443`）无根的引擎不能直接发布：发布一个 1024 及以上的端口，由前面的网关接 443；或者在主机上调低 `net.ipv4.ip_unprivileged_port_start`。
-6. 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)，它实测容器之间能不能互通、能不能干净地删掉。
+5. 让这个单元等网络。它写的是 `After=network-online.target`，这在用户的 systemd 里不起作用：网络起来得晚时（Wi-Fi、慢一点的 DHCP），
+   Podman 的网络辅助进程在没有地址时就起来了，容器从此连不上宿主机。Podman 为此带了 `podman-user-wait-network-online.service`，用一个 drop-in 加上它：
 
-在 BrickKit 上验证过的是"无根 Podman，同一台机器上也装着 Docker"；只装 Podman 与 Compose 二进制的机器没有端到端验证过。
+   ```bash
+   mkdir -p ~/.config/systemd/user/podman-restart.service.d
+   printf '[Unit]\nWants=podman-user-wait-network-online.service\nAfter=podman-user-wait-network-online.service\n' \
+     > ~/.config/systemd/user/podman-restart.service.d/wait-network.conf
+   systemctl --user daemon-reload
+   ```
+
+6. AppArmor 限制无特权用户命名空间的系统上（Ubuntu 23.10 起：`sysctl kernel.apparmor_restrict_unprivileged_userns` 打印 `1`），Podman 需要 apparmor 包给它带的
+   AppArmor 配置 `/etc/apparmor.d/podman`。没有它，Podman 在开机时、ssh 里、普通终端里都以 `failed to reexec: Permission denied` 失败，而 snap 里的终端可能照常能用。
+   在用户的 systemd 里检查：`systemd-run --user --wait --pipe podman unshare cat /proc/self/attr/current` 打印 `podman (unconfined)`；
+   不是的话，恢复这份配置（[做法](../10-troubleshooting/01-up-down-issues.md#podman-报-failed-to-reexec-permission-denied)）。
+7. Podman 的存储在一块以 `nofail` 挂载的盘上：这时 systemd 不保证它在用户的 systemd 启动之前挂上。用 `sudo systemctl edit user@<uid>.service`，在 `[Unit]` 下加
+   `RequiresMountsFor=<那个挂载点>`。
+8. 1024 以下的端口（比如 `exposePort: 443`）无根的引擎不能直接发布：发布一个 1024 及以上的端口，由前面的网关接 443；或者在主机上调低 `net.ipv4.ip_unprivileged_port_start`。
+9. 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)：它实测 Podman 在开机单元跑它的地方能不能建用户命名空间、容器之间能不能互通、
+   能不能干净地删掉，并对第 3–5、7 步里缺了的给出警告。
+
+在 BrickKit 上验证过的：无根 Podman、同一台机器上也装着 Docker，包括做完第 1–7 步之后真重启一次机器（Ubuntu 26.04、Podman 5.7.0、Wi-Fi 经 DHCP；
+没有人登录、也没跑 `up`，12 个组件全部 healthy）。只装 Podman 与 Compose 二进制的机器没有端到端验证过。
 
 ### Kubernetes
 
@@ -149,7 +167,7 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 | 引擎 | 崩溃之后 | 开机时 |
 | --- | --- | --- |
 | Docker | 生成 `restart: unless-stopped` | Docker 服务设为开机启动（多数安装包已经设好；`systemctl is-enabled docker` 查） |
-| 无根 Podman | 生成 `restart: always` | 给这个用户开 linger，并启用用户单元 `podman-restart.service`（[第 3、4 步](#为无根-podman-准备主机)） |
+| 无根 Podman | 生成 `restart: always` | 给这个用户开 linger，启用用户单元 `podman-restart.service` 并让它等网络，Podman 能建用户命名空间，它的存储按时挂上（[第 3–7 步](#为无根-podman-准备主机)） |
 | 有根 Podman | 生成 `restart: always` | 启用系统单元：`sudo systemctl enable podman-restart.service` |
 | Kubernetes | kubelet | 集群 |
 

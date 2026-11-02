@@ -248,6 +248,11 @@ func (c *Compose) failure(args []string, out []byte, err error, lines int) error
 	if strings.Contains(string(out), "kill network process: permission denied") {
 		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor, docpages.Ref(docpages.PageUpDownIssues)...))
 	}
+	// rootless Podman 建用户命名空间后重新执行自己（/proc/self/exe）；AppArmor 限制无特权用户命名空间、
+	// 又没有 podman 的配置时，这一步被转进 unprivileged_userns 配置拒绝，每个 podman 调用都以这句失败。
+	if strings.Contains(string(out), "failed to reexec: Permission denied") {
+		failure = failure.WithHint(i18n.T(msgid.EnginePodmanUsernsBlockedByAppArmor, docpages.Ref(docpages.PageUpDownIssues)...))
+	}
 	if command := podmanSocketCommand(string(out)); command != "" {
 		failure = failure.WithHint(i18n.T(msgid.EnginePodmanSocketInactive,
 			append([]any{command}, docpages.Ref(docpages.PageUpDownIssues)...)...))

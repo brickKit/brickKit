@@ -40,22 +40,32 @@ sudo apt autoremove -y
 # Only Podman's own config — deliberately not /etc/cni or /etc/docker.
 sudo rm -rf /etc/containers
 
-# --- The key step: correctly unload the stale AppArmor profile -------------
-# `apparmor_parser -R <path>` has to READ the file to know which profile
-# name to remove from the kernel. Deleting the file first and only then
-# calling `-R` on it (a mistake that's easy to make) leaves the kernel's
-# copy of the old profile loaded, even though the file on disk is gone.
-# Writing a minimal, parseable stub first — then unloading it, then
-# deleting it — avoids that trap.
-echo 'profile podman /usr/bin/podman flags=(unconfined) {}' | sudo tee /etc/apparmor.d/podman > /dev/null
-sudo apparmor_parser -R /etc/apparmor.d/podman 2>/dev/null || true
-sudo rm -f /etc/apparmor.d/podman
-
 echo "🚀 Step 2: Installing Podman and apparmor-utils..."
 sudo apt update
 sudo apt install -y podman apparmor-utils
 
-echo "📝 Step 3: Generating baseline config files..."
+# --- Keep the podman AppArmor profile ---------------------------------------
+# The apparmor package ships /etc/apparmor.d/podman: `flags=(unconfined)` with
+# `userns`. It restricts nothing, but on systems that restrict unprivileged user
+# namespaces (Ubuntu 23.10 and later) it is what lets rootless Podman create its
+# user namespace when it is started outside another permissive profile — by the
+# boot unit, over ssh, from a plain terminal. Without it those fail with
+# "failed to reexec: Permission denied". An earlier version of this script
+# deleted the profile; dpkg doesn't bring back a deleted conffile on its own,
+# so restore it when it's missing (--force-confmiss restores missing conffiles,
+# --force-confold keeps the ones you edited), then load it.
+echo "🛡️ Step 3: Making sure the podman AppArmor profile is in place..."
+if [[ ! -e /etc/apparmor.d/podman ]]; then
+  sudo apt-get install -y --reinstall \
+    -o Dpkg::Options::=--force-confmiss -o Dpkg::Options::=--force-confold apparmor
+fi
+if [[ -e /etc/apparmor.d/podman ]]; then
+  sudo apparmor_parser -r /etc/apparmor.d/podman
+else
+  echo "ℹ️  This apparmor package ships no podman profile; nothing to restore."
+fi
+
+echo "📝 Step 4: Generating baseline config files..."
 sudo mkdir -p /etc/containers
 
 # Without this, pulling an unqualified image reference (e.g. "alpine:latest",
@@ -70,7 +80,7 @@ echo 'unqualified-search-registries = ["docker.io", "quay.io"]' | sudo tee /etc/
 # down in security, just parity with what Docker already does by default.
 echo '{"default": [{"type": "insecureAcceptAnything"}]}' | sudo tee /etc/containers/policy.json > /dev/null
 
-echo "🔌 Step 4: Enabling the Podman API socket..."
+echo "🔌 Step 5: Enabling the Podman API socket..."
 # `podman compose` shells out to the same docker-compose binary Docker uses,
 # and that binary talks to Podman over a Docker-API-compatible socket. It
 # isn't running by default — without it, `podman compose up`/`down` fail
@@ -78,13 +88,16 @@ echo "🔌 Step 4: Enabling the Podman API socket..."
 # directory", before anything AppArmor-related even comes into play.
 systemctl --user enable --now podman.socket
 
-echo "🛡️ Step 5: Fixing AppArmor's signal block on pasta (complain mode)..."
+echo "🛡️ Step 6: Fixing AppArmor's signal block on pasta (complain mode)..."
 
 # aa-complain is the standard Ubuntu/Debian tool for switching one profile
 # into complain mode (log violations, don't enforce them) — safer and less
 # error-prone than hand-editing the profile file (it's easy to edit the
 # wrong one: `passt` and `pasta` are two distinct binaries in the same
 # package with near-identical names and separate profiles).
+#
+# This is the step that fixes the teardown: verified with the podman profile
+# above in place (Ubuntu 26.04, Podman 5.7.0), containers are removed cleanly.
 #
 # Trade-off worth knowing: this removes AppArmor's enforcement for the
 # `pasta` process specifically — nothing else on the system is affected,

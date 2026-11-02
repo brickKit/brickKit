@@ -240,8 +240,9 @@ scripts/podman/check-environment.sh
 - **有根**（rootful，以 root 运行）：容器挂在宿主机的网桥上（netavark 默认叫 `podman0`、`podman1`……），容器之间的流量经过宿主机的转发链。
 
 以普通用户跑检查的是无根，以 root 跑检查的是有根。它基本只读；为了拿到真实的答案，会起几个用完即删的测试容器和一个测试网络——光看配置文件判断不了，
-拦不拦取决于内核里当前加载的策略和防火墙规则。它依次检查：`$XDG_DATA_HOME` 有没有被 snap 重定向、`podman.socket` 开没开、
-同一个网络里的两个容器能不能互相访问、容器能不能干净地删掉。退出码 `0` 是正常，`1` 是复现了下面某个已知问题，`2` 是检查本身跑不起来（比如没装 Podman）。
+拦不拦取决于内核里当前加载的策略和防火墙规则。它依次检查：`$XDG_DATA_HOME` 有没有被 snap 重定向、无根 Podman 在开机单元启动它的地方能不能建用户命名空间
+（见[下面](#podman-报-failed-to-reexec-permission-denied)）、`podman.socket` 开没开、同一个网络里的两个容器能不能互相访问、容器能不能干净地删掉。
+最后只以警告的形式列出部署要[在重启机器之后回来](#重启机器之后容器没有回来)还缺什么：linger、开机单元启用并等网络、Podman 的存储按时挂上。退出码 `0` 是正常，`1` 是复现了下面某个已知问题，`2` 是检查本身跑不起来（比如没装 Podman）。
 
 **另外两个前提**
 
@@ -348,47 +349,76 @@ scripts/podman/fix-apparmor.sh
 ```
 
 **跑之前先读一遍脚本——它是破坏性的。** 它把 Podman 重置成干净状态：删除你已有的 Podman 容器、镜像、卷，用 apt 重装 `podman` 与 `apparmor-utils`，
-重新生成基础配置。需要 `sudo`，只在 Ubuntu / Debian 上验证过，不碰 Docker。它用了两条路径，两条一起用验证过能解决问题：
+重新生成基础配置。需要 `sudo`，只在 Ubuntu / Debian 上验证过，不碰 Docker。解决这个信号问题的是：
 
-1. **删掉那份占位的 `podman` AppArmor profile**（Debian 的结论）：它本身什么都不限制，却给 `podman` 进程挂了个名字，触发了 AppArmor 的跨 profile 信号仲裁。
-   脚本先写一份极简的同名文件、从内核卸载它，再删文件——顺序反过来的话，卸载命令读不到文件，内核里的旧 profile 会悄悄留着。
-2. **把 `pasta` 切成 complain 模式**（`aa-complain /usr/bin/pasta`）：AppArmor 对这一个进程只记录、不拦截。系统其它部分不受影响；
-   代价是这一个进程从此只被监控、不再被限制。
+- **把 `pasta` 切成 complain 模式**（`aa-complain /usr/bin/pasta`）：AppArmor 对这一个进程只记录、不拦截。系统其它部分不受影响；
+  代价是这一个进程从此只被监控、不再被限制。在 Ubuntu 26.04、Podman 5.7.0 上验证过：下面那份 `podman` 配置在的情况下，容器能干净地删掉。
+- **保留 apparmor 包自带的 `podman` AppArmor 配置**（`/etc/apparmor.d/podman`）。它什么都不限制，但在 Ubuntu 23.10 起正是它让无根 Podman 能建用户命名空间，
+  所以脚本在它缺了时把它恢复。脚本的早先版本删掉了它，结果 Podman 在开机时、ssh 里、普通终端里都会失败（见[下一节](#podman-报-failed-to-reexec-permission-denied)）。
 
 脚本还顺手处理了三件与这个信号无关、但同样会让 `up` 失败或卡住的事：给 `registries.conf` 配上默认的镜像仓库（否则拉 `alpine:3` 这种不带仓库前缀的镜像会失败，
 或者弹出交互式选择，把非交互的 `up` 卡住）；设置 `policy.json`（否则 Podman 拒绝拉任何镜像）；启用无根的 `podman.socket`
 （见 [上面](#up-在-podman-上失败failed-to-connect-to-the-docker-api)）。
 
+## Podman 报 `failed to reexec: Permission denied`
+
+**现象**
+
+部署目标是 `podman`，每一个 Podman 调用都以这一行失败——`brickkit up`（查镜像时）、`build`、开机时的 `podman-restart.service`
+（`journalctl --user -u podman-restart.service` 里）、在 ssh 或普通终端里跑的 `podman info`：
+
+```text
+failed to reexec: Permission denied
+```
+
+内核日志里有这次拒绝：`apparmor="DENIED" operation="exec" ... profile="unprivileged_userns" name="/proc/self/exe"`。同样的命令在以 snap 安装的应用
+（比如 VS Code）的终端里、或者已经有容器在跑时，可能照常能用。BrickKit 认得这一行，会在建议里指到这里。
+
+**原因**
+
+Ubuntu 23.10 起用 AppArmor 限制无特权用户命名空间（`sysctl kernel.apparmor_restrict_unprivileged_userns` 打印 `1`）。无根 Podman 先建一个用户命名空间，
+再重新执行自己；一个没有"允许 `userns`"的 AppArmor 配置的进程，建用户命名空间时会被转进 `unprivileged_userns` 配置，而那个配置拒绝这第二次执行。
+apparmor 包给 Podman 带了这样一份配置，`/etc/apparmor.d/podman`（`flags=(unconfined)` 加 `userns`）；它缺了或没加载时，在没有别的东西允许用户命名空间的地方
+Podman 就会失败。snap 自己的配置允许用户命名空间；有容器在跑时 Podman 加入已有的命名空间、不新建——所以从某些终端看起来一切正常。
+
+`scripts/podman/fix-apparmor.sh` 的早先版本删掉过这份配置，而软件包升级不会补回被删掉的配置文件。
+
+**解决**
+
+恢复 apparmor 包自带的这份配置（`--force-confmiss` 恢复缺了的配置文件，`--force-confold` 保留你改过的），再加载它：
+
+```bash
+sudo apt-get install --reinstall -o Dpkg::Options::=--force-confmiss -o Dpkg::Options::=--force-confold apparmor
+sudo apparmor_parser -r /etc/apparmor.d/podman
+```
+
+在开机单元跑 Podman 的地方——用户的 systemd 里——检查：`systemd-run --user --wait --pipe podman unshare cat /proc/self/attr/current` 应当打印
+`podman (unconfined)`。环境检查也查这一项。在整台机器上关掉这项限制（`kernel.apparmor_restrict_unprivileged_userns=0`）同样有效，但那是对所有程序放开，不只是 Podman。
+
 ## 重启机器之后容器没有回来
 
 **现象**
 
-部署原来在跑；机器重启之后，`brickkit status` 显示组件没有运行，`brickkit up` 一次又都回来了。
+部署原来在跑；机器重启之后，`brickkit status` 显示组件没有运行，或者在运行、调用却失败——`brickkit up` 一次又都好了。
 
 **原因**
 
-开机时 BrickKit 什么都不启动：启动容器的是引擎，而且要引擎自己设好了才会。按引擎：
+开机时 BrickKit 什么都不启动：启动容器的是引擎，而且要设好了才会。先看开机单元的日志——无根 Podman 用 `journalctl --user -b -u podman-restart.service`
+（有根 Podman 去掉 `--user`；Docker 用 `journalctl -b -u docker`）——再对照你看到的：
 
-| 引擎 | 要具备的 | 查法 |
+| 你看到的 | 原因 | 解决 |
 | --- | --- | --- |
-| Docker | Docker 服务开机启动 | `systemctl is-enabled docker` |
-| 无根 Podman | 给这个用户开了 linger（否则这个用户的服务要等有人登录才启动），并启用了用户单元 `podman-restart.service` | `loginctl show-user <用户> -p Linger`、`systemctl --user is-enabled podman-restart.service` |
-| 有根 Podman | 启用了系统单元 `podman-restart.service` | `systemctl is-enabled podman-restart.service` |
+| 开机单元一条日志都没有（Docker：守护进程没起来） | 引擎没设开机启动。无根 Podman 要给这个用户开 linger（否则这个用户的服务要等有人登录才启动），并启用用户单元 `podman-restart.service`；有根 Podman 要系统单元；Docker 要 Docker 服务 | `sudo loginctl enable-linger <用户>` 与 `systemctl --user enable podman-restart.service`；有根：`sudo systemctl enable podman-restart.service`；Docker：`sudo systemctl enable docker` |
+| 开机单元以 `failed to reexec: Permission denied` 失败 | AppArmor 不让 Podman 建用户命名空间 | [上一节](#podman-报-failed-to-reexec-permission-denied) |
+| 容器都起来了，组件却反复重启、连不上宿主机上的任何东西（`host.docker.internal`、宿主机上发布的端口） | 无根 Podman 的网络辅助进程（`pasta`）在机器拿到地址之前就起来了，之后也不会再拿。开机单元写的是 `After=network-online.target`，这在用户的 systemd 里不起作用；Podman 为此带了 `podman-user-wait-network-online.service`，但开机单元不依赖它 | 让开机单元等网络（见下）；这一次把容器停掉再起来——`systemctl --user restart podman-restart.service` 两样都做，新的 `pasta` 就有网络了 |
+| Podman 报没有容器，或者存储不见了 | Podman 的存储在一块以 `nofail` 挂载的盘上，可能在用户的 systemd 启动之后才挂上 | `sudo systemctl edit user@<uid>.service`，在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>` |
+| 开机后几个组件重启一两次，然后转 healthy | 开机时引擎启动容器不按 `up` 等待的那个启动顺序（`depends_on`）；有组件比它的依赖先起来 | 不用处理——重启策略会一直重试；组件应当重试连接，而不是退出 |
+| 什么都没回来，重启前跑过 `brickkit down` | `down` 删掉了容器，开机时没有东西可启动 | `brickkit up` |
+| Podman 上容器的重启策略是 `unless-stopped`（`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <容器>`） | 容器是旧版 BrickKit 建的；Podman 的开机单元只启动策略为 `always` 的容器 | 跑一次 `brickkit up`：重启策略变了的容器会被重建 |
 
-不分引擎还有两种原因：重启前跑过 `brickkit down`（它删掉容器，开机时没有东西可启动）；或者容器是旧版 BrickKit 建的，给 Podman 写的是 `restart: unless-stopped`——
-Podman 的开机单元只启动策略为 `always` 的容器；用 `podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <容器>` 查。
+让无根的开机单元等网络的 drop-in 是[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)的第 5 步。
 
-**解决**
-
-把表里缺的设上，比如无根 Podman：
-
-```bash
-sudo loginctl enable-linger <用户>
-systemctl --user enable podman-restart.service
-```
-
-再跑一次 `brickkit up`：重启策略变了的容器会被重建。之后再重启机器，它们自己回来。开机后某个组件反复重启，通常是它比依赖先起来——开机时引擎不按 `up` 等待的那个启动顺序；
-重启策略会一直重试，组件自己也应当重试连接，而不是退出（见[重启机器之后](../09-patterns/06-deployment-selection.md#重启机器之后)）。
+上面每一项开机设置缺了时，`scripts/podman/check-environment.sh` 都会给出警告。按顺序的完整设置见[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)。
 
 ## `down` 停不掉 `mode: local` 的组件
 

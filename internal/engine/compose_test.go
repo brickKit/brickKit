@@ -454,6 +454,27 @@ func TestPodmanDownTranslatesKnownApparmorFailure(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "10-troubleshooting/01-up-down-issues.md")
 }
 
+// AppArmor 限制无特权用户命名空间、又没有 podman 的配置时（Ubuntu 23.10 起；开机单元、ssh、普通终端），
+// 每个 podman 调用都以 "failed to reexec: Permission denied" 失败——看镜像、构建、compose 都一样。
+// 提示要说出原因并指回排障页，而且只认这一句：别的 Permission denied 不是它。
+func TestPodmanUserNamespaceBlockedByAppArmorGetsAHint(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["image"] = errors.New("exit 1")
+	rec.output["image"] = "failed to reexec: Permission denied\n"
+
+	_, _, err := podmanWith(rec).ImageLabels(context.Background(), "demo-hello:1.0.0")
+
+	require.Error(t, err)
+	shown := clierr.As(err).Format()
+	assert.Contains(t, shown, "user namespace")
+	assert.Contains(t, shown, "10-troubleshooting/01-up-down-issues")
+
+	rec.output["image"] = "Error: open /var/lib/x: Permission denied\n"
+	_, _, err = podmanWith(rec).ImageLabels(context.Background(), "demo-hello:1.0.0")
+	require.Error(t, err)
+	assert.NotContains(t, clierr.As(err).Format(), "user namespace")
+}
+
 // 无关的 permission denied 不该套用这条提示——过度匹配会把人引向错误的修法。
 func TestGenericPermissionDeniedGetsNoApparmorHint(t *testing.T) {
 	rec := newRecorder()

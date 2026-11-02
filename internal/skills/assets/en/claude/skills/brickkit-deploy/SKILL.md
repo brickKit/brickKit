@@ -201,8 +201,13 @@ GiB less resident memory than Docker's daemon, the same CPU; `target: docker` is
 machine that already runs Docker or tools that only speak Docker. A cluster, or self-healing and scaling
 across machines: `target: k8s` (on one node its control plane is a fixed cost of about 2 GiB). Coming
 back after a reboot is the engine's job and needs the engine set up for it: the Docker service enabled;
-for rootless Podman, `sudo loginctl enable-linger <user>` and `systemctl --user enable
-podman-restart.service` (plus `podman.socket` for `up` itself). BrickKit generates `restart: always` on
+for rootless Podman, `sudo loginctl enable-linger <user>`, `systemctl --user enable
+podman-restart.service` with a drop-in making it wait for `podman-user-wait-network-online.service`, on
+Ubuntu 23.10+ the apparmor package's `/etc/apparmor.d/podman` profile (without it Podman fails at boot
+and over ssh with `failed to reexec: Permission denied`), and `RequiresMountsFor` on `user@<uid>.service`
+when Podman's storage is on a `nofail` disk (plus `podman.socket` for `up` itself) —
+`scripts/podman/check-environment.sh` checks them all; the steps are in
+`brickkit docs 09-patterns/06-deployment-selection`. BrickKit generates `restart: always` on
 Podman, because Podman's boot unit starts only that policy; at boot the engine ignores the start order,
 so components must retry their connections. `mode: local` / `debug` are for development, demos and
 trials — every component `mode: local` runs without any engine, but stops with the `up` session and
