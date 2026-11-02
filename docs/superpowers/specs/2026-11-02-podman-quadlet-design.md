@@ -73,7 +73,7 @@ Quadlet 目录下本项目自己的子目录（Quadlet 递归扫子目录，`pod
 | `healthcheck` | `HealthCmd=` 等，节奏同 compose（10s / 3s / 3 次 / startPeriod） |
 | `restart: always` | `[Service] Restart=always` |
 | `stop_grace_period` | `StopTimeout=` |
-| `deploy.resources` | `Memory=`；CPU 用 `PodmanArgs=--cpus=…`（Quadlet 没有 CPU 键），requests 用 `PodmanArgs=--memory-reservation=…` |
+| `deploy.resources` | `PodmanArgs=--cpus=… --memory=… --memory-reservation=…`（Quadlet 没有 CPU 键，`Memory=` 要 Podman 5.5，统一用 `PodmanArgs=` 免得最低版本被它抬高） |
 | `deploy.replicas` | 模板单元 `…@.container` + 实例 `…@1.container` … `…@N.container`（Quadlet 原生支持，见 §5.4） |
 | `labels` | `Label=`；另加 `brickkit.io/project`、`brickkit.io/service`，`status` 靠它们 |
 | 日志 | `LogDriver=journald`：`journalctl -u` 与 `podman logs` 都能看 |
@@ -89,8 +89,8 @@ compose 把 `${VAR}` 留给 `docker compose` 在 `up` 时从进程环境与 `.en
 
 | 变量 | compose | Quadlet |
 | --- | --- | --- |
-| 普通字面量 | `environment` | `Environment=`（按 systemd 的规则转义 `%`、`\`、引号） |
-| `secret: true`、`file://`、含 `${VAR}` 的模板 | 0600 的 env 文件 | **Podman secret**：`podman secret create --replace brickkit-<项目>-<服务>-<键>`，单元写 `Secret=<名字>,type=env,target=<键>` |
+| 普通字面量（不含换行） | `environment` | `Environment="<键>=<值>"`：`\` → `\\`、`"` → `\"`、`%` → `%%`、**`$` → `$$`**（Quadlet 把它原样放进 `ExecStart`，systemd 在那里展开 `${X}`、把 `$$` 变成 `$`——实测） |
+| `secret: true`、`file://`、含 `${VAR}` 的模板、含换行的字面量 | 0600 的 env 文件 | **Podman secret**：`podman secret create --replace brickkit-<项目>-<服务>-<键>`，单元写 `Secret=<名字>,type=env,target=<键>` |
 | `existingSecret` | 跳过 | 跳过 |
 | `mount: file` | 绑定挂载项目里的 0600 文件 | 同样绑定挂载项目里的文件（`Volume=`），保留“换文件不用重启” |
 
@@ -112,7 +112,10 @@ Podman secret 以 `type=env` 交付多行、`$`、引号都逐字节到达容器
   而平台的约定是组件自己重试连接（与 compose 的 `depends_on` 只管启动顺序一致）。依赖有健康检查时写 `Notify=healthy`，于是 `After=`
   等到它健康——对应 compose 的 `service_healthy`；没有健康检查的只等启动，对应 `service_started`。
 - 不写 `RemainAfterExit` 的迁移、`Requires=` 的组件：迁移跑完自然转 inactive 不会连带停组件（`Requires=` 只对显式 stop / restart
-  传递）；`systemctl restart` 一个组件会先把它 inactive 的迁移拉起来再跑一遍——与 compose 重建容器前先跑迁移一致。**这条要实测**。
+  传递）；`systemctl restart` 一个组件会先把它 inactive 的迁移拉起来再跑一遍；迁移非 0 退出时组件起不来（`A dependency job for … failed`），
+  `Wants=` 它的依赖方照常运行，`restart` 也不连带重启依赖方。**实测**（2026-11-02，Podman 5.7.0，用户 systemd）。
+- `restart` 是先停再启：迁移失败时旧容器已经停了，而 compose 下迁移失败旧容器还在跑。所以 `up` 先单独把迁移跑完（§6），全部成功才动组件；
+  内容变了的组件重启时它的迁移会再跑一次（`Requires=` 拉起），迁移本来要求可重复执行，这一次多跑换来“迁移失败不停旧版本”。
 - 组件单元 `TimeoutStartSec=` 按 startPeriod 加 interval × retries 再加余量算（`Notify=healthy` 下启动作业要等到健康）；oneshot 没有启动超时，
   与 compose 的迁移一样。
 - 开机时每个迁移都会再跑一次。迁移本来就要求可重复执行（FRR-019 写进了组件规范），这里比 compose 更严格地保证了顺序。
@@ -142,10 +145,10 @@ systemd 忽略这条顺序，存在时保证防火墙规则先加上。文档给
 ## 6. 命令
 
 - **`up`**：生成 → 写进 `.brickkit/generated/quadlet/` → 检查镜像（照旧）→ 写 / 换 Podman secret → 把单元同步到安装目录（删掉不再
-  生成的，先 `stop` 再删）→ `daemon-reload` → 对每个迁移单元 `start`（再跑一遍，与 compose 每次 `up` 都跑迁移一致）→ 对内容变了的
-  组件单元 `restart`、其余 `start`，一条 `systemctl start` 交给 systemd 按 `After=` 排序并等待。失败时按单元名认出是哪个迁移或组件，
+  生成的，先 `stop` 再删）→ `daemon-reload` → 一条 `systemctl start` 跑全部迁移单元（与 compose 每次 `up` 都跑迁移一致；任何一个失败
+  就停在这里，组件一个都不动，旧版本照跑）→ 对内容变了的组件单元 `restart`、其余 `start`，交给 systemd 按 `After=` 排序并等待。失败时按单元名认出是哪个迁移或组件，
   报 `MIGRATION_FAILED` 或启动失败，并给出 `journalctl [--user] -u <单元>`。`up --wait` 的语义由 `Notify=healthy` 的启动作业给出。
-- **`down`**：`stop` 本项目全部单元 → 删安装目录 → `daemon-reload` → 删 secret 与网络。与 compose 的 `down` 一样不删数据卷（BrickKit
+- **`down`**：`stop` 本项目全部单元 → 删安装目录 → `daemon-reload` → 删 secret 与网络（停掉网络单元不删网络，实测；`podman network rm`）。与 compose 的 `down` 一样不删数据卷（BrickKit
   本来就不建卷）。
 - **`status`**：`podman ps -a --filter label=brickkit.io/project=<项目名>` 取状态与健康（与 compose 同一张表），另外列出 `failed` 的单元
   （迁移失败只有这里看得到）。
@@ -167,8 +170,9 @@ systemd 忽略这条顺序，存在时保证防火墙规则先加上。文档给
 
 ## 8. 主机要求
 
-- Podman 的最低版本：`Notify=healthy`、`NetworkAlias=`、模板单元在本机 5.7.0 都有；最低版本实现时按 Podman 的 release notes 定，`up`
-  检查 `podman version`，不够就报错说要几。
+- **Podman 5.3 起**，`up` 检查 `podman version`，不够就报错说要几。按 Podman 的发布说明：`Notify=healthy`、模板单元、`StopTimeout=` 5.0，
+  `NetworkAlias=` 5.2，无根单元自动等网络（`podman-user-wait-network-online.service`）5.3；`Secret=` 4.5、子目录递归 4.7。
+  （Ubuntu 24.04 的 4.9 不够，26.04 是 5.7，Debian 13 是 5.4。）
 - 不需要 `docker-compose` 与 `podman.socket`。
 - 无根仍要：linger、Ubuntu 23.10 起的 AppArmor `podman` 配置、`nofail` 盘的 `RequiresMountsFor`。不再要：`podman-restart.service`
   与等网络的 drop-in。环境检查脚本按部署文件选的方式分别报（Quadlet 时不查 `podman-restart.service`、socket）。
