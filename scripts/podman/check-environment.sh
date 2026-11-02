@@ -223,27 +223,35 @@ if [[ "$refs" =~ ^[0-9]+$ ]] && (( refs > 0 )); then
   else
     echo "  Rerun with no containers running."
   fi
-elif ! in_user_systemd podman run -d --name "$NAME" --network bridge alpine:latest sleep 30 >/dev/null 2>&1; then
-  fail "Could not even start a test container — investigate 'podman run' directly."
-  exit 2
-elif in_user_systemd podman rm -f "$NAME" >"$LOG" 2>&1; then
-  pass "Container removed cleanly. This machine does not show the AppArmor teardown issue."
-  echo "You don't need scripts/podman/fix-apparmor.sh."
 else
-  status=1
-  fail "Removing the container failed:"
-  tail -5 "$LOG"
-  echo
-  if grep -qi "rootless netns" "$LOG"; then
-    fail "This matches the known AppArmor/pasta signal issue."
-    echo
-    echo "Let pasta receive podman's SIGTERM (one rule in pasta's profile), then load it:"
-    echo "  sudo sed -i '/^profile pasta .*{\$/a\\  signal (receive) set=(term) peer=podman,' /etc/apparmor.d/usr.bin.pasta"
-    echo "  sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta"
-    echo "Details: docs/en/10-troubleshooting/01-up-down-issues.md (scripts/podman/fix-apparmor.sh does it as part of a full reset)."
+  # Create and remove in one transient unit. `podman run -d` returns at once, but the processes it starts
+  # (pasta for a new shared network, conmon) stay in that unit, and systemd-run --wait then waits for them
+  # until the unit's stop timeout (90 s) and reports a timeout. In one unit, a clean teardown ends them all.
+  in_user_systemd sh -c 'podman run -d --name "$1" --network bridge alpine:latest sleep 30 >/dev/null 2>&1 || exit 3
+    podman rm -f "$1"' sh "$NAME" >"$LOG" 2>&1
+  teardown=$?
+  if (( teardown == 3 )); then
+    fail "Could not even start a test container — investigate 'podman run' directly."
+    exit 2
+  elif (( teardown == 0 )); then
+    pass "Container removed cleanly. This machine does not show the AppArmor teardown issue."
+    echo "You don't need scripts/podman/fix-apparmor.sh."
   else
-    warn "This doesn't match the known signature (no 'rootless netns' in the error)."
-    echo "This looks like a different problem — the fix script below is unlikely to help."
+    status=1
+    fail "Removing the container failed:"
+    tail -5 "$LOG"
+    echo
+    if grep -qi "rootless netns" "$LOG"; then
+      fail "This matches the known AppArmor/pasta signal issue."
+      echo
+      echo "Let pasta receive podman's SIGTERM (one rule in pasta's profile), then load it:"
+      echo "  sudo sed -i '/^profile pasta .*{\$/a\\  signal (receive) set=(term) peer=podman,' /etc/apparmor.d/usr.bin.pasta"
+      echo "  sudo apparmor_parser -r /etc/apparmor.d/usr.bin.pasta"
+      echo "Details: docs/en/10-troubleshooting/01-up-down-issues.md (scripts/podman/fix-apparmor.sh does it as part of a full reset)."
+    else
+      warn "This doesn't match the known signature (no 'rootless netns' in the error)."
+      echo "This looks like a different problem — the fix script below is unlikely to help."
+    fi
   fi
 fi
 
