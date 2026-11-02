@@ -242,7 +242,7 @@ scripts/podman/check-environment.sh
 以普通用户跑检查的是无根，以 root 跑检查的是有根。它基本只读；为了拿到真实的答案，会起几个用完即删的测试容器和一个测试网络——光看配置文件判断不了，
 拦不拦取决于内核里当前加载的策略和防火墙规则。它依次检查：`$XDG_DATA_HOME` 有没有被 snap 重定向、无根 Podman 在开机单元启动它的地方能不能建用户命名空间
 （见[下面](#podman-报-failed-to-reexec-permission-denied)）、`podman.socket` 开没开、同一个网络里的两个容器能不能互相访问、容器能不能干净地删掉。
-最后只以警告的形式列出部署要[在重启机器之后回来](#重启机器之后容器没有回来)还缺什么：linger、开机单元启用并等网络、Podman 的存储按时挂上。退出码 `0` 是正常，`1` 是复现了下面某个已知问题，`2` 是检查本身跑不起来（比如没装 Podman）。
+最后只以警告的形式列出部署要[在重启机器之后回来](#重启机器之后容器没有回来)还缺什么：linger、开机单元启用并等网络、Podman 的存储按时挂上，以及有根 Podman 与 Docker 同机时把防火墙规则加回去的那个单元。退出码 `0` 是正常，`1` 是复现了下面某个已知问题，`2` 是检查本身跑不起来（比如没装 Podman）。
 
 **另外两个前提**
 
@@ -251,8 +251,8 @@ scripts/podman/check-environment.sh
   `export XDG_DATA_HOME="$HOME/.local/share"` 与 `export XDG_CONFIG_HOME="$HOME/.config"`。
 - **`podman compose` 要用 Docker 自带的 Compose V2 插件。** `podman compose` 自己没有 compose 实现，只是转发给找到的外部程序。
   执行 `podman compose version`，看到 `Executing external compose provider ".../docker-compose"` 就是这条路；
-  显示的是独立的 `podman-compose` 项目时，与 BrickKit 的配合没有验证过。验证过的是无根 Podman 与 Docker 装在同一台机器上、
-  转发给 Docker 的 Compose 插件；有根 Podman 与 Docker 同机时容器之间不通，见 [下面一节](#podman-上全部-healthy容器之间的调用却超时)。
+  显示的是独立的 `podman-compose` 项目时，与 BrickKit 的配合没有验证过。验证过的是无根、有根 Podman 各自与 Docker 装在同一台机器上、
+  转发给 Docker 的 Compose 插件；有根 Podman 与 Docker 同机时要在 Docker 的防火墙链里放行 Podman 的网桥，见 [下面一节](#podman-上全部-healthy容器之间的调用却超时)。
 
 ## `up` 在 Podman 上失败：`failed to connect to the docker API`
 
@@ -309,7 +309,30 @@ Docker 启动时把宿主机防火墙 `FORWARD` 链的默认策略设成 `DROP`�
    sudo iptables -I DOCKER-USER -o podman+ -j ACCEPT
    ```
 
-   重启后规则会丢，持久化按这台主机自己的防火墙管理方式来（BrickKit 不碰主机防火墙）。
+   规则重启后会丢，而且 Docker 每次启动都重建自己的链，所以要在 Docker 启动之后、Podman 的开机单元拉起容器之前把它们加回去。一个一次性单元就能做到
+   （BrickKit 不碰主机防火墙；这是一种做法，真重启验证过）：
+
+   ```bash
+   sudo tee /etc/systemd/system/podman-docker-forward.service >/dev/null <<'UNIT'
+   [Unit]
+   Description=Let rootful Podman's bridges through Docker's DOCKER-USER chain
+   After=docker.service
+   Before=podman-restart.service
+
+   [Service]
+   Type=oneshot
+   RemainAfterExit=yes
+   ExecStart=/bin/sh -c 'for d in -i -o; do iptables -C DOCKER-USER $d podman+ -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER $d podman+ -j ACCEPT; done'
+
+   [Install]
+   WantedBy=multi-user.target
+   UNIT
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now podman-docker-forward.service
+   ```
+
+   每条规则只在缺的时候才加，再跑一次什么也不变。开机时它紧跟 Docker 跑，Podman 的开机单元紧跟它。主机的防火墙由别的东西管着时（firewalld、保存下来的
+   `iptables` 规则集），把这两条规则放到那里；这个单元没启用时，[环境检查](#podman先跑一遍环境检查)会给出警告。
 2. **改用无根 Podman**，以普通用户运行 `brickkit up`。
 3. **不在同一台机器上同时用有根 Podman 和 Docker。**
 
@@ -423,14 +446,15 @@ sudo apparmor_parser -r /etc/apparmor.d/podman
 | 开机单元一条日志都没有（Docker：守护进程没起来） | 引擎没设开机启动。无根 Podman 要给这个用户开 linger（否则这个用户的服务要等有人登录才启动），并启用用户单元 `podman-restart.service`；有根 Podman 要系统单元；Docker 要 Docker 服务 | `sudo loginctl enable-linger <用户>` 与 `systemctl --user enable podman-restart.service`；有根：`sudo systemctl enable podman-restart.service`；Docker：`sudo systemctl enable docker` |
 | 开机单元以 `failed to reexec: Permission denied` 失败 | AppArmor 不让 Podman 建用户命名空间 | [上一节](#podman-报-failed-to-reexec-permission-denied) |
 | 容器都起来了，组件却反复重启、连不上宿主机上的任何东西（`host.docker.internal`、宿主机上发布的端口） | 无根 Podman 的网络辅助进程（`pasta`）在机器拿到地址之前就起来了，之后也不会再拿。开机单元写的是 `After=network-online.target`，这在用户的 systemd 里不起作用；Podman 为此带了 `podman-user-wait-network-online.service`，但开机单元不依赖它 | 让开机单元等网络（见下）；这一次把容器停掉再起来——`systemctl --user restart podman-restart.service` 两样都做，新的 `pasta` 就有网络了 |
-| Podman 报没有容器，或者存储不见了 | Podman 的存储在一块以 `nofail` 挂载的盘上，可能在用户的 systemd 启动之后才挂上 | `sudo systemctl edit user@<uid>.service`，在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>` |
+| 有根 Podman 与 Docker 同机：全部 healthy，容器之间的调用却超时——重启之前是好的 | 在 Docker 的 `DOCKER-USER` 链里放行 Podman 网桥的规则丢了：它们只在内存里，Docker 每次启动都重建自己的链 | 在 Docker 之后把规则加回去的那个单元：[Podman 上全部 healthy，容器之间的调用却超时](#podman-上全部-healthy容器之间的调用却超时) |
+| Podman 报没有容器，或者存储不见了 | Podman 的存储在一块以 `nofail` 挂载的盘上，可能在开机单元启动之后才挂上（无根：在用户的 systemd 启动之后） | 无根：`sudo systemctl edit user@<uid>.service`；有根：`sudo systemctl edit podman-restart.service`；在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>` |
 | 开机后几个组件重启一两次，然后转 healthy | 开机时引擎启动容器不按 `up` 等待的那个启动顺序（`depends_on`）；有组件比它的依赖先起来 | 不用处理——重启策略会一直重试；组件应当重试连接，而不是退出 |
 | 什么都没回来，重启前跑过 `brickkit down` | `down` 删掉了容器，开机时没有东西可启动 | `brickkit up` |
 | Podman 上容器的重启策略是 `unless-stopped`（`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <容器>`） | 容器是旧版 BrickKit 建的；Podman 的开机单元只启动策略为 `always` 的容器 | 跑一次 `brickkit up`：重启策略变了的容器会被重建 |
 
 让无根的开机单元等网络的 drop-in 是[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)的第 5 步。
 
-上面每一项开机设置缺了时，`scripts/podman/check-environment.sh` 都会给出警告。按顺序的完整设置见[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)。
+上面每一项开机设置缺了时，`scripts/podman/check-environment.sh` 都会给出警告。按顺序的完整设置见[为有根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为有根-podman-准备主机)、[为无根 Podman 准备主机](../09-patterns/06-deployment-selection.md#为无根-podman-准备主机)。
 
 ## `down` 停不掉 `mode: local` 的组件
 

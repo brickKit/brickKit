@@ -112,7 +112,9 @@ pulled even from a local source, so a component with its own code writes `build`
 `Dockerfile` sits next to an image-only `component.yaml`), and a component shipped without its code
 writes only `image`. The image **tag is always `metadata.version`**. `up` never builds, and
 `brickkit build` skips a version whose image already exists — so changed code without a version bump
-needs either a bump or `brickkit build <id> --force` on the user's side.
+needs either a bump or `brickkit build <id> --force` on the user's side. The image runs as a non-root
+user: end the `Dockerfile` with `USER` and a non-zero uid (`USER 10001` after `adduser -D -u 10001 app`
+on Alpine), since on Docker and rootful Podman root in a container is root on the host. Nothing checks it.
 
 **9. `deployment.resources`: write `requests`, leave `limits` to the deployer.** Quotas merge field by
 field (deploy entry > `component.yaml` > default), so a `limits.cpu` you write can never be removed.

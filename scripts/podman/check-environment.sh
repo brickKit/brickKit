@@ -16,7 +16,8 @@
 #     can block the `pasta` helper (rootless Podman's userspace network) from
 #     receiving the SIGTERM that `podman rm` sends it during teardown
 #   - (warnings) what a deployment needs to come back after a reboot: linger,
-#     podman-restart.service enabled and waiting for the network, storage mounts
+#     podman-restart.service enabled and waiting for the network, storage mounts;
+#     for rootful Podman next to Docker, the DOCKER-USER rules put back at boot
 #
 # Run it as the user that will run `brickkit up`: as root to check rootful
 # Podman, as yourself to check rootless Podman. The full story:
@@ -173,7 +174,7 @@ else
     if iptables -S DOCKER-USER >/dev/null 2>&1; then
       fail "This matches rootful Podman next to Docker: the FORWARD policy is DROP and Docker's DOCKER-USER chain exists."
       echo
-      echo "Let Podman's bridges through in Docker's chain (persisting the rules is up to this host's setup):"
+      echo "Let Podman's bridges through in Docker's chain (to put them back at every boot, see the unit in the doc below):"
       echo "  iptables -I DOCKER-USER -i podman+ -j ACCEPT"
       echo "  iptables -I DOCKER-USER -o podman+ -j ACCEPT"
       echo "or don't run rootful Podman and Docker on the same machine. Rootless Podman isn't affected."
@@ -264,15 +265,47 @@ fi
 # ships podman-user-wait-network-online.service for this, but the boot unit
 # doesn't use it — a pasta started before the network has an address never
 # reaches the host), and Podman's storage must be mounted before the user's
-# systemd starts when it lives on a disk mounted with nofail.
+# systemd starts when it lives on a disk mounted with nofail. For rootful
+# Podman the system boot unit waits for the network by itself; the storage must
+# be mounted before that unit starts, and next to Docker the DOCKER-USER rules
+# must be put back after Docker starts (they live only in memory) — the docs
+# give a unit for that, podman-docker-forward.service.
 echo
 echo "Checking what a deployment needs to come back after a reboot (warnings only)..."
+
+# storage_mounted_before <unit> <systemctl edit command>: warns when Podman's
+# storage is on a nofail mount that <unit> doesn't require.
+storage_mounted_before() {
+  local graphroot mount required
+  graphroot="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null)"
+  mount="$(findmnt -n -o TARGET -T "$graphroot" 2>/dev/null)"
+  if [[ -n "$mount" && "$mount" != / ]] && findmnt --fstab -n -o OPTIONS "$mount" 2>/dev/null | grep -qw nofail; then
+    required="$(systemctl show "$1" -p RequiresMountsFor --value 2>/dev/null)"
+    if [[ " $required " == *" $mount "* ]]; then
+      pass "Podman's storage ($mount, nofail) is mounted before $1 starts."
+    else
+      warn "Podman's storage is on $mount, mounted with nofail: nothing makes it mount before $1 starts."
+      echo "  Fix: $2, and add: [Unit] RequiresMountsFor=$mount"
+    fi
+  fi
+}
+
 if [[ $EUID -eq 0 ]]; then
   if systemctl is-enabled --quiet podman-restart.service 2>/dev/null; then
     pass "podman-restart.service is enabled."
   else
     warn "podman-restart.service is not enabled: nothing starts the containers at boot. Fix: systemctl enable podman-restart.service"
   fi
+  if iptables -S DOCKER-USER >/dev/null 2>&1; then
+    if systemctl is-enabled --quiet podman-docker-forward.service 2>/dev/null; then
+      pass "podman-docker-forward.service puts the DOCKER-USER rules back at boot."
+    else
+      warn "Docker runs here, and podman-docker-forward.service is not enabled: the rules letting Podman's bridges through DOCKER-USER are lost at reboot."
+      echo "  Fix (unless this host's firewall setup restores them another way): the unit in"
+      echo "  docs/en/10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out"
+    fi
+  fi
+  storage_mounted_before podman-restart.service "systemctl edit podman-restart.service"
 else
   user="$(id -un)"
   if [[ "$(loginctl show-user "$user" -p Linger --value 2>/dev/null)" == yes ]]; then
@@ -294,17 +327,7 @@ else
     echo "         > ~/.config/systemd/user/podman-restart.service.d/wait-network.conf"
     echo "       systemctl --user daemon-reload"
   fi
-  graphroot="$(podman info --format '{{.Store.GraphRoot}}' 2>/dev/null)"
-  mount="$(findmnt -n -o TARGET -T "$graphroot" 2>/dev/null)"
-  if [[ -n "$mount" && "$mount" != / ]] && findmnt --fstab -n -o OPTIONS "$mount" 2>/dev/null | grep -qw nofail; then
-    required="$(systemctl show "user@$(id -u).service" -p RequiresMountsFor --value 2>/dev/null)"
-    if [[ " $required " == *" $mount "* ]]; then
-      pass "Podman's storage ($mount, nofail) is mounted before the user's systemd starts."
-    else
-      warn "Podman's storage is on $mount, mounted with nofail: nothing makes it mount before the user's systemd starts."
-      echo "  Fix: sudo systemctl edit user@$(id -u).service, and add: [Unit] RequiresMountsFor=$mount"
-    fi
-  fi
+  storage_mounted_before "user@$(id -u).service" "sudo systemctl edit user@$(id -u).service"
 fi
 
 echo

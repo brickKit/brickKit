@@ -124,6 +124,10 @@ configSchema:
 把源码克隆下来开发的人从源码构建。只写 `image`：镜像总是拉取的，来自本地源也一样——不给代码也能分发组件，就靠它；
 旁边的 `Dockerfile` 不会被用到，`up`、`build` 与 `lint` 都会警告。
 
+**镜像以非 root 用户运行。** `Dockerfile` 最后写 `USER` 与一个非 0 的 uid（Alpine 上先 `RUN adduser -D -u 10001 app` 再 `USER 10001`；distroless 镜像有 `nonroot` 版本）。
+Docker 与有根 Podman 的容器在主机上以 root 运行，所以只要有东西逃出容器，容器里的 root 就是主机上的 root；换成非 root 用户，逃出来的也只是一个普通账号。
+无根 Podman 把容器里的 root 映射成部署的那个用户，但镜像不知道自己会跑在哪。平台不检查这一点——基础镜像设好的 `USER` 一样算数——所以由你负责。
+
 **配额只建议 `requests`。** 你知道自己稳态要多少；"最多能涨到多少"是部署方的判断，而且你写了 `limits.cpu`，使用方就去不掉它了。
 平台不给 `limits` 编默认值：编一个 512Mi，一个本来需要 600Mi 的健康组件就会被 OOM 杀掉。
 

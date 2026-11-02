@@ -174,7 +174,8 @@ USER 10001
 ENTRYPOINT ["/app/quote"]
 ```
 
-The image needs `wget` or `curl` (Docker's HTTP health check uses them; Alpine ships `wget`), and shouldn't run as root.
+The image needs `wget` or `curl` (Docker's HTTP health check uses them; Alpine ships `wget`), and runs as a non-root
+user ([why](02-component-yaml-reference.md#deployment-how-i-run)).
 
 **4. Fill in the documents and the contract**: `BRICKKIT.md` for the users, `AGENTS.md` for whoever develops it next,
 the first line of `README.md`; see [A component's documentation](08-component-doc-spec.md) and

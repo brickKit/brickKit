@@ -196,17 +196,24 @@ that would break the file is refused before anything is written.
 **13. What keeps running is containers; processes on this machine don't.**
 
 Choose the target by where the deployment must keep running. One machine (a delivery, a small
-production): `target: podman` with rootless Podman is the recommendation — no root daemon, about 0.4
-GiB less resident memory than Docker's daemon, the same CPU; `target: docker` is equally supported, for a
-machine that already runs Docker or tools that only speak Docker. A cluster, or self-healing and scaling
-across machines: `target: k8s` (on one node its control plane is a fixed cost of about 2 GiB). Coming
-back after a reboot is the engine's job and needs the engine set up for it: the Docker service enabled;
-for rootless Podman, `sudo loginctl enable-linger <user>`, `systemctl --user enable
+production): `target: podman`, rootful when the engine may run as root on that host, rootless when it
+may not; `target: docker` is equally supported, for a machine that already runs Docker or tools that
+only speak Docker. Rootful Podman comes back at boot with one system unit and uses the kernel's
+networking (9–10% less CPU than rootless); rootless never runs the engine as root but needs several host
+settings, each failing silently until the next reboot, and uses about 0.4 GiB less memory than
+Docker's daemon (rootful wasn't measured for memory). A cluster, or self-healing and scaling across machines: `target: k8s` (on one node its
+control plane is a fixed cost of about 2 GiB). Coming back after a reboot is the engine's job and needs
+the engine set up for it: the Docker service enabled; for rootful Podman, `sudo systemctl enable
+podman-restart.service`, and next to Docker a one-shot unit putting the `DOCKER-USER` rules for
+`podman+` back after Docker starts (without them containers can't reach each other); for rootless
+Podman, `sudo loginctl enable-linger <user>`, `systemctl --user enable
 podman-restart.service` with a drop-in making it wait for `podman-user-wait-network-online.service`, on
 Ubuntu 23.10+ the apparmor package's `/etc/apparmor.d/podman` profile (without it Podman fails at boot
-and over ssh with `failed to reexec: Permission denied`), and `RequiresMountsFor` on `user@<uid>.service`
-when Podman's storage is on a `nofail` disk (plus `podman.socket` for `up` itself) —
-`scripts/podman/check-environment.sh` checks them all; the steps are in
+and over ssh with `failed to reexec: Permission denied`); `RequiresMountsFor` on the boot unit
+(rootless: `user@<uid>.service`) when Podman's storage is on a `nofail` disk; plus `podman.socket` for
+`up` itself (rootful: a `SocketGroup=` and `CONTAINER_HOST` to run `brickkit` without sudo). With a root
+engine, images must run as a non-root `USER`. `scripts/podman/check-environment.sh` checks the boot
+settings (run it as the deploying user: root for rootful); the steps are in
 `brickkit docs 09-patterns/06-deployment-selection`. BrickKit generates `restart: always` on
 Podman, because Podman's boot unit starts only that policy; at boot the engine ignores the start order,
 so components must retry their connections. `mode: local` / `debug` are for development, demos and

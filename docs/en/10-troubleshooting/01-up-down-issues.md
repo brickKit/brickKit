@@ -279,7 +279,8 @@ gets blocked depends on the policy and firewall rules currently loaded in the ke
 (see [below](#podman-fails-with-failed-to-reexec-permission-denied)), whether `podman.socket` is on, whether two
 containers on one network can reach each other, and whether a container can be removed cleanly. Last, as warnings only,
 what a deployment needs to [come back after a reboot](#the-containers-dont-come-back-after-a-reboot): linger, the boot unit
-enabled and waiting for the network, Podman's storage mounted in time. Exit code `0` is fine, `1` means one of the known
+enabled and waiting for the network, Podman's storage mounted in time, and for rootful Podman next to Docker the unit that
+puts the firewall rules back. Exit code `0` is fine, `1` means one of the known
 problems below reproduced, `2` means the check itself couldn't run (Podman not installed, say).
 
 **Two further prerequisites**
@@ -291,9 +292,9 @@ problems below reproduced, `2` means the check itself couldn't run (Podman not i
 - **`podman compose` should use Docker's own Compose V2 plugin.** `podman compose` has no compose implementation of its
   own; it only forwards to an external program it finds. Run `podman compose version`: `Executing external compose
   provider ".../docker-compose"` means that route; when it shows the separate `podman-compose` project, working with
-  BrickKit hasn't been verified. What's verified is rootless Podman and Docker installed on the same machine, with it
-  forwarding to Docker's Compose plugin; rootful Podman next to Docker leaves containers unable to reach each other, see
-  [the section below](#all-healthy-on-podman-yet-calls-between-containers-time-out).
+  BrickKit hasn't been verified. What's verified is rootless and rootful Podman each on a machine that also has Docker,
+  with it forwarding to Docker's Compose plugin; rootful Podman next to Docker needs Podman's bridges let through Docker's
+  firewall chain, see [the section below](#all-healthy-on-podman-yet-calls-between-containers-time-out).
 
 ## `up` fails on Podman: `failed to connect to the docker API`
 
@@ -355,8 +356,33 @@ policy is `DROP` and Docker's `DOCKER-USER` chain exists, it recognises this pro
    sudo iptables -I DOCKER-USER -o podman+ -j ACCEPT
    ```
 
-   The rules are lost on reboot; persist them the way this host manages its firewall (BrickKit doesn't touch the host's
-   firewall).
+   The rules are lost on reboot, and Docker rebuilds its chains at every start, so they have to go back in after Docker
+   starts and before Podman's boot unit starts the containers. A one-shot unit does that (BrickKit doesn't touch the
+   host's firewall; this is one way, checked with a real reboot):
+
+   ```bash
+   sudo tee /etc/systemd/system/podman-docker-forward.service >/dev/null <<'UNIT'
+   [Unit]
+   Description=Let rootful Podman's bridges through Docker's DOCKER-USER chain
+   After=docker.service
+   Before=podman-restart.service
+
+   [Service]
+   Type=oneshot
+   RemainAfterExit=yes
+   ExecStart=/bin/sh -c 'for d in -i -o; do iptables -C DOCKER-USER $d podman+ -j ACCEPT 2>/dev/null || iptables -I DOCKER-USER $d podman+ -j ACCEPT; done'
+
+   [Install]
+   WantedBy=multi-user.target
+   UNIT
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now podman-docker-forward.service
+   ```
+
+   It adds each rule only when it's missing, so running it again changes nothing. At boot it runs right after Docker, and
+   Podman's boot unit right after it. Where the host's firewall is managed by something else (firewalld, a saved
+   `iptables` rule set), put the two rules there instead; the
+   [environment check](#podman-run-the-environment-check-first) warns when this unit isn't enabled.
 2. **Use rootless Podman**, running `brickkit up` as a normal user.
 3. **Don't run rootful Podman and Docker on the same machine.**
 
@@ -497,7 +523,8 @@ BrickKit starts nothing at boot: the engine does, and only when it is set up to.
 | The boot unit has no entries at all (Docker: the daemon didn't start) | The engine isn't set to start at boot. Rootless Podman needs linger for the user (otherwise the user's services start only when someone logs in) and the user unit `podman-restart.service` enabled; rootful Podman the system unit; Docker the Docker service | `sudo loginctl enable-linger <user>` and `systemctl --user enable podman-restart.service`; rootful: `sudo systemctl enable podman-restart.service`; Docker: `sudo systemctl enable docker` |
 | The boot unit failed with `failed to reexec: Permission denied` | AppArmor keeps Podman from creating its user namespace | [The section above](#podman-fails-with-failed-to-reexec-permission-denied) |
 | The containers are up, but components keep restarting and can't reach anything on the host (`host.docker.internal`, ports published on the host) | Rootless Podman's network helper (`pasta`) started before the machine had an address, and it never picks one up later. The boot unit is written `After=network-online.target`, which means nothing in the user's systemd; Podman ships `podman-user-wait-network-online.service` for this, but the boot unit doesn't depend on it | Make the boot unit wait for the network (below); this time, stop and start the containers once — `systemctl --user restart podman-restart.service` does both, and the new `pasta` has the network |
-| Podman reports no containers, or its storage missing | Podman's storage is on a disk mounted with `nofail`, which may mount after the user's systemd starts | `sudo systemctl edit user@<uid>.service`, add `[Unit]` `RequiresMountsFor=<that mount point>` |
+| Rootful Podman next to Docker: all healthy, yet calls between containers time out — it worked before the reboot | The rules letting Podman's bridges through Docker's `DOCKER-USER` chain were lost: they live only in memory, and Docker rebuilds its chains at every start | The unit that puts them back after Docker: [All healthy on Podman, yet calls between containers time out](#all-healthy-on-podman-yet-calls-between-containers-time-out) |
+| Podman reports no containers, or its storage missing | Podman's storage is on a disk mounted with `nofail`, which may mount after the boot unit starts (rootless: after the user's systemd starts) | Rootless: `sudo systemctl edit user@<uid>.service`; rootful: `sudo systemctl edit podman-restart.service`; add `[Unit]` `RequiresMountsFor=<that mount point>` |
 | A few components restart a couple of times right after boot, then turn healthy | At boot the engine starts the containers without the start order `up` waits through (`depends_on`); a component started before its dependency was reachable | Nothing — the restart policy keeps trying; a component should retry its connections rather than exit |
 | Nothing came back, and `brickkit down` ran before the restart | `down` removes the containers; there is nothing to start | `brickkit up` |
 | On Podman, the containers' restart policy is `unless-stopped` (`podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' <container>`) | They were created by an older BrickKit; Podman's boot unit starts only containers whose policy is `always` | `brickkit up` once: it recreates containers whose restart policy changed |
@@ -506,7 +533,8 @@ The drop-in that makes the rootless boot unit wait for the network is step 5 of
 [Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
 
 `scripts/podman/check-environment.sh` reports each of the boot settings above as a warning when it's missing. The whole
-setup, in order: [Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
+setup, in order: [Setting up a host for rootful Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootful-podman),
+[Setting up a host for rootless Podman](../09-patterns/06-deployment-selection.md#setting-up-a-host-for-rootless-podman).
 
 ## `down` can't stop a `mode: local` component
 

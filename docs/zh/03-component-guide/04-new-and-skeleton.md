@@ -170,7 +170,7 @@ USER 10001
 ENTRYPOINT ["/app/quote"]
 ```
 
-镜像里要有 `wget` 或 `curl`（Docker 的 HTTP 健康检查用它们；Alpine 自带 `wget`），并且不要以 root 运行。
+镜像里要有 `wget` 或 `curl`（Docker 的 HTTP 健康检查用它们；Alpine 自带 `wget`），并且以非 root 用户运行（[为什么](02-component-yaml-reference.md#deployment我怎么跑)）。
 
 **4. 填文档和契约**：给使用者的 `BRICKKIT.md`、给下一个开发者的 `AGENTS.md`、`README.md` 的第一行，见
 [组件的文档](08-component-doc-spec.md) 与 [契约与产物](06-artifacts-and-contracts.md)。

@@ -9,7 +9,7 @@ shape is decided.
 
 | You want to | Run it as |
 | --- | --- |
-| Keep it running on one machine: a delivery, a small production | Containers on **rootless Podman**; Docker is equally supported, for a machine that already runs Docker or tools that only speak Docker |
+| Keep it running on one machine: a delivery, a small production | Containers on Podman: **rootful** when the engine may run as root, **rootless** when it may not; Docker is equally supported, for a machine that already runs Docker or tools that only speak Docker |
 | Keep it running with self-healing and scaling across machines, or on a cluster you already have | Containers on Kubernetes |
 | Change one or two components against the real rest | Containers, with those components as processes on this machine (`mode: debug` / `mode: local`) |
 | Show it or try it on a machine without a container engine | Every component `mode: local` — a demo or a trial, never a delivery |
@@ -139,7 +139,7 @@ This is almost entirely an infrastructure question, not a performance one: do yo
 scheduling across machines and self-healing? If not, one machine runs everything with `podman compose` or
 `docker compose`, the simplest to operate. If so, `k8s` generates Deployments / Services / Ingresses.
 
-### One machine: rootless Podman, or Docker
+### One machine: Podman, rootful or rootless, or Docker
 
 BrickKit generates the same `compose.yaml` for `target: podman` and `target: docker` — the only difference is the
 restart policy (see [Coming back after a reboot](#coming-back-after-a-reboot)) — and every `brickkit` command works the
@@ -147,14 +147,64 @@ same on both. What differs is the engine on the host:
 
 | Engine | What runs on the host | Upside | Cost | For |
 | --- | --- | --- | --- | --- |
-| **Rootless Podman** (recommended) | No daemon: each container has a small monitor process (`conmon`); a user-space helper (`pasta`) carries the containers' network | The engine never runs as root; the least resident memory | The user-space networking costs CPU; the host needs a few settings ([below](#setting-up-a-host-for-rootless-podman)); ports below 1024 can't be published as they are | Single-machine delivery; small machines; hosts that don't allow a root daemon |
-| **Docker** | The Docker daemon (`dockerd`, `containerd`), as root | The most widespread, the most surrounding tooling; setting it up is installing it | The daemon's resident memory | Machines that already run Docker; tools that only speak Docker |
-| **Rootful Podman** | Podman as root; the kernel carries the network | No user-space networking | The engine runs as root; next to Docker on one machine, containers can't reach each other until Podman's bridges are let through (see [the troubleshooting section](../10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out)) | When the networking CPU matters and root is acceptable |
+| **Rootful Podman** (recommended when the engine may run as root) | Podman as root, no daemon: each container has a small monitor process (`conmon`); the kernel carries the containers' network | Comes back at boot with one system unit; no user-space networking (9–10% less CPU across the whole stack than rootless); any port can be published | The engine runs as root, as Docker's does: a process that escapes its container is root on the host unless the image runs as a non-root user; next to Docker, Podman's bridges must be let through Docker's firewall chain ([below](#setting-up-a-host-for-rootful-podman)) | Single-machine delivery where root is acceptable |
+| **Rootless Podman** (recommended when it may not) | Podman as the deploying user: each container has its `conmon`; a user-space helper (`pasta`) carries the containers' network | The engine never runs as root; the least resident memory | The user-space networking costs CPU; coming back at boot takes several host settings, each of which fails silently until the next reboot ([below](#setting-up-a-host-for-rootless-podman)); ports below 1024 can't be published as they are | Hosts that don't allow a root engine |
+| **Docker** | The Docker daemon (`dockerd`, `containerd`), as root | The most widespread, the most surrounding tooling; setting it up is installing it | The daemon's resident memory; root, as for rootful Podman | Machines that already run Docker; tools that only speak Docker |
+
+**Choosing between them.** Ask first whether the engine may run as root on this host. If it may, rootful Podman: the
+boot path is the system's own — one unit, which waits for the network the ordinary way — and the networking is the
+kernel's. If it may not, rootless Podman, with the host settings below; the
+[environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) tells you which of
+them is missing. Docker is the same choice as rootful Podman with a daemon: take it where Docker is already there.
 
 **What the measurement says** ([the engines](#the-engines-the-platforms-own-cost)): the components cost the same on every
-engine, and the whole stack's CPU didn't differ; what differs is the platform's own memory, paid once per machine —
-about 0.14 GiB for rootless Podman against about 0.55 GiB for Docker's daemon, about 2 GiB for a one-node cluster. It
-weighs most on a small machine. Rootful Podman saves the user-space networking's CPU (9–10% of the whole stack).
+engine, and the whole stack's CPU didn't differ between rootless Podman and Docker; what differs is the platform's own
+memory, paid once per machine — about 0.14 GiB for rootless Podman against about 0.55 GiB for Docker's daemon, about
+2 GiB for a one-node cluster. It weighs most on a small machine. Rootful Podman saves the user-space networking's CPU
+(9–10% of the whole stack); its memory wasn't measured separately (the same `conmon` per container, no `pasta`).
+
+**What a reboot showed** (the same machine — Ubuntu 26.04, Podman 5.7.0, Docker installed beside it, Wi-Fi by DHCP — and
+the same 12 components): rootful Podman came back on the first real reboot with only the system boot unit and the firewall
+unit in place — all 12 healthy, none restarted, Podman's boot unit done 3.5 seconds after the network was online.
+Rootless Podman took three reboots to find what it needs: the AppArmor profile (nothing came back), the boot unit waiting
+for the network (the containers came back without a route to the host), and then it passed — steps 3–7 below.
+
+### Setting up a host for rootful Podman
+
+As root, or with `sudo`:
+
+1. Install Podman and Docker's Compose V2 (`docker-compose`), as in step 1 [for rootless Podman](#setting-up-a-host-for-rootless-podman).
+2. `systemctl enable --now podman.socket` — `brickkit up`, `down` and `status` reach Podman through it
+   (`/run/podman/podman.sock`).
+3. `systemctl enable podman-restart.service` — starts the containers again at boot. It is a system unit, so its
+   `After=network-online.target` really waits for the network.
+4. **Docker on the same machine**: let Podman's bridges through Docker's firewall chain, and put the rules back at every
+   boot, after Docker and before Podman's boot unit; without them containers can't reach each other
+   ([the unit](../10-troubleshooting/01-up-down-issues.md#all-healthy-on-podman-yet-calls-between-containers-time-out)).
+5. Who runs `brickkit`: as root (`sudo brickkit up`), or as a user in a group you let use root's socket. For the
+   latter, `systemctl edit podman.socket` and add
+
+   ```ini
+   [Socket]
+   SocketGroup=<group>
+   SocketMode=0660
+   ExecStartPost=/bin/chmod 0711 /run/podman
+   ```
+
+   then `systemctl restart podman.socket`, and give the user `export CONTAINER_HOST=unix:///run/podman/podman.sock`. The
+   `chmod` is needed because the Podman package's own `tmpfiles.d` entry creates `/run/podman` as `0700` at every boot.
+   Membership of that group is as good as root, the same as Docker's `docker` group.
+6. Images run as a non-root user (`USER` with a non-zero uid in the `Dockerfile`): with a root engine, root in a
+   container is root on the host ([why](../03-component-guide/02-component-yaml-reference.md#deployment-how-i-run)).
+7. Podman's storage on a disk mounted with `nofail`: add `RequiresMountsFor=<that mount point>` under `[Unit]` with
+   `systemctl edit podman-restart.service`.
+8. Run the [environment check](../10-troubleshooting/01-up-down-issues.md#podman-run-the-environment-check-first) as
+   root once: it tests that containers can reach each other and be removed cleanly, and warns about any of steps 3, 4 and 7
+   that is missing.
+
+Verified with BrickKit: rootful Podman on a machine that also has Docker, steps 1–5 (with the group), including a real
+reboot (all 12 components healthy without anyone logging in or running `up`). A machine with only Podman hasn't been
+verified end to end; there, step 4 doesn't apply.
 
 ### Setting up a host for rootless Podman
 
@@ -221,8 +271,8 @@ has to be in place for each:
 | Engine | After a crash | At boot |
 | --- | --- | --- |
 | Docker | `restart: unless-stopped`, generated | The Docker service enabled at boot (most packages do it; check with `systemctl is-enabled docker`) |
+| Rootful Podman | `restart: always`, generated | The system unit `podman-restart.service` enabled; next to Docker, the unit that puts Podman's firewall rules back; its storage mounted in time ([steps 3, 4, 7](#setting-up-a-host-for-rootful-podman)) |
 | Rootless Podman | `restart: always`, generated | Linger for the user, the user unit `podman-restart.service` enabled and waiting for the network, Podman able to create its user namespace, its storage mounted in time ([steps 3–7](#setting-up-a-host-for-rootless-podman)) |
-| Rootful Podman | `restart: always`, generated | The system unit enabled: `sudo systemctl enable podman-restart.service` |
 | Kubernetes | The kubelet | The cluster |
 
 - Podman gets `always` because its boot unit starts only containers whose policy is `always`; otherwise the two

@@ -7,7 +7,7 @@
 
 | 你要 | 就这样跑 |
 | --- | --- |
-| 在一台机器上长期运行：一次交付、一个小规模的生产 | 容器，用**无根 Podman**；Docker 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具 |
+| 在一台机器上长期运行：一次交付、一个小规模的生产 | 容器，用 Podman：引擎可以以 root 运行就用**有根**，不可以就用**无根**；Docker 同等支持，给已经在跑 Docker 的机器、或只认 Docker 的周边工具 |
 | 长期运行，还要自愈、跨机器扩容，或者已经有集群 | 容器，用 Kubernetes |
 | 改一两个组件，对着真实的其余部分 | 容器，这几个组件以本机进程运行（`mode: debug` / `mode: local`） |
 | 在一台没有容器引擎的机器上演示或试用 | 每个组件都 `mode: local`——只用于演示、试用，不用于交付 |
@@ -104,19 +104,53 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 这几乎完全是基础设施问题，不是性能问题：你有没有 Kubernetes 集群、需不需要跨机器调度和自愈？没有的话，一台机器用 `podman compose` 或 `docker compose`
 驱动一切，运维最简单。有的话，`k8s` 生成 Deployment / Service / Ingress。
 
-### 一台机器：无根 Podman，或 Docker
+### 一台机器：Podman（有根或无根），或 Docker
 
 `target: podman` 与 `target: docker` 生成的是同一份 `compose.yaml`——唯一的不同是重启策略（见[重启机器之后](#重启机器之后)）——每个 `brickkit` 命令在两者上用法也一样。
 不同的是主机上的引擎：
 
 | 引擎 | 主机上跑着什么 | 好处 | 代价 | 适合 |
 | --- | --- | --- | --- | --- |
-| **无根 Podman**（推荐） | 没有守护进程：每个容器一个小的看护进程（`conmon`）；容器的网络由用户态的辅助进程（`pasta`）转发 | 引擎从不以 root 运行；常驻内存最少 | 用户态转发网络要花 CPU；主机要做几项设置（[见下](#为无根-podman-准备主机)）；1024 以下的端口不能直接发布 | 单机交付；内存小的机器；不允许常驻 root 守护进程的主机 |
-| **Docker** | Docker 守护进程（`dockerd`、`containerd`），以 root 运行 | 最普及，周边工具最多；装上就能用 | 守护进程的常驻内存 | 已经在跑 Docker 的机器；只认 Docker 的周边工具 |
-| **有根 Podman** | Podman 以 root 运行；网络由内核转发 | 没有用户态转发 | 引擎以 root 运行；与 Docker 在同一台机器上时，放行 Podman 的网桥之前容器之间互相不通（见[排障一节](../10-troubleshooting/01-up-down-issues.md#podman-上全部-healthy容器之间的调用却超时)） | 在意网络转发的 CPU、又接受 root 时 |
+| **有根 Podman**（引擎可以以 root 运行时推荐） | Podman 以 root 运行，没有守护进程：每个容器一个小的看护进程（`conmon`）；容器的网络由内核转发 | 开机回来只要一个系统单元；没有用户态转发（整套的 CPU 比无根少 9–10%）；任何端口都能发布 | 引擎以 root 运行，和 Docker 一样：一个进程逃出容器就是主机上的 root，除非镜像以非 root 用户运行；与 Docker 同机时，要在 Docker 的防火墙链里放行 Podman 的网桥（[见下](#为有根-podman-准备主机)） | 接受 root 的单机交付 |
+| **无根 Podman**（不可以时推荐） | Podman 以部署的那个用户运行：每个容器一个 `conmon`；容器的网络由用户态的辅助进程（`pasta`）转发 | 引擎从不以 root 运行；常驻内存最少 | 用户态转发网络要花 CPU；开机回来要做好几项主机设置，每一项缺了都要等到下次重启才暴露（[见下](#为无根-podman-准备主机)）；1024 以下的端口不能直接发布 | 不允许引擎以 root 运行的主机 |
+| **Docker** | Docker 守护进程（`dockerd`、`containerd`），以 root 运行 | 最普及，周边工具最多；装上就能用 | 守护进程的常驻内存；root，与有根 Podman 一样 | 已经在跑 Docker 的机器；只认 Docker 的周边工具 |
 
-**实测说明了什么**（[引擎之间](#引擎之间平台自己的开销)）：组件在每种引擎上花的一样，整套的 CPU 也看不出差别；不同的是平台自己的内存，每台机器付一次——
-无根 Podman 约 0.14 GiB，Docker 守护进程约 0.55 GiB，单节点集群约 2 GiB。机器越小越显眼。有根 Podman 省掉用户态网络的 CPU（整套的 9–10%）。
+**怎样选。** 先问这台主机允不允许引擎以 root 运行。允许，就用有根 Podman：开机的路是系统自己的——一个单元，按平常的办法等网络——网络也是内核转发的。不允许，就用无根 Podman，
+做下面那几项主机设置；缺了哪项，[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)会指出来。Docker 与有根 Podman 是同一种选择、多一个守护进程：机器上已经有 Docker 时用它。
+
+**实测说明了什么**（[引擎之间](#引擎之间平台自己的开销)）：组件在每种引擎上花的一样，无根 Podman 与 Docker 整套的 CPU 也看不出差别；不同的是平台自己的内存，每台机器付一次——
+无根 Podman 约 0.14 GiB，Docker 守护进程约 0.55 GiB，单节点集群约 2 GiB。机器越小越显眼。有根 Podman 省掉用户态网络的 CPU（整套的 9–10%）；它的内存没有单独量过（同样每个容器一个 `conmon`，没有 `pasta`）。
+
+**重启机器实测**（同一台机器——Ubuntu 26.04、Podman 5.7.0、旁边装着 Docker、Wi-Fi 经 DHCP——同样 12 个组件）：有根 Podman 第一次真重启就回来了，只配了系统的开机单元与防火墙的单元——
+12 个全部 healthy、没有一个重启过，网络在线后 3.5 秒 Podman 的开机单元就跑完了。无根 Podman 重启了三次才找齐它要的东西：AppArmor 配置（一个都没回来）、
+开机单元等网络（容器回来了，却到不了主机），然后才通过——就是下面的第 3–7 步。
+
+### 为有根 Podman 准备主机
+
+以 root 或用 `sudo`：
+
+1. 装 Podman 与 Docker 的 Compose V2（`docker-compose`），同[无根 Podman](#为无根-podman-准备主机) 的第 1 步。
+2. `systemctl enable --now podman.socket`——`brickkit up`、`down`、`status` 经它连 Podman（`/run/podman/podman.sock`）。
+3. `systemctl enable podman-restart.service`——开机时把容器重新拉起来。它是系统单元，所以它的 `After=network-online.target` 真的会等网络。
+4. **同一台机器上有 Docker**：在 Docker 的防火墙链里放行 Podman 的网桥，并且每次开机在 Docker 之后、Podman 的开机单元之前把规则加回去；没有它们，容器之间互相不通
+   （[那个单元](../10-troubleshooting/01-up-down-issues.md#podman-上全部-healthy容器之间的调用却超时)）。
+5. 谁来跑 `brickkit`：root（`sudo brickkit up`），或者一个组里的用户，你让这个组用 root 的套接字。后一种做法：`systemctl edit podman.socket`，加上
+
+   ```ini
+   [Socket]
+   SocketGroup=<组>
+   SocketMode=0660
+   ExecStartPost=/bin/chmod 0711 /run/podman
+   ```
+
+   然后 `systemctl restart podman.socket`，并给那个用户设 `export CONTAINER_HOST=unix:///run/podman/podman.sock`。要 `chmod` 是因为 Podman 包自带的 `tmpfiles.d` 条目每次开机都把
+   `/run/podman` 建成 `0700`。这个组的成员等同 root，与 Docker 的 `docker` 组一样。
+6. 镜像以非 root 用户运行（`Dockerfile` 里写 `USER` 与一个非 0 的 uid）：引擎是 root 时，容器里的 root 就是主机上的 root（[为什么](../03-component-guide/02-component-yaml-reference.md#deployment我怎么跑)）。
+7. Podman 的存储在一块以 `nofail` 挂载的盘上：用 `systemctl edit podman-restart.service`，在 `[Unit]` 下加 `RequiresMountsFor=<那个挂载点>`。
+8. 以 root 跑一遍[环境检查](../10-troubleshooting/01-up-down-issues.md#podman先跑一遍环境检查)：它实测容器之间能不能互通、能不能干净地删掉，并对第 3、4、7 步里缺了的给出警告。
+
+在 BrickKit 上验证过的：有根 Podman、同一台机器上也装着 Docker，第 1–5 步（用组的做法），包括真重启一次机器（没有人登录、也没跑 `up`，12 个组件全部 healthy）。
+只装 Podman 的机器没有端到端验证过；那里没有第 4 步。
 
 ### 为无根 Podman 准备主机
 
@@ -167,8 +201,8 @@ CPU 少 14–28%，整套的内存却几乎不动——运行时越重的组件�
 | 引擎 | 崩溃之后 | 开机时 |
 | --- | --- | --- |
 | Docker | 生成 `restart: unless-stopped` | Docker 服务设为开机启动（多数安装包已经设好；`systemctl is-enabled docker` 查） |
+| 有根 Podman | 生成 `restart: always` | 启用系统单元 `podman-restart.service`；与 Docker 同机时，把 Podman 的防火墙规则加回去的那个单元；它的存储按时挂上（[第 3、4、7 步](#为有根-podman-准备主机)） |
 | 无根 Podman | 生成 `restart: always` | 给这个用户开 linger，启用用户单元 `podman-restart.service` 并让它等网络，Podman 能建用户命名空间，它的存储按时挂上（[第 3–7 步](#为无根-podman-准备主机)） |
-| 有根 Podman | 生成 `restart: always` | 启用系统单元：`sudo systemctl enable podman-restart.service` |
 | Kubernetes | kubelet | 集群 |
 
 - Podman 用 `always`，是因为它的开机单元只启动策略为 `always` 的容器；除此之外两种策略在 Podman 里行为相同。Docker 上用 `unless-stopped`，手动停掉的容器保持停止。
