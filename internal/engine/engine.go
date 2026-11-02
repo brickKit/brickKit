@@ -85,6 +85,8 @@ type UpRequest struct {
 	// 不再启动裸进程外壳。不能直接放进 Services：`up -d --wait` 把退出 0 的一次性容器也当成失败
 	// （实测 v5.3.1）。
 	RunAfter []string
+	// Quadlet 是 podman.units: quadlet 的单元、secret 与启动顺序，只对 Quadlet 引擎有意义（见 QuadletUnits）。
+	Quadlet *QuadletUnits
 	// Context 是 kubeconfig 上下文，只对 K8s 目标有意义；为空表示用当前 context。
 	Context string
 	// MigrationGroups 是本次要执行的迁移 Job，**按组件 ID 分组**，只对 K8s 目标有意义。

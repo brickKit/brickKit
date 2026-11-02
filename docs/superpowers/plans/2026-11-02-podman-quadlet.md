@@ -118,7 +118,7 @@
 | 2 | 完成：`podman.units`（compose / quadlet）、`Quadlet()`、`LongRunning()`；本机进程与焦点在 Quadlet 下装载即拒绝；`podman:` 写在别的 target 下警告（与 `k8s:` 一致，设计 §3 已改）；schema、字段参考、deploy.yaml schema 页；R98、R99 |
 | 3 | 完成：新包 `internal/machine`（计划、本机进程、外壳、文件交付、配额、变量去处判定、启动等待、健康检查规格），compose 只剩渲染；209 个 compose 测试场景的全部生成物重构前后逐字节相同（临时路径归一化后），`make test-all` 通过。顺带去掉了不起作用的 `compose.Options.Engine`。注意到但没动：11 个文件原本就没有 gofmt；`AGENTS.zh-CN.md` 是旧版中文入口 |
 | 4 | 完成：`internal/quadlet` 渲染单元文件、副本的模板与实例链接、Podman secret、迁移与组件单元名；15 个测试覆盖设计 §4–§5 的组合。AI 定的（待复核）：单元不写生成时间（引擎靠内容比较判断要不要重启）；启动时限 = startPeriod + 30 秒 + 30 秒余量，没有健康检查 90 秒；requests 的 CPU 不生成参数（与 compose 一样只是记录） |
-| 5 | 未开始 |
+| 5 | 完成：`engine.Quadlet`（`UpRequest.Quadlet`），安装目录 `<Quadlet 目录>/brickkit-<项目>/` 是部署记录；Podman 5.3 起；secret 经标准输入建；迁移先跑、变了的组件 restart、其余 start；不再生成的单元先停再删；`down` 删网络与 secret；`status` 按 `PODMAN_SYSTEMD_UNIT` 标签找容器、另列失败的单元。10 个替身测试。待 Task 7 真跑核实：`PODMAN_SYSTEMD_UNIT` 标签、`secret create --replace` 与 `secret rm` 在容器用着时的行为、未加载单元的 `stop` |
 | 6 | 未开始 |
 | 7 | 未开始 |
 | 8 | 未开始 |
