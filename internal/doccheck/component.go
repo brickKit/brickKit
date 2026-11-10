@@ -73,6 +73,9 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 //
 // 第一张表（路径 → 管什么）的第一列按规范就是路径，顶层文件（`main.go`、`Dockerfile`）也查；
 // 别的格子里只有含 / 的才算路径——不含的是函数、类型这类名字（`main.go` 的 `runMode`）。
+// 别的格子里形如 <scope>/<name>（可带 @<version>）且不以 / 结尾的，是在提组件（`infra/authz`），不是路径，不查：
+// 组件 ID 的形状与两段的路径相同，区分不了；目录路径按惯例以 / 结尾（`api/`），仍照常查。
+// 代价是两段、不带 / 的目录写错了（`internal/clii`）这里不报。
 func codeMap(dir string, d doc) []*clierr.Error {
 	body, start := section(d, docspec.CodeMap)
 	if start == 0 {
@@ -94,6 +97,9 @@ func codeMap(dir string, d doc) []*clierr.Error {
 				if (!pathColumn && !strings.Contains(p, "/")) || strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t*") || strings.Contains(p, "://") {
 					continue
 				}
+				if !pathColumn && !strings.HasSuffix(p, "/") && manifest.IsComponentID(componentRef(p)) {
+					continue
+				}
 				if !exists(filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(p, "/")))) {
 					out = append(out, warn(clierr.CodeDocPathMissing, i18n.T(msgid.DoccheckPathMissing, p), d.rel, start+1+i))
 				}
@@ -101,6 +107,12 @@ func codeMap(dir string, d doc) []*clierr.Error {
 		}
 	}
 	return out
+}
+
+// componentRef 去掉组件引用里的 @<version>（`infra/authz@1.2.0` → `infra/authz`）。
+func componentRef(s string) string {
+	id, _, _ := strings.Cut(s, "@")
+	return id
 }
 
 // brickkit 查 BRICKKIT.md（及译本）：小节、不许相对链接、component.yaml 的事实都提到了。

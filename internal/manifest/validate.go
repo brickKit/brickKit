@@ -20,6 +20,10 @@ import (
 // 全部小写，只能包含字母、数字、斜杠、中划线。
 var componentIDRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?/[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// IsComponentID 报告 s 的形状是不是组件 ID（<scope>/<name>，不含版本）。
+// 它只看形状：一个两段的路径（internal/cli）也满足，调用方要自己区分。
+func IsComponentID(s string) bool { return componentIDRe.MatchString(s) }
+
 // 精确版本规则：major.minor.patch，不接受 ^ / ~ / 范围 / 预发布后缀。
 var exactVersionRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 

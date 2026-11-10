@@ -364,6 +364,26 @@ func TestCodeMapRoutesAreNotPaths(t *testing.T) {
 	assert.Empty(t, Component(dir, m))
 }
 
+// 代码地图里别的格子写组件 ID（`infra/edge`、可带 @<version>）是在提别的组件，不是路径：不报。
+// 项目里未必声明它（边缘组件可能不在这个项目里），所以只看形状。
+func TestCodeMapComponentIDsAreNotPaths(t *testing.T) {
+	row := "| `main.go` | the gate: `infra/edge`; see `infra/authz@1.2.0`; calls `demo/hello` |\n"
+	agents := strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n"+row, 1)
+	dir, m := component(t, map[string]string{"AGENTS.md": agents})
+	assert.Empty(t, Component(dir, m), messages(Component(dir, m)))
+}
+
+// 形状像组件 ID 的写法放过了，但真的路径写错仍然报：目录（带 /）与文件名（带 .）都不是组件 ID 的形状。
+func TestCodeMapMistypedPathsStillReported(t *testing.T) {
+	row := "| `main.go` | the cli in `internal/clii/`, the spec in `api/openapi.yamll` |\n"
+	agents := strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n"+row, 1)
+	dir, m := component(t, map[string]string{"AGENTS.md": agents})
+	ws := Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocPathMissing, clierr.CodeDocPathMissing}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "internal/clii/")
+	assert.Contains(t, messages(ws), "api/openapi.yamll")
+}
+
 // 维护段只在原文 AGENTS.md 里：数原文的小节时不算它的 "## BrickKit"，译本照作者自己写的那几节翻就对得上。
 func TestAgentsTranslationDoesNotCountTheManagedBlock(t *testing.T) {
 	header := "# demo/quote\n\n[English](AGENTS.md) · [中文](AGENTS.zh.md)\n"
